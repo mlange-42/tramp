@@ -8,7 +8,7 @@ import (
 	"github.com/mlange-42/tramp/internal/wms"
 )
 
-// WMSFetcher fetches tiles from a WMS layer.
+// WMSFetcher fetches tiles from a WMS or XYZ layer.
 type WMSFetcher struct {
 	Client *wms.Client
 	Layer  *wms.Layer
@@ -18,7 +18,7 @@ type WMSFetcher struct {
 
 // Fetch implements [Fetcher].
 func (f *WMSFetcher) Fetch(ctx context.Context, key geo.TileKey) (image.Image, error) {
-	img, err := f.Client.GetMap(ctx, f.Layer, key.Bounds(), geo.TileSize, geo.TileSize)
+	img, err := f.Client.GetTile(ctx, f.Layer, key)
 	if err != nil {
 		return nil, err
 	}

@@ -63,7 +63,8 @@ The file is located in:
 
 The available background maps and overlays are configured in `wms.yaml` in the same directory.
 It is created with the built-in maps on the first start.
-All services must support EPSG:3857.
+WMS services must support EPSG:3857.
+XYZ tile services (`type: xyz`) are given by a URL template with `{z}`, `{x}` and `{y}`.
 
 ```yaml
 maps:
@@ -73,6 +74,11 @@ maps:
     format: image/png
     version: 1.3.0
     attribution: Data © OpenStreetMap contributors and others, Rendering © EOX
+  - name: OpenTopoMap
+    type: xyz
+    url: https://tile.opentopomap.org/{z}/{x}/{y}.png
+    max_zoom: 17  # highest level served, the map is magnified beyond
+    attribution: Map data © OpenStreetMap contributors, SRTM | Map style © OpenTopoMap (CC-BY-SA)
 overlays:
   - name: Hillshade (SRTM)
     url: https://ows.terrestris.de/osm/service
