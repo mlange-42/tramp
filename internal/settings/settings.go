@@ -20,11 +20,16 @@ const (
 // A tile takes 256 KB of memory, so this is about 512 MB.
 const DefaultTileCache = 2048
 
+// DefaultPanelWidth is the default for [Settings.PanelWidth].
+const DefaultPanelWidth = 250
+
 // Settings are the persisted user preferences.
 type Settings struct {
 	// TileCache is the maximum number of map tiles kept in memory, shared by all visible layers.
 	// A tile takes 256 KB.
 	TileCache int `yaml:"tile_cache"`
+	// PanelWidth is the width of the side panel, in device-independent pixels.
+	PanelWidth float32 `yaml:"panel_width"`
 	// Map is the name of the selected background map.
 	Map string `yaml:"map"`
 	// Overlays are the names of the enabled overlays.
@@ -98,6 +103,9 @@ func load(path string) (s Settings, exists bool, err error) {
 func (s *Settings) setDefaults() {
 	if s.TileCache <= 0 {
 		s.TileCache = DefaultTileCache
+	}
+	if s.PanelWidth <= 0 {
+		s.PanelWidth = DefaultPanelWidth
 	}
 }
 

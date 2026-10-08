@@ -16,12 +16,16 @@ func TestSaveLoad(t *testing.T) {
 	if def.TileCache != DefaultTileCache {
 		t.Errorf("tile cache default not set: %d", def.TileCache)
 	}
+	if def.PanelWidth != DefaultPanelWidth {
+		t.Errorf("panel width default not set: %v", def.PanelWidth)
+	}
 
 	s := Settings{
-		TileCache: 100,
-		Map:       "OpenStreetMap",
-		Overlays:  []string{"Hillshade (SRTM)", "Labels & roads"},
-		View:      &View{Lon: 12.5, Lat: -51.25, Zoom: 10.5},
+		TileCache:  100,
+		PanelWidth: 300,
+		Map:        "OpenStreetMap",
+		Overlays:   []string{"Hillshade (SRTM)", "Labels & roads"},
+		View:       &View{Lon: 12.5, Lat: -51.25, Zoom: 10.5},
 	}
 	if err := save(path, &s); err != nil {
 		t.Fatal(err)

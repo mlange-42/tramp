@@ -15,6 +15,7 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/text"
+	"gioui.org/unit"
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/mapview"
 	"github.com/mlange-42/tramp/internal/settings"
@@ -65,6 +66,7 @@ type App struct {
 	overlayNames []string
 	overlaySel   *MultiSelect
 
+	split     Split
 	mapView   *mapview.Map
 	mapLayers []mapview.Layer
 }
@@ -82,6 +84,7 @@ func newApp(invalidate func(), opts Options) *App {
 		style:      DefaultStyle(),
 		client:     &wms.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent},
 		tileCache:  opts.State.TileCache,
+		split:      Split{Width: unit.Dp(opts.State.PanelWidth)},
 		layers:     opts.Layers,
 		overlaySel: NewMultiSelect("Overlays", len(opts.Overlays)),
 		mapView:    mapview.New(geo.LonLat{}, 0),
@@ -113,9 +116,10 @@ func newApp(invalidate func(), opts Options) *App {
 func (a *App) State() settings.Settings {
 	ll := geo.ToLonLat(a.mapView.View.Center)
 	s := settings.Settings{
-		TileCache: a.tileCache,
-		Map:       a.layerNames[a.layerSelect.Selected()],
-		View:      &settings.View{Lon: ll.Lon, Lat: ll.Lat, Zoom: a.mapView.View.Zoom},
+		TileCache:  a.tileCache,
+		PanelWidth: float32(a.split.Width),
+		Map:        a.layerNames[a.layerSelect.Selected()],
+		View:       &settings.View{Lon: ll.Lon, Lat: ll.Lat, Zoom: a.mapView.View.Zoom},
 	}
 	for i, name := range a.overlayNames {
 		if a.overlaySel.Checked(i) {
@@ -213,16 +217,31 @@ func (a *App) layout(gtx layout.Context) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(a.layoutToolbar),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			a.mapLayers = append(a.mapLayers[:0], mapview.Layer{Tiles: a.tiles})
-			for _, o := range a.overlays {
-				if o.tiles != nil {
-					a.mapLayers = append(a.mapLayers, mapview.Layer{Tiles: o.tiles, Opacity: o.Opacity})
-				}
-			}
-			return a.mapView.Layout(gtx, a.mapLayers...)
+			return a.split.Layout(gtx, a.style, a.layoutPanel, a.layoutMap)
 		}),
 		layout.Rigid(a.layoutStatus),
 	)
+}
+
+// layoutPanel draws the side panel, which will list the opened elements.
+func (a *App) layoutPanel(gtx layout.Context) layout.Dimensions {
+	st := a.style
+	paint.Fill(gtx.Ops, st.SideBg)
+	return st.SideInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		l := st.SmallLabel("Nothing opened")
+		l.Color = st.HintFg
+		return l.Layout(gtx)
+	})
+}
+
+func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
+	a.mapLayers = append(a.mapLayers[:0], mapview.Layer{Tiles: a.tiles})
+	for _, o := range a.overlays {
+		if o.tiles != nil {
+			a.mapLayers = append(a.mapLayers, mapview.Layer{Tiles: o.tiles, Opacity: o.Opacity})
+		}
+	}
+	return a.mapView.Layout(gtx, a.mapLayers...)
 }
 
 func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
