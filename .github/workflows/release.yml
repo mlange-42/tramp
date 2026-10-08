@@ -4,6 +4,10 @@ on:
   release:
     types: [ created ]
 
+env:
+  # Headers required by Gio on Linux, see https://gioui.org/doc/install/linux
+  GIO_DEPS: gcc pkg-config libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev libffi-dev libxcursor-dev libvulkan-dev
+
 jobs:
   build-linux:
     name: Linux build
@@ -12,14 +16,15 @@ jobs:
       - name: Get tag
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
         shell: bash
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.27.x'
-      - name: Install dependencies
+          go-version-file: go.mod
+      - name: Install Gio dependencies
         run: |
-          go get ./...
+          sudo apt-get update
+          sudo apt-get install -y $GIO_DEPS
       - name: Build
         run: |
           GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" .
@@ -43,16 +48,15 @@ jobs:
       - name: Get tag
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
         shell: bash
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.27.x'
-      - name: Install dependencies
-        run: |
-          go get ./...
+          go-version-file: go.mod
       - name: Build
-        run: GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" .
+        # Gio needs no cgo on Windows, so cross-compiling works.
+        # windowsgui suppresses the console window.
+        run: GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -H windowsgui" .
       - name: Compress binaries
         run: |
           zip -r tramp.zip tramp.exe
@@ -65,24 +69,25 @@ jobs:
           asset_name: tramp-${{ env.RELEASE_VERSION }}-windows-amd64.zip
           tag: ${{ github.ref }}
 
-  build-macos-arm64:
-    name: MacOS arm64 build
+  build-macos:
+    name: MacOS ${{ matrix.arch }} build
+    strategy:
+      matrix:
+        arch: [arm64, amd64]
     runs-on: macos-latest
     steps:
       - name: Get tag
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
         shell: bash
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.27.x'
-      - name: Install dependencies
-        run: |
-          go get ./...
+          go-version-file: go.mod
       - name: Build
+        # Gio needs cgo on macOS. Go disables cgo when cross-compiling, so enable it explicitly.
         run: |
-          GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" .
+          CGO_ENABLED=1 GOOS=darwin GOARCH=${{ matrix.arch }} go build -ldflags="-s -w" .
           chmod +x tramp
       - name: Compress binaries
         run: |
@@ -93,36 +98,5 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: tramp.zip
-          asset_name: tramp-${{ env.RELEASE_VERSION }}-macos-arm64.zip
-          tag: ${{ github.ref }}
-
-  build-macos-amd64:
-    name: MacOS amd64 build
-    runs-on: macos-latest
-    steps:
-      - name: Get tag
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
-        shell: bash
-      - uses: actions/checkout@v3
-      - name: Setup Go
-        uses: actions/setup-go@v3
-        with:
-          go-version: '1.27.x'
-      - name: Install dependencies
-        run: |
-          go get ./...
-      - name: Build
-        run: |
-          GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" .
-          chmod +x tramp
-      - name: Compress binaries
-        run: |
-          zip -r tramp.zip tramp
-        shell: bash
-      - name: Upload binaries
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: tramp.zip
-          asset_name: tramp-${{ env.RELEASE_VERSION }}-macos-amd64.zip
+          asset_name: tramp-${{ env.RELEASE_VERSION }}-macos-${{ matrix.arch }}.zip
           tag: ${{ github.ref }}

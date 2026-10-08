@@ -6,24 +6,29 @@ on:
     - main
   pull_request:
 
+env:
+  # Headers required by Gio on Linux, see https://gioui.org/doc/install/linux
+  GIO_DEPS: gcc pkg-config libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev libffi-dev libxcursor-dev libvulkan-dev
+
 jobs:
 
   test:
     name: Run tests
     runs-on: ubuntu-latest
     steps:
-    - name: Set up Go
-      uses: actions/setup-go@v2
-      with:
-        go-version: '1.27.x'
     - name: Check out code
-      uses: actions/checkout@v2
-    - name: Install dependencies
+      uses: actions/checkout@v4
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+    - name: Install Gio dependencies
       run: |
-        go get .
+        sudo apt-get update
+        sudo apt-get install -y $GIO_DEPS
     - name: Run Unit tests
       run: |
-        go test -v -covermode atomic -coverprofile="coverage.out" ./...
+        go test -v -race -covermode atomic -coverprofile="coverage.out" -coverpkg=./... ./...
         go tool cover -func="coverage.out"
     # - name: Upload coverage reports to Codecov
     #   uses: codecov/codecov-action@v5
@@ -31,15 +36,39 @@ jobs:
     #     files: ./coverage.out
     #     token: ${{ secrets.CODECOV_TOKEN }}
 
+  build:
+    name: Build ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: go.mod
+    - name: Install Gio dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y $GIO_DEPS
+    - name: Build
+      run: go build .
+
   lint:
     name: Run linters
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.27.x'
+          go-version-file: go.mod
+      - name: Install Gio dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y $GIO_DEPS
       - name: Check format
         run: |
           if gofmt -e -l . >&1 | grep '^'; then

@@ -23,9 +23,30 @@ A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Wr
 go install github.com/mlange-42/tramp@latest
 ```
 
+TRAMP uses [Gio](https://gioui.org) for its GUI.
+On Linux and macOS, this requires a C compiler.
+On Linux, also the development headers listed in the [Gio Linux install docs](https://gioui.org/doc/install/linux) are required.
+
 ### Precompiled binary
 
-Binaries for Windows, Linux and macOS will be available on the GitHub [releases page](https://github.com/<user>/tramp/releases). [TODO].
+Binaries for Windows, Linux and macOS will be available on the GitHub [releases page](https://github.com/mlange-42/tramp/releases). [TODO].
+
+## Usage
+
+Run `tramp` to open the map. Drag to pan, scroll to zoom.
+Background maps can be switched in the toolbar.
+
+```sh
+tramp -lon 11.58 -lat 48.14 -zoom 13
+```
+
+Any WMS service that supports EPSG:3857 can be added:
+
+```sh
+tramp -wms https://ows.terrestris.de/osm/service -layers SRTM30-Colored-Hillshade
+```
+
+Run `tramp -h` for all options.
 
 ## License
 
