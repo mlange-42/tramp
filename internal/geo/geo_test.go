@@ -43,3 +43,20 @@ func TestResolution(t *testing.T) {
 		t.Errorf("unexpected resolution at level 0: %f", r)
 	}
 }
+
+func TestLonLatString(t *testing.T) {
+	for _, c := range []struct {
+		ll   LonLat
+		want string
+	}{
+		{LonLat{12.3731, 51.3397}, "51.33970°N   12.37310°E"},
+		{LonLat{-122.4, -33.86}, "33.86000°S  122.40000°W"},
+		{LonLat{0, 0}, " 0.00000°N    0.00000°E"},
+		{LonLat{-0.000001, -0.000001}, " 0.00000°N    0.00000°E"},
+		{LonLat{-5.5, 8.25}, " 8.25000°N    5.50000°W"},
+	} {
+		if got := c.ll.String(); got != c.want {
+			t.Errorf("%v: got %q, want %q", c.ll, got, c.want)
+		}
+	}
+}
