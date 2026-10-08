@@ -27,6 +27,8 @@ TRAMP uses [Gio](https://gioui.org) for its GUI.
 On Linux and macOS, this requires a C compiler.
 On Linux, also the development headers listed in the [Gio Linux install docs](https://gioui.org/doc/install/linux) are required.
 
+On Windows, add `-ldflags="-H windowsgui"` to prevent a console window from opening.
+
 ### Precompiled binary
 
 Binaries for Windows, Linux and macOS will be available on the GitHub [releases page](https://github.com/mlange-42/tramp/releases). [TODO].
@@ -48,6 +50,9 @@ The file is located in:
 - Windows: `%AppData%\tramp`
 - Linux: `$XDG_CONFIG_HOME/tramp` or `~/.config/tramp`
 - macOS: `~/Library/Application Support/tramp`
+
+Errors and crash reports are written to `tramp.log` in the same directory.
+The log of the previous run is kept as `tramp.old.log`.
 
 ### Maps
 
