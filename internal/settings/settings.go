@@ -36,6 +36,27 @@ type Settings struct {
 	Overlays []string `yaml:"overlays"`
 	// View is the last map view. Nil if not known yet.
 	View *View `yaml:"view,omitempty"`
+	// Window is the last main window size, position and state. Nil if not known yet.
+	Window *Window `yaml:"window,omitempty"`
+}
+
+// Window is the size, position and state of the main window.
+type Window struct {
+	// Width and Height of the window when not maximized, in device-independent pixels.
+	// On Windows, this is the outer size including the frame, otherwise the content size.
+	Width  float32 `yaml:"width"`
+	Height float32 `yaml:"height"`
+	// X and Y (left and top) are the top-left corner of the window when not maximized, in physical screen pixels.
+	// Only used on Windows. Nil if not known.
+	X *int `yaml:"left,omitempty"`
+	Y *int `yaml:"top,omitempty"`
+	// Maximized is whether the window is maximized.
+	Maximized bool `yaml:"maximized"`
+}
+
+// Valid reports whether the window has a usable size.
+func (w *Window) Valid() bool {
+	return w != nil && w.Width > 0 && w.Height > 0
 }
 
 // View is a map position and zoom level.
