@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"gioui.org/app"
-	"gioui.org/unit"
 	"github.com/mlange-42/tramp/internal/settings"
 	"github.com/mlange-42/tramp/internal/ui"
 )
@@ -21,7 +20,7 @@ func main() {
 
 	go func() {
 		w := new(app.Window)
-		w.Option(app.Title("TRAMP"), app.Size(unit.Dp(1100), unit.Dp(700)))
+		w.Option(ui.WindowOptions(state.Window)...)
 		a := ui.New(w, ui.Options{
 			Layers:   wmsConfig.Maps,
 			Overlays: wmsConfig.Overlays,

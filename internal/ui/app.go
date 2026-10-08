@@ -51,6 +51,10 @@ type overlayState struct {
 // App is the main application state.
 type App struct {
 	window *app.Window
+	// win is the window size, position and state, for saving them.
+	win    settings.Window
+	metric unit.Metric
+	plat   platformWindow
 	// invalidate requests a redraw. Safe for concurrent use.
 	invalidate func()
 	style      *Style
@@ -89,6 +93,11 @@ func newApp(invalidate func(), opts Options) *App {
 		overlaySel: NewMultiSelect("Overlays", len(opts.Overlays)),
 		mapView:    mapview.New(geo.LonLat{}, 0),
 	}
+	if opts.State.Window.Valid() {
+		a.win = *opts.State.Window
+	} else {
+		a.win = defaultWindow
+	}
 	for _, l := range opts.Layers {
 		a.layerNames = append(a.layerNames, l.Name)
 	}
@@ -120,6 +129,7 @@ func (a *App) State() settings.Settings {
 		PanelWidth: float32(a.split.Width),
 		Map:        a.layerNames[a.layerSelect.Selected()],
 		View:       &settings.View{Lon: ll.Lon, Lat: ll.Lat, Zoom: a.mapView.View.Zoom},
+		Window:     new(a.win),
 	}
 	for i, name := range a.overlayNames {
 		if a.overlaySel.Checked(i) {
@@ -138,10 +148,15 @@ func (a *App) Run() error {
 		switch e := a.window.Event().(type) {
 		case app.DestroyEvent:
 			return e.Err
+		case app.ConfigEvent:
+			a.trackConfig(e.Config)
 		case app.FrameEvent:
 			gtx := app.NewContext(&ops, e)
+			a.metric = gtx.Metric
 			a.layout(gtx)
 			e.Frame(gtx.Ops)
+		default:
+			a.platformEvent(e)
 		}
 	}
 }
