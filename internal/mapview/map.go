@@ -41,6 +41,10 @@ type Map struct {
 	Hover      geo.Point
 	HoverValid bool
 
+	// scroll is the accumulated scroll distance not yet applied as a zoom step, in zoom levels.
+	scroll float64
+	// fit is an area to show once the view size is known.
+	fit      *geo.Rect
 	dragging bool
 	dragID   pointer.ID
 	last     f32.Point
@@ -50,11 +54,26 @@ type Map struct {
 // New creates a map centered on the given position.
 func New(center geo.LonLat, zoom float64) *Map {
 	return &Map{
-		View:         View{Center: geo.ToMercator(center), Zoom: zoom},
+		View:         View{Center: geo.ToMercator(center), Zoom: SnapZoom(zoom)},
 		MinZoom:      1,
 		MaxZoom:      21,
 		MaxTileLevel: 19,
 	}
+}
+
+// SetZoom sets the zoom level, snapped to a multiple of [ZoomStep] and clamped to [Map.MinZoom, Map.MaxZoom].
+func (m *Map) SetZoom(z float64) {
+	m.View.Zoom = math.Max(m.MinZoom, math.Min(m.MaxZoom, SnapZoom(z)))
+}
+
+// Fit shows the given area, with the largest zoom level at which it is fully visible.
+// If the map was not laid out yet, this happens on the first layout.
+func (m *Map) Fit(r geo.Rect) {
+	if m.View.Size.X > 0 && m.View.Size.Y > 0 {
+		m.View.Fit(r, m.MinZoom, m.MaxZoom)
+		return
+	}
+	m.fit = &r
 }
 
 // Layer is a tile layer to draw on the map.
@@ -68,6 +87,10 @@ type Layer struct {
 func (m *Map) Layout(gtx layout.Context, layers ...Layer) layout.Dimensions {
 	size := gtx.Constraints.Max
 	m.View.Size = size
+	if m.fit != nil && size.X > 0 && size.Y > 0 {
+		m.View.Fit(*m.fit, m.MinZoom, m.MaxZoom)
+		m.fit = nil
+	}
 	m.update(gtx)
 
 	defer clip.Rect{Max: size}.Push(gtx.Ops).Pop()
@@ -121,8 +144,12 @@ func (m *Map) update(gtx layout.Context) {
 				m.dragging = false
 			}
 		case pointer.Scroll:
-			dz := -float64(e.Scroll.Y) / scrollPerLevel
-			m.View.ZoomAt(float64(e.Position.X), float64(e.Position.Y), dz, m.MinZoom, m.MaxZoom)
+			// Touchpads scroll in small amounts, so zoom once a full step has accumulated.
+			m.scroll -= float64(e.Scroll.Y) / scrollPerLevel
+			if dz := math.Trunc(m.scroll/ZoomStep) * ZoomStep; dz != 0 {
+				m.scroll -= dz
+				m.View.ZoomAt(float64(e.Position.X), float64(e.Position.Y), dz, m.MinZoom, m.MaxZoom)
+			}
 		case pointer.Leave:
 			m.HoverValid = false
 			continue

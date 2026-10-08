@@ -197,6 +197,11 @@ func (m *MultiSelect) Checked(i int) bool {
 	return m.checks[i].Value
 }
 
+// SetChecked sets whether option i is checked.
+func (m *MultiSelect) SetChecked(i int, checked bool) {
+	m.checks[i].Value = checked
+}
+
 // label returns the header label for n checked options.
 func (m *MultiSelect) label(n int) string {
 	if n == 0 {

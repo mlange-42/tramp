@@ -48,6 +48,14 @@ tramp -wms https://ows.terrestris.de/osm/service -layers SRTM30-Colored-Hillshad
 
 Run `tramp -h` for all options.
 
+### Settings
+
+TRAMP remembers the selected map, overlays and map position in a YAML file `settings.yaml` in the user's config directory:
+
+- Windows: `%AppData%\tramp`
+- Linux: `$XDG_CONFIG_HOME/tramp` or `~/.config/tramp`
+- macOS: `~/Library/Application Support/tramp`
+
 ## License
 
 TRAMP and all its sources and documentation are distributed under the [MIT license](https://github.com/mlange-42/tramp/blob/main/LICENSE).

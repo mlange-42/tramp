@@ -17,6 +17,7 @@ import (
 	"gioui.org/text"
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/mapview"
+	"github.com/mlange-42/tramp/internal/settings"
 	"github.com/mlange-42/tramp/internal/tiles"
 	"github.com/mlange-42/tramp/internal/wms"
 )
@@ -24,12 +25,20 @@ import (
 // UserAgent is sent with all map requests.
 const UserAgent = "TRAMP (+https://github.com/mlange-42/tramp)"
 
+// worldBounds is the area shown if no initial view is given.
+var worldBounds = geo.Rect{
+	Min: geo.ToMercator(geo.LonLat{Lon: -180, Lat: -60}),
+	Max: geo.ToMercator(geo.LonLat{Lon: 180, Lat: 75}),
+}
+
 // Options configure the application.
 type Options struct {
 	Layers   []wms.Layer
 	Overlays []Overlay
-	Center   geo.LonLat
-	Zoom     float64
+	// State is the initial map, overlays and view, as returned by [App.State].
+	// Unknown map and overlay names are ignored.
+	// If State.View is nil, the map shows the whole world.
+	State settings.Settings
 }
 
 // overlayState is an overlay with its tiles, which are only loaded while it is enabled.
@@ -72,7 +81,7 @@ func newApp(invalidate func(), opts Options) *App {
 		client:     &wms.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent},
 		layers:     opts.Layers,
 		overlaySel: NewMultiSelect("Overlays", len(opts.Overlays)),
-		mapView:    mapview.New(opts.Center, opts.Zoom),
+		mapView:    mapview.New(geo.LonLat{}, 0),
 	}
 	for _, l := range opts.Layers {
 		a.layerNames = append(a.layerNames, l.Name)
@@ -81,8 +90,35 @@ func newApp(invalidate func(), opts Options) *App {
 		a.overlays = append(a.overlays, overlayState{Overlay: o})
 		a.overlayNames = append(a.overlayNames, o.Layer.Name)
 	}
-	a.setLayer(0)
+	a.setLayer(max(0, slices.Index(a.layerNames, opts.State.Map)))
+	for i, name := range a.overlayNames {
+		if slices.Contains(opts.State.Overlays, name) {
+			a.overlaySel.SetChecked(i, true)
+			a.setOverlay(i, true)
+		}
+	}
+	if v := opts.State.View; v != nil {
+		a.mapView.View.Center = geo.ToMercator(geo.LonLat{Lon: v.Lon, Lat: v.Lat})
+		a.mapView.SetZoom(v.Zoom)
+	} else {
+		a.mapView.Fit(worldBounds)
+	}
 	return a
+}
+
+// State returns the selected map and overlays and the current view, for saving them.
+func (a *App) State() settings.Settings {
+	ll := geo.ToLonLat(a.mapView.View.Center)
+	s := settings.Settings{
+		Map:  a.layerNames[a.layerSelect.Selected()],
+		View: &settings.View{Lon: ll.Lon, Lat: ll.Lat, Zoom: a.mapView.View.Zoom},
+	}
+	for i, name := range a.overlayNames {
+		if a.overlaySel.Checked(i) {
+			s.Overlays = append(s.Overlays, name)
+		}
+	}
+	return s
 }
 
 // Run processes window events until the window is closed.
