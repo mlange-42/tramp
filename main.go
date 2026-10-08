@@ -42,9 +42,10 @@ func main() {
 		w := new(app.Window)
 		w.Option(app.Title("TRAMP"), app.Size(unit.Dp(1100), unit.Dp(700)))
 		a := ui.New(w, ui.Options{
-			Layers: layers,
-			Center: geo.LonLat{Lon: *lon, Lat: *lat},
-			Zoom:   *zoom,
+			Layers:   layers,
+			Overlays: ui.DefaultOverlays(),
+			Center:   geo.LonLat{Lon: *lon, Lat: *lat},
+			Zoom:     *zoom,
 		})
 		if err := a.Run(); err != nil {
 			log.Fatal(err)

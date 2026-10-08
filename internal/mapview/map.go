@@ -57,8 +57,15 @@ func New(center geo.LonLat, zoom float64) *Map {
 	}
 }
 
-// Layout handles input and draws the map, filling the maximum constraints.
-func (m *Map) Layout(gtx layout.Context, mgr *tiles.Manager) layout.Dimensions {
+// Layer is a tile layer to draw on the map.
+type Layer struct {
+	Tiles *tiles.Manager
+	// Opacity of the layer. Zero is treated as fully opaque.
+	Opacity float32
+}
+
+// Layout handles input and draws the layers bottom to top, filling the maximum constraints.
+func (m *Map) Layout(gtx layout.Context, layers ...Layer) layout.Dimensions {
 	size := gtx.Constraints.Max
 	m.View.Size = size
 	m.update(gtx)
@@ -67,7 +74,9 @@ func (m *Map) Layout(gtx layout.Context, mgr *tiles.Manager) layout.Dimensions {
 	paint.ColorOp{Color: background}.Add(gtx.Ops)
 	paint.PaintOp{}.Add(gtx.Ops)
 
-	m.drawTiles(gtx, mgr)
+	for _, l := range layers {
+		m.drawLayer(gtx, l)
+	}
 
 	event.Op(gtx.Ops, m)
 	if m.dragging {
@@ -129,10 +138,17 @@ func (m *Map) TileLevel() int {
 	return max(0, min(m.MaxTileLevel, z))
 }
 
-func (m *Map) drawTiles(gtx layout.Context, mgr *tiles.Manager) {
-	if mgr == nil {
+func (m *Map) drawLayer(gtx layout.Context, l Layer) {
+	if l.Tiles == nil {
 		return
 	}
+	if l.Opacity > 0 && l.Opacity < 1 {
+		defer paint.PushOpacity(gtx.Ops, l.Opacity).Pop()
+	}
+	m.drawTiles(gtx, l.Tiles)
+}
+
+func (m *Map) drawTiles(gtx layout.Context, mgr *tiles.Manager) {
 	z := m.TileLevel()
 	n := geo.TileCount(z)
 	b := m.View.Bounds()
@@ -162,9 +178,30 @@ func (m *Map) drawTiles(gtx layout.Context, mgr *tiles.Manager) {
 	mgr.Request(m.wanted)
 }
 
-// drawFallback fills the area of a missing tile with a coarser cached tile,
-// or with finer tiles when zooming out.
+// drawFallback fills the area of a missing tile with the four finer tiles if all are cached,
+// as after zooming out, or otherwise with a coarser cached tile.
+// It never draws both, so that semi-transparent layers don't get darker where they overlap.
 func (m *Map) drawFallback(gtx layout.Context, mgr *tiles.Manager, key geo.TileKey) {
+	if key.Z < m.MaxTileLevel {
+		var children [4]*tiles.Tile
+		complete := true
+		for i := range children {
+			child := geo.TileKey{Z: key.Z + 1, X: key.X*2 + i%2, Y: key.Y*2 + i/2}
+			tile, ok := mgr.Get(child)
+			if !ok {
+				complete = false
+				break
+			}
+			children[i] = tile
+		}
+		if complete {
+			for _, tile := range children {
+				m.drawTile(gtx, tile, m.screenRect(tile.Key))
+			}
+			return
+		}
+	}
+
 	area := m.screenRect(key)
 	for p, i := key, 0; p.Z > 0 && i < maxFallbackLevels; i++ {
 		p = p.Parent()
@@ -172,18 +209,7 @@ func (m *Map) drawFallback(gtx layout.Context, mgr *tiles.Manager, key geo.TileK
 			stack := clip.Rect(area).Push(gtx.Ops)
 			m.drawTile(gtx, tile, m.screenRect(p))
 			stack.Pop()
-			break
-		}
-	}
-	if key.Z >= m.MaxTileLevel {
-		return
-	}
-	for dy := range 2 {
-		for dx := range 2 {
-			child := geo.TileKey{Z: key.Z + 1, X: key.X*2 + dx, Y: key.Y*2 + dy}
-			if tile, ok := mgr.Get(child); ok {
-				m.drawTile(gtx, tile, m.screenRect(child))
-			}
+			return
 		}
 	}
 }
