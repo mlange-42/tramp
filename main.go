@@ -41,7 +41,8 @@ func main() {
 		}
 	})
 
-	layers := ui.DefaultLayers()
+	wmsConfig := loadWMS()
+	layers := wmsConfig.Maps
 	if *wmsURL != "" {
 		if *wmsLayers == "" {
 			log.Fatal("-layers is required with -wms")
@@ -62,7 +63,7 @@ func main() {
 		w.Option(app.Title("TRAMP"), app.Size(unit.Dp(1100), unit.Dp(700)))
 		a := ui.New(w, ui.Options{
 			Layers:   layers,
-			Overlays: ui.DefaultOverlays(),
+			Overlays: wmsConfig.Overlays,
 			State:    state,
 		})
 		if !exists && err == nil {
@@ -79,6 +80,28 @@ func main() {
 		os.Exit(0)
 	}()
 	app.Main()
+}
+
+// loadWMS reads the WMS configuration file, or creates it with the built-in maps if it doesn't exist.
+func loadWMS() ui.WMSConfig {
+	var cfg ui.WMSConfig
+	exists, err := settings.LoadFile(ui.WMSFile, &cfg)
+	if err != nil {
+		log.Printf("using default maps: %v", err)
+		return ui.DefaultWMS()
+	}
+	if !exists {
+		cfg = ui.DefaultWMS()
+		if err := settings.SaveFile(ui.WMSFile, &cfg); err != nil {
+			log.Printf("saving %s: %v", ui.WMSFile, err)
+		}
+		return cfg
+	}
+	if len(cfg.Maps) == 0 {
+		log.Printf("no maps in %s, using default maps", ui.WMSFile)
+		cfg.Maps = ui.DefaultLayers()
+	}
+	return cfg
 }
 
 func saveSettings(s settings.Settings) {

@@ -22,21 +22,22 @@ import (
 // Layer describes a WMS layer to request.
 type Layer struct {
 	// Name is a human-readable name for the layer.
-	Name string
+	Name string `yaml:"name"`
 	// URL is the service endpoint, without request parameters.
-	URL string
+	URL string `yaml:"url"`
 	// Layers is the comma-separated list of WMS layer names.
-	Layers string
+	Layers string `yaml:"layers"`
 	// Styles is the comma-separated list of styles. May be empty.
-	Styles string
+	Styles string `yaml:"styles,omitempty"`
 	// Format is the image MIME type, e.g. "image/png".
-	Format string
+	Format string `yaml:"format"`
 	// Version is the WMS version, "1.3.0" or "1.1.1".
-	Version string
+	Version string `yaml:"version"`
 	// Transparent requests a transparent background, for overlays.
-	Transparent bool
+	// It is set automatically for overlays, so it is not part of the configuration file.
+	Transparent bool `yaml:"-"`
 	// Attribution is shown on the map.
-	Attribution string
+	Attribution string `yaml:"attribution"`
 }
 
 // MapURL returns the GetMap request URL for the given Web Mercator extent and pixel size.
