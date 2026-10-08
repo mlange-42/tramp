@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"strconv"
@@ -38,8 +39,10 @@ func (p *popup) update(gtx layout.Context) {
 	}
 }
 
-func (p *popup) layout(gtx layout.Context, st *Style, label string, panel layout.Widget) layout.Dimensions {
-	dims := p.layoutHeader(gtx, st, label)
+// layout draws the header with the given label, and the panel if open.
+// The header is as wide as the widest of the labels in sizes, so that it doesn't change size.
+func (p *popup) layout(gtx layout.Context, st *Style, label string, sizes []string, panel layout.Widget) layout.Dimensions {
+	dims := p.layoutHeader(gtx, st, label, maxLabelWidth(gtx, st, sizes))
 	if !p.open {
 		return dims
 	}
@@ -61,7 +64,7 @@ func (p *popup) layout(gtx layout.Context, st *Style, label string, panel layout
 	return dims
 }
 
-func (p *popup) layoutHeader(gtx layout.Context, st *Style, label string) layout.Dimensions {
+func (p *popup) layoutHeader(gtx layout.Context, st *Style, label string, labelWidth int) layout.Dimensions {
 	th := st.Theme
 	btn := material.ButtonLayout(th, &p.header)
 	btn.CornerRadius = st.CornerRadius
@@ -69,6 +72,7 @@ func (p *popup) layoutHeader(gtx layout.Context, st *Style, label string) layout
 		return st.ButtonInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					gtx.Constraints.Min.X = labelWidth
 					l := st.Label(label)
 					l.Color = th.ContrastFg
 					return l.Layout(gtx)
@@ -80,6 +84,19 @@ func (p *popup) layoutHeader(gtx layout.Context, st *Style, label string) layout
 			)
 		})
 	})
+}
+
+// maxLabelWidth returns the width of the widest label, without drawing anything.
+func maxLabelWidth(gtx layout.Context, st *Style, labels []string) int {
+	macro := op.Record(gtx.Ops)
+	defer macro.Stop()
+
+	gtx.Constraints = layout.Constraints{Max: gtx.Constraints.Max}
+	w := 0
+	for _, l := range labels {
+		w = max(w, st.Label(l).Layout(gtx).Size.X)
+	}
+	return w
 }
 
 // layoutArrow draws a small triangle of the given width, pointing down, or up if open.
@@ -150,7 +167,7 @@ func (s *Select) Update(gtx layout.Context) bool {
 
 // Layout draws the drop-down, with the selected option as its label.
 func (s *Select) Layout(gtx layout.Context, st *Style, options []string) layout.Dimensions {
-	return s.layout(gtx, st, options[s.Selected()], func(gtx layout.Context) layout.Dimensions {
+	return s.layout(gtx, st, options[s.Selected()], options, func(gtx layout.Context) layout.Dimensions {
 		children := make([]layout.FlexChild, len(options))
 		for i, opt := range options {
 			rb := material.RadioButton(st.Theme, &s.enum, strconv.Itoa(i), opt)
@@ -163,19 +180,29 @@ func (s *Select) Layout(gtx layout.Context, st *Style, options []string) layout.
 }
 
 // MultiSelect is a drop-down list with a checkbox per option.
+// Its header shows the title and the number of checked options.
 type MultiSelect struct {
 	popup
+	title  string
 	checks []widget.Bool
 }
 
-// NewMultiSelect creates a multi-select for n options.
-func NewMultiSelect(n int) *MultiSelect {
-	return &MultiSelect{checks: make([]widget.Bool, n)}
+// NewMultiSelect creates a multi-select with the given title for n options.
+func NewMultiSelect(title string, n int) *MultiSelect {
+	return &MultiSelect{title: title, checks: make([]widget.Bool, n)}
 }
 
 // Checked reports whether option i is checked.
 func (m *MultiSelect) Checked(i int) bool {
 	return m.checks[i].Value
+}
+
+// label returns the header label for n checked options.
+func (m *MultiSelect) label(n int) string {
+	if n == 0 {
+		return m.title
+	}
+	return fmt.Sprintf("%s (%d)", m.title, n)
 }
 
 // Update processes input and returns the indices of options that changed.
@@ -190,9 +217,17 @@ func (m *MultiSelect) Update(gtx layout.Context) []int {
 	return changed
 }
 
-// Layout draws the drop-down with the given header label.
-func (m *MultiSelect) Layout(gtx layout.Context, st *Style, label string, options []string) layout.Dimensions {
-	return m.layout(gtx, st, label, func(gtx layout.Context) layout.Dimensions {
+// Layout draws the drop-down.
+func (m *MultiSelect) Layout(gtx layout.Context, st *Style, options []string) layout.Dimensions {
+	checked := 0
+	for i := range m.checks {
+		if m.checks[i].Value {
+			checked++
+		}
+	}
+	// The label is widest with all options checked.
+	sizes := []string{m.label(0), m.label(len(m.checks))}
+	return m.layout(gtx, st, m.label(checked), sizes, func(gtx layout.Context) layout.Dimensions {
 		children := make([]layout.FlexChild, len(options))
 		for i, opt := range options {
 			cb := material.CheckBox(st.Theme, &m.checks[i], opt)
