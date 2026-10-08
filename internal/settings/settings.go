@@ -16,8 +16,15 @@ const (
 	fileName = "settings.yaml"
 )
 
+// DefaultTileCache is the default for [Settings.TileCache].
+// A tile takes 256 KB of memory, so this is about 512 MB.
+const DefaultTileCache = 2048
+
 // Settings are the persisted user preferences.
 type Settings struct {
+	// TileCache is the maximum number of map tiles kept in memory, shared by all visible layers.
+	// A tile takes 256 KB.
+	TileCache int `yaml:"tile_cache"`
 	// Map is the name of the selected background map.
 	Map string `yaml:"map"`
 	// Overlays are the names of the enabled overlays.
@@ -74,6 +81,7 @@ func Save(s *Settings) error {
 func load(path string) (s Settings, exists bool, err error) {
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
+		s.setDefaults()
 		return s, false, nil
 	}
 	if err != nil {
@@ -82,7 +90,15 @@ func load(path string) (s Settings, exists bool, err error) {
 	if err := yaml.Unmarshal(data, &s); err != nil {
 		return s, true, fmt.Errorf("parsing %s: %w", path, err)
 	}
+	s.setDefaults()
 	return s, true, nil
+}
+
+// setDefaults fills in missing or invalid values.
+func (s *Settings) setDefaults() {
+	if s.TileCache <= 0 {
+		s.TileCache = DefaultTileCache
+	}
 }
 
 func save(path string, s *Settings) error {

@@ -55,6 +55,8 @@ type App struct {
 	style      *Style
 	client     *wms.Client
 
+	// tileCache is the number of tiles kept in memory, shared by all visible layers.
+	tileCache    int
 	layers       []wms.Layer
 	layerNames   []string
 	layerSelect  Select
@@ -79,6 +81,7 @@ func newApp(invalidate func(), opts Options) *App {
 		invalidate: invalidate,
 		style:      DefaultStyle(),
 		client:     &wms.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent},
+		tileCache:  opts.State.TileCache,
 		layers:     opts.Layers,
 		overlaySel: NewMultiSelect("Overlays", len(opts.Overlays)),
 		mapView:    mapview.New(geo.LonLat{}, 0),
@@ -110,8 +113,9 @@ func newApp(invalidate func(), opts Options) *App {
 func (a *App) State() settings.Settings {
 	ll := geo.ToLonLat(a.mapView.View.Center)
 	s := settings.Settings{
-		Map:  a.layerNames[a.layerSelect.Selected()],
-		View: &settings.View{Lon: ll.Lon, Lat: ll.Lat, Zoom: a.mapView.View.Zoom},
+		TileCache: a.tileCache,
+		Map:       a.layerNames[a.layerSelect.Selected()],
+		View:      &settings.View{Lon: ll.Lon, Lat: ll.Lat, Zoom: a.mapView.View.Zoom},
 	}
 	for i, name := range a.overlayNames {
 		if a.overlaySel.Checked(i) {
@@ -160,6 +164,7 @@ func (a *App) setLayer(i int) {
 	}
 	a.layerSelect.SetSelected(i)
 	a.tiles = a.newManager(&a.layers[i], false)
+	a.updateCapacity()
 }
 
 func (a *App) setOverlay(i int, enabled bool) {
@@ -171,6 +176,24 @@ func (a *App) setOverlay(i int, enabled bool) {
 	} else if !enabled && o.tiles != nil {
 		go o.tiles.Close()
 		o.tiles = nil
+	}
+	a.updateCapacity()
+}
+
+// updateCapacity splits the tile cache evenly between the visible layers.
+func (a *App) updateCapacity() {
+	if a.tileCache <= 0 {
+		// Use the tile manager's default.
+		return
+	}
+	managers := []*tiles.Manager{a.tiles}
+	for _, o := range a.overlays {
+		if o.tiles != nil {
+			managers = append(managers, o.tiles)
+		}
+	}
+	for _, m := range managers {
+		m.SetCapacity(a.tileCache / len(managers))
 	}
 }
 

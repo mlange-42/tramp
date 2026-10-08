@@ -106,6 +106,14 @@ func NewManager(fetcher Fetcher, opts Options) *Manager {
 	return m
 }
 
+// SetCapacity changes the maximum number of tiles kept in memory, evicting tiles if necessary.
+func (m *Manager) SetCapacity(n int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.opts.Capacity = max(1, n)
+	m.evict()
+}
+
 // Get returns the tile if it is in the cache, and marks it as recently used.
 func (m *Manager) Get(key geo.TileKey) (*Tile, bool) {
 	m.mu.Lock()
@@ -229,6 +237,11 @@ func (m *Manager) insert(t *Tile) {
 		return
 	}
 	m.cache[t.Key] = m.lru.PushFront(t)
+	m.evict()
+}
+
+// evict removes the least recently used tiles until the capacity is met. The caller must hold the lock.
+func (m *Manager) evict() {
 	for m.lru.Len() > m.opts.Capacity {
 		el := m.lru.Back()
 		m.lru.Remove(el)
