@@ -35,6 +35,9 @@ func main() {
 			saveSettings(a.State())
 		}
 		if runErr != nil {
+			// TODO: Gio (v0.10.3) closes the window when D3D11 Present reports a lost device
+			// (driver reset, sleep, RDP, ...). If "GPU device lost" recurs, recreate the window
+			// on errors.Is(runErr, gpu.ErrDeviceLost) instead of exiting.
 			log.Fatal(runErr)
 		}
 		os.Exit(0)

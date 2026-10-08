@@ -81,15 +81,15 @@ type monitorInfo struct {
 	Flags   uint32
 }
 
-// platformEvent restores the window placement when the window is created,
+// event restores the window placement when the window is created,
 // and reads it when the window is destroyed.
-func (a *App) platformEvent(e event.Event) {
+func (p *platformWindow) event(a *App, e event.Event) {
 	ev, ok := e.(app.Win32ViewEvent)
 	if !ok {
 		return
 	}
 	if ev.HWND != 0 {
-		a.plat.hwnd = ev.HWND
+		p.hwnd = ev.HWND
 		win := a.win
 		if win.X != nil && win.Y != nil && win.Valid() {
 			// Moving the window sends messages to the window thread, so it must run there.
@@ -99,12 +99,12 @@ func (a *App) platformEvent(e event.Event) {
 		}
 		return
 	}
-	if a.plat.hwnd != 0 {
+	if p.hwnd != 0 {
 		// The window is being destroyed, but still exists.
-		if w, ok := readPlacement(a.plat.hwnd); ok {
+		if w, ok := readPlacement(p.hwnd); ok {
 			a.win = w
 		}
-		a.plat.hwnd = 0
+		p.hwnd = 0
 	}
 }
 

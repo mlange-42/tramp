@@ -156,7 +156,7 @@ func (a *App) Run() error {
 			a.layout(gtx)
 			e.Frame(gtx.Ops)
 		default:
-			a.platformEvent(e)
+			a.plat.event(a, e)
 		}
 	}
 }

@@ -10,5 +10,5 @@ const hasPlacement = false
 // platformWindow holds platform-specific window state.
 type platformWindow struct{}
 
-// platformEvent handles platform-specific window events.
-func (a *App) platformEvent(event.Event) {}
+// event handles platform-specific window events.
+func (p *platformWindow) event(*App, event.Event) {}
