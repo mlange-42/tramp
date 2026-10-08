@@ -4,7 +4,6 @@ package ui
 import (
 	"fmt"
 	"image"
-	"image/color"
 	"net/http"
 	"strings"
 	"time"
@@ -14,8 +13,6 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
-	"gioui.org/unit"
-	"gioui.org/widget/material"
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/mapview"
 	"github.com/mlange-42/tramp/internal/tiles"
@@ -44,7 +41,7 @@ type App struct {
 	window *app.Window
 	// invalidate requests a redraw. Safe for concurrent use.
 	invalidate func()
-	theme      *material.Theme
+	style      *Style
 	client     *wms.Client
 
 	layers       []wms.Layer
@@ -69,7 +66,7 @@ func New(w *app.Window, opts Options) *App {
 func newApp(invalidate func(), opts Options) *App {
 	a := &App{
 		invalidate: invalidate,
-		theme:      material.NewTheme(),
+		style:      DefaultStyle(),
 		client:     &wms.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent},
 		layers:     opts.Layers,
 		overlaySel: NewMultiSelect(len(opts.Overlays)),
@@ -150,7 +147,7 @@ func (a *App) update(gtx layout.Context) {
 
 func (a *App) layout(gtx layout.Context) layout.Dimensions {
 	a.update(gtx)
-	paint.Fill(gtx.Ops, a.theme.Bg)
+	paint.Fill(gtx.Ops, a.style.Theme.Bg)
 
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(a.layoutToolbar),
@@ -168,16 +165,17 @@ func (a *App) layout(gtx layout.Context) layout.Dimensions {
 }
 
 func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
-	return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	st := a.style
+	return st.BarInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-			layout.Rigid(material.Body2(a.theme, "Map").Layout),
-			layout.Rigid(layout.Spacer{Width: 6}.Layout),
+			layout.Rigid(st.Label("Map").Layout),
+			layout.Rigid(layout.Spacer{Width: st.Spacing}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.layerSelect.Layout(gtx, a.theme, a.layerNames)
+				return a.layerSelect.Layout(gtx, st, a.layerNames)
 			}),
-			layout.Rigid(layout.Spacer{Width: 16}.Layout),
+			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.overlaySel.Layout(gtx, a.theme, a.overlayLabel(), a.overlayNames)
+				return a.overlaySel.Layout(gtx, st, a.overlayLabel(), a.overlayNames)
 			}),
 		)
 	})
@@ -216,17 +214,18 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 		status += fmt.Sprintf("   loading %d", loading)
 	}
 
+	st := a.style
 	macro := op.Record(gtx.Ops)
-	dims := layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	dims := st.BarInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		return layout.Flex{Spacing: layout.SpaceBetween}.Layout(gtx,
-			layout.Rigid(material.Caption(a.theme, status).Layout),
-			layout.Rigid(material.Caption(a.theme, strings.Join(attribution, " | ")).Layout),
+			layout.Rigid(st.SmallLabel(status).Layout),
+			layout.Rigid(st.SmallLabel(strings.Join(attribution, " | ")).Layout),
 		)
 	})
 	call := macro.Stop()
 
-	paint.FillShape(gtx.Ops, color.NRGBA{R: 0xf4, G: 0xf4, B: 0xf4, A: 0xff}, clip.Rect(image.Rectangle{Max: dims.Size}).Op())
+	paint.FillShape(gtx.Ops, st.StatusBg, clip.Rect(image.Rectangle{Max: dims.Size}).Op())
 	call.Add(gtx.Ops)
 	return dims
 }

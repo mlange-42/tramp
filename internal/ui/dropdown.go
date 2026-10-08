@@ -12,14 +12,8 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
-	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-)
-
-var (
-	popupBackground = color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
-	popupBorder     = color.NRGBA{R: 0xa0, G: 0xa0, B: 0xa0, A: 0xff}
 )
 
 // popup is a header button that opens a panel below it.
@@ -44,8 +38,8 @@ func (p *popup) update(gtx layout.Context) {
 	}
 }
 
-func (p *popup) layout(gtx layout.Context, th *material.Theme, label string, panel layout.Widget) layout.Dimensions {
-	dims := p.layoutHeader(gtx, th, label)
+func (p *popup) layout(gtx layout.Context, st *Style, label string, panel layout.Widget) layout.Dimensions {
+	dims := p.layoutHeader(gtx, st, label)
 	if !p.open {
 		return dims
 	}
@@ -61,36 +55,36 @@ func (p *popup) layout(gtx layout.Context, th *material.Theme, label string, pan
 		Min: image.Pt(dims.Size.X, 0),
 		Max: image.Pt(max(dims.Size.X, gtx.Dp(400)), gtx.Dp(600)),
 	}
-	layoutPanel(gtx, &p.panel, panel)
+	layoutPanel(gtx, st, &p.panel, panel)
 	op.Defer(gtx.Ops, macro.Stop())
 
 	return dims
 }
 
-func (p *popup) layoutHeader(gtx layout.Context, th *material.Theme, label string) layout.Dimensions {
+func (p *popup) layoutHeader(gtx layout.Context, st *Style, label string) layout.Dimensions {
+	th := st.Theme
 	btn := material.ButtonLayout(th, &p.header)
-	btn.CornerRadius = unit.Dp(4)
+	btn.CornerRadius = st.CornerRadius
 	return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Inset{Top: 6, Bottom: 6, Left: 10, Right: 8}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		return st.ButtonInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					l := material.Body2(th, label)
+					l := st.Label(label)
 					l.Color = th.ContrastFg
 					return l.Layout(gtx)
 				}),
-				layout.Rigid(layout.Spacer{Width: 6}.Layout),
+				layout.Rigid(layout.Spacer{Width: st.Spacing}.Layout),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layoutArrow(gtx, th.ContrastFg, p.open)
+					return layoutArrow(gtx, float32(gtx.Sp(st.TextSize))*0.6, th.ContrastFg, p.open)
 				}),
 			)
 		})
 	})
 }
 
-// layoutArrow draws a small triangle pointing down, or up if open.
-func layoutArrow(gtx layout.Context, col color.NRGBA, up bool) layout.Dimensions {
-	w := float32(gtx.Dp(10))
-	h := float32(gtx.Dp(5))
+// layoutArrow draws a small triangle of the given width, pointing down, or up if open.
+func layoutArrow(gtx layout.Context, w float32, col color.NRGBA, up bool) layout.Dimensions {
+	h := w / 2
 	var path clip.Path
 	path.Begin(gtx.Ops)
 	if up {
@@ -109,15 +103,15 @@ func layoutArrow(gtx layout.Context, col color.NRGBA, up bool) layout.Dimensions
 
 // layoutPanel draws content on a bordered background.
 // The background blocks pointer events for widgets below, using tag.
-func layoutPanel(gtx layout.Context, tag event.Tag, content layout.Widget) layout.Dimensions {
+func layoutPanel(gtx layout.Context, st *Style, tag event.Tag, content layout.Widget) layout.Dimensions {
 	border := gtx.Dp(1)
 	macro := op.Record(gtx.Ops)
-	dims := layout.UniformInset(unit.Dp(4)).Layout(gtx, content)
+	dims := layout.UniformInset(st.PanelInset).Layout(gtx, content)
 	call := macro.Stop()
 
 	outer := image.Rectangle{Max: dims.Size}
-	paint.FillShape(gtx.Ops, popupBorder, clip.Rect(outer).Op())
-	paint.FillShape(gtx.Ops, popupBackground, clip.Rect(outer.Inset(border)).Op())
+	paint.FillShape(gtx.Ops, st.PanelBorder, clip.Rect(outer).Op())
+	paint.FillShape(gtx.Ops, st.PanelBg, clip.Rect(outer.Inset(border)).Op())
 
 	area := clip.Rect(outer).Push(gtx.Ops)
 	event.Op(gtx.Ops, tag)
@@ -155,11 +149,14 @@ func (s *Select) Update(gtx layout.Context) bool {
 }
 
 // Layout draws the drop-down, with the selected option as its label.
-func (s *Select) Layout(gtx layout.Context, th *material.Theme, options []string) layout.Dimensions {
-	return s.layout(gtx, th, options[s.Selected()], func(gtx layout.Context) layout.Dimensions {
+func (s *Select) Layout(gtx layout.Context, st *Style, options []string) layout.Dimensions {
+	return s.layout(gtx, st, options[s.Selected()], func(gtx layout.Context) layout.Dimensions {
 		children := make([]layout.FlexChild, len(options))
 		for i, opt := range options {
-			children[i] = layout.Rigid(material.RadioButton(th, &s.enum, strconv.Itoa(i), opt).Layout)
+			rb := material.RadioButton(st.Theme, &s.enum, strconv.Itoa(i), opt)
+			rb.Size = st.IconSize
+			rb.TextSize = st.TextSize
+			children[i] = layout.Rigid(rb.Layout)
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
@@ -194,11 +191,14 @@ func (m *MultiSelect) Update(gtx layout.Context) []int {
 }
 
 // Layout draws the drop-down with the given header label.
-func (m *MultiSelect) Layout(gtx layout.Context, th *material.Theme, label string, options []string) layout.Dimensions {
-	return m.layout(gtx, th, label, func(gtx layout.Context) layout.Dimensions {
+func (m *MultiSelect) Layout(gtx layout.Context, st *Style, label string, options []string) layout.Dimensions {
+	return m.layout(gtx, st, label, func(gtx layout.Context) layout.Dimensions {
 		children := make([]layout.FlexChild, len(options))
 		for i, opt := range options {
-			children[i] = layout.Rigid(material.CheckBox(th, &m.checks[i], opt).Layout)
+			cb := material.CheckBox(st.Theme, &m.checks[i], opt)
+			cb.Size = st.IconSize
+			cb.TextSize = st.TextSize
+			children[i] = layout.Rigid(cb.Layout)
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 	})
