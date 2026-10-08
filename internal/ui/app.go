@@ -71,7 +71,7 @@ func newApp(invalidate func(), opts Options) *App {
 		style:      DefaultStyle(),
 		client:     &wms.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent},
 		layers:     opts.Layers,
-		overlaySel: NewMultiSelect(len(opts.Overlays)),
+		overlaySel: NewMultiSelect("Overlays", len(opts.Overlays)),
 		mapView:    mapview.New(opts.Center, opts.Zoom),
 	}
 	for _, l := range opts.Layers {
@@ -177,23 +177,10 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 			}),
 			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.overlaySel.Layout(gtx, st, a.overlayLabel(), a.overlayNames)
+				return a.overlaySel.Layout(gtx, st, a.overlayNames)
 			}),
 		)
 	})
-}
-
-func (a *App) overlayLabel() string {
-	n := 0
-	for _, o := range a.overlays {
-		if o.tiles != nil {
-			n++
-		}
-	}
-	if n == 0 {
-		return "Overlays"
-	}
-	return fmt.Sprintf("Overlays (%d)", n)
 }
 
 func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
