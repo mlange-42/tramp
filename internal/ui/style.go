@@ -40,13 +40,27 @@ type Style struct {
 	GroupSpacing unit.Dp
 	// PanelInset is the padding inside drop-down panels.
 	PanelInset unit.Dp
+	// SideInset is the padding inside the side panel.
+	SideInset layout.Inset
+	// DividerWidth is the visible width of the divider between side panel and map.
+	DividerWidth unit.Dp
+	// DividerGrip is the width of the area for dragging the divider.
+	DividerGrip unit.Dp
+	// MinPaneWidth is the minimum width of the side panel and the map.
+	MinPaneWidth unit.Dp
 
 	// PanelBg is the background of drop-down panels.
 	PanelBg color.NRGBA
 	// PanelBorder is the border color of drop-down panels.
 	PanelBorder color.NRGBA
+	// DividerColor is the color of the divider between side panel and map.
+	DividerColor color.NRGBA
 	// StatusBg is the background of the status bar.
 	StatusBg color.NRGBA
+	// SideBg is the background of the side panel.
+	SideBg color.NRGBA
+	// HintFg is the color of hint text, like in an empty side panel.
+	HintFg color.NRGBA
 }
 
 // DefaultStyle returns a compact style.
@@ -71,10 +85,17 @@ func DefaultStyle() *Style {
 		Spacing:      6,
 		GroupSpacing: 16,
 		PanelInset:   2,
+		SideInset:    layout.UniformInset(6),
+		DividerWidth: 4,
+		DividerGrip:  7,
+		MinPaneWidth: 120,
 
-		PanelBg:     color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
-		PanelBorder: color.NRGBA{R: 0xa0, G: 0xa0, B: 0xa0, A: 0xff},
-		StatusBg:    color.NRGBA{R: 0xf4, G: 0xf4, B: 0xf4, A: 0xff},
+		PanelBg:      color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
+		PanelBorder:  color.NRGBA{R: 0xa0, G: 0xa0, B: 0xa0, A: 0xff},
+		DividerColor: color.NRGBA{R: 0xd8, G: 0xd8, B: 0xd8, A: 0xff},
+		StatusBg:     color.NRGBA{R: 0xf4, G: 0xf4, B: 0xf4, A: 0xff},
+		SideBg:       color.NRGBA{R: 0xfa, G: 0xfa, B: 0xfa, A: 0xff},
+		HintFg:       color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xff},
 	}
 }
 
