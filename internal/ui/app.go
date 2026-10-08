@@ -222,8 +222,7 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	pos := "-"
 	if a.mapView.HoverValid {
-		ll := geo.ToLonLat(a.mapView.Hover)
-		pos = fmt.Sprintf("%.5f°N  %.5f°E", ll.Lat, ll.Lon)
+		pos = geo.ToLonLat(a.mapView.Hover).String()
 	}
 	status := fmt.Sprintf("%s   zoom %.1f (tiles %d)", pos, a.mapView.View.Zoom, a.mapView.TileLevel())
 

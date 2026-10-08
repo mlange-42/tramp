@@ -1,7 +1,11 @@
 // Package geo provides coordinate conversions and the tile grid used by the map.
 package geo
 
-import "math"
+import (
+	"fmt"
+	"math"
+	"strings"
+)
 
 const (
 	// EarthRadius is the WGS84 semi-major axis in meters, as used by Web Mercator.
@@ -20,6 +24,22 @@ type Point struct {
 // LonLat is a geographic position in degrees (WGS84).
 type LonLat struct {
 	Lon, Lat float64
+}
+
+// String formats the position with hemisphere letters, like "33.86000°S  151.21000°E".
+// Numbers are padded with leading spaces to a fixed width, so that they don't move while the position changes.
+func (ll LonLat) String() string {
+	return formatCoord(ll.Lat, 2, "N", "S") + "  " + formatCoord(ll.Lon, 3, "E", "W")
+}
+
+// formatCoord formats a coordinate with 5 decimals, padded to the given number of integer digits,
+// and the letter for its sign. Values that round to zero get the positive letter.
+func formatCoord(v float64, digits int, pos, neg string) string {
+	s := fmt.Sprintf("%*.5f", digits+6, math.Abs(v))
+	if v < 0 && strings.TrimSpace(s) != "0.00000" {
+		return s + "°" + neg
+	}
+	return s + "°" + pos
 }
 
 // Rect is an axis-aligned rectangle in Web Mercator coordinates.
