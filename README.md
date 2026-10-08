@@ -4,7 +4,7 @@
 
 **Track and Route Analysis, Mapping and Planning**
 
-A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Pure [Go](https://go.dev), for Linux, Windows and MacOS.
+A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Written in [Go](https://go.dev), for Linux, Windows and MacOS.
 
 > **Status:** just started, not usable yet.
 
