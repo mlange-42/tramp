@@ -33,6 +33,8 @@ type Layer struct {
 	Format string
 	// Version is the WMS version, "1.3.0" or "1.1.1".
 	Version string
+	// Transparent requests a transparent background, for overlays.
+	Transparent bool
 	// Attribution is shown on the map.
 	Attribution string
 }
@@ -57,6 +59,9 @@ func (l *Layer) MapURL(bbox geo.Rect, width, height int) string {
 	q.Set("FORMAT", format)
 	q.Set("WIDTH", strconv.Itoa(width))
 	q.Set("HEIGHT", strconv.Itoa(height))
+	if l.Transparent {
+		q.Set("TRANSPARENT", "TRUE")
+	}
 	// EPSG:3857 has easting/northing axis order in both versions.
 	if version == "1.1.1" {
 		q.Set("SRS", "EPSG:3857")

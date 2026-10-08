@@ -31,11 +31,18 @@ func TestMapURL(t *testing.T) {
 			t.Errorf("%s: expected %q, got %q", k, v, got)
 		}
 	}
+	if q.Has("TRANSPARENT") {
+		t.Error("TRANSPARENT should only be set for transparent layers")
+	}
 
 	l.Version = "1.1.1"
+	l.Transparent = true
 	u, _ = url.Parse(l.MapURL(geo.Rect{}, 1, 1))
 	if u.Query().Get("SRS") != "EPSG:3857" || u.Query().Has("CRS") {
 		t.Errorf("WMS 1.1.1 should use SRS, got %s", u.RawQuery)
+	}
+	if u.Query().Get("TRANSPARENT") != "TRUE" {
+		t.Errorf("expected TRANSPARENT=TRUE, got %s", u.RawQuery)
 	}
 }
 
