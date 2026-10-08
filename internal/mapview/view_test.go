@@ -30,12 +30,12 @@ func TestViewRoundTrip(t *testing.T) {
 func TestViewZoomAtKeepsAnchor(t *testing.T) {
 	v := View{Center: geo.Point{X: 1000, Y: 2000}, Zoom: 10, Size: image.Pt(800, 600)}
 	before := v.ToMap(100, 50)
-	v.ZoomAt(100, 50, 1.3, 0, 20)
+	v.ZoomAt(100, 50, 1.4, 0, 20)
 	after := v.ToMap(100, 50)
 	if !near(before.X, after.X) || !near(before.Y, after.Y) {
 		t.Errorf("anchor moved from %v to %v", before, after)
 	}
-	if !near(v.Zoom, 11.3) {
+	if v.Zoom != 11.5 {
 		t.Errorf("unexpected zoom %f", v.Zoom)
 	}
 	v.ZoomAt(0, 0, 100, 0, 18)
@@ -51,5 +51,26 @@ func TestViewPan(t *testing.T) {
 	x, y := v.ToScreen(p)
 	if !near(x, 50) || !near(y, 50) {
 		t.Errorf("point should be in center after pan, got %f, %f", x, y)
+	}
+}
+
+func TestViewFit(t *testing.T) {
+	v := View{Size: image.Pt(800, 400)}
+	r := geo.Rect{Min: geo.Point{X: -2000, Y: 1000}, Max: geo.Point{X: 2000, Y: 2500}}
+	v.Fit(r, 0, 30)
+	if !near(v.Center.X, 0) || !near(v.Center.Y, 1750) {
+		t.Errorf("unexpected center %v", v.Center)
+	}
+	b := v.Bounds()
+	if b.Min.X > r.Min.X || b.Max.X < r.Max.X || b.Min.Y > r.Min.Y || b.Max.Y < r.Max.Y {
+		t.Errorf("bounds %v don't fit %v", b, r)
+	}
+	if v.Zoom != SnapZoom(v.Zoom) {
+		t.Errorf("zoom %f is not a multiple of %f", v.Zoom, ZoomStep)
+	}
+	v.Zoom += ZoomStep
+	b = v.Bounds()
+	if b.Min.X <= r.Min.X && b.Max.X >= r.Max.X {
+		t.Errorf("zoom %f is not the largest that fits", v.Zoom-ZoomStep)
 	}
 }

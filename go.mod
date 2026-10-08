@@ -2,7 +2,10 @@ module github.com/mlange-42/tramp
 
 go 1.27.1
 
-require gioui.org v0.10.3
+require (
+	gioui.org v0.10.3
+	go.yaml.in/yaml/v3 v3.0.5
+)
 
 require (
 	gioui.org/shader v1.0.9 // indirect
