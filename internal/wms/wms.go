@@ -1,4 +1,4 @@
-// Package wms implements a minimal WMS client for fetching map images.
+// Package wms implements a minimal client for fetching map images from WMS and XYZ tile services.
 package wms
 
 import (
@@ -19,25 +19,56 @@ import (
 	"github.com/mlange-42/tramp/internal/geo"
 )
 
-// Layer describes a WMS layer to request.
+// Layer types.
+const (
+	// TypeWMS is a WMS service. It is the default for an empty [Layer.Type].
+	TypeWMS = "wms"
+	// TypeXYZ is a tile service with a URL template containing {z}, {x} and {y}.
+	TypeXYZ = "xyz"
+)
+
+// Layer describes a map layer to request.
 type Layer struct {
 	// Name is a human-readable name for the layer.
 	Name string `yaml:"name"`
+	// Type is [TypeWMS] (the default if empty) or [TypeXYZ].
+	Type string `yaml:"type,omitempty"`
 	// URL is the service endpoint, without request parameters.
+	// For XYZ layers, it is a template like "https://tile.example.com/{z}/{x}/{y}.png".
 	URL string `yaml:"url"`
-	// Layers is the comma-separated list of WMS layer names.
-	Layers string `yaml:"layers"`
+	// Layers is the comma-separated list of WMS layer names. Not used for XYZ layers.
+	Layers string `yaml:"layers,omitempty"`
 	// Styles is the comma-separated list of styles. May be empty.
 	Styles string `yaml:"styles,omitempty"`
-	// Format is the image MIME type, e.g. "image/png".
-	Format string `yaml:"format"`
-	// Version is the WMS version, "1.3.0" or "1.1.1".
-	Version string `yaml:"version"`
+	// Format is the image MIME type, e.g. "image/png". Not used for XYZ layers.
+	Format string `yaml:"format,omitempty"`
+	// Version is the WMS version, "1.3.0" or "1.1.1". Not used for XYZ layers.
+	Version string `yaml:"version,omitempty"`
+	// MaxZoom is the highest tile level the service provides. Zero means no limit.
+	// The map is magnified beyond that.
+	MaxZoom int `yaml:"max_zoom,omitempty"`
 	// Transparent requests a transparent background, for overlays.
 	// It is set automatically for overlays, so it is not part of the configuration file.
 	Transparent bool `yaml:"-"`
 	// Attribution is shown on the map.
 	Attribution string `yaml:"attribution"`
+}
+
+// IsXYZ reports whether the layer is an XYZ tile service.
+func (l *Layer) IsXYZ() bool {
+	return strings.EqualFold(l.Type, TypeXYZ)
+}
+
+// TileURL returns the request URL for a tile.
+func (l *Layer) TileURL(key geo.TileKey) string {
+	if !l.IsXYZ() {
+		return l.MapURL(key.Bounds(), geo.TileSize, geo.TileSize)
+	}
+	return strings.NewReplacer(
+		"{z}", strconv.Itoa(key.Z),
+		"{x}", strconv.Itoa(key.X),
+		"{y}", strconv.Itoa(key.Y),
+	).Replace(l.URL)
 }
 
 // MapURL returns the GetMap request URL for the given Web Mercator extent and pixel size.
@@ -78,7 +109,7 @@ func (l *Layer) MapURL(bbox geo.Rect, width, height int) string {
 	return l.URL + sep + q.Encode()
 }
 
-// Client fetches map images from WMS servers.
+// Client fetches map images from WMS and tile servers.
 type Client struct {
 	HTTP      *http.Client
 	UserAgent string
@@ -86,7 +117,16 @@ type Client struct {
 
 // GetMap fetches and decodes the map image for the given layer and extent.
 func (c *Client) GetMap(ctx context.Context, layer *Layer, bbox geo.Rect, width, height int) (image.Image, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, layer.MapURL(bbox, width, height), nil)
+	return c.get(ctx, layer.MapURL(bbox, width, height))
+}
+
+// GetTile fetches and decodes a tile image of the given layer.
+func (c *Client) GetTile(ctx context.Context, layer *Layer, key geo.TileKey) (image.Image, error) {
+	return c.get(ctx, layer.TileURL(key))
+}
+
+func (c *Client) get(ctx context.Context, u string) (image.Image, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, err
 	}

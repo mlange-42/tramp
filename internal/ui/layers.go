@@ -91,7 +91,7 @@ func DefaultOverlays() []Overlay {
 }
 
 // DefaultLayers are the built-in background maps.
-// All of them must support EPSG:3857.
+// All of them must support EPSG:3857 or be XYZ tile services in Web Mercator.
 func DefaultLayers() []wms.Layer {
 	return []wms.Layer{
 		{
@@ -125,6 +125,14 @@ func DefaultLayers() []wms.Layer {
 			Format:      "image/png",
 			Version:     "1.3.0",
 			Attribution: eoxOSMAttribution,
+		},
+		{
+			Name: "OpenTopoMap",
+			Type: wms.TypeXYZ,
+			URL:  "https://tile.opentopomap.org/{z}/{x}/{y}.png",
+			// Served up to level 17.
+			MaxZoom:     17,
+			Attribution: "Map data © OpenStreetMap contributors, SRTM | Map style © OpenTopoMap (CC-BY-SA)",
 		},
 		{
 			Name:        "Satellite",

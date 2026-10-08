@@ -235,10 +235,11 @@ func (a *App) layoutPanel(gtx layout.Context) layout.Dimensions {
 }
 
 func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
-	a.mapLayers = append(a.mapLayers[:0], mapview.Layer{Tiles: a.tiles})
+	base := &a.layers[a.layerSelect.Selected()]
+	a.mapLayers = append(a.mapLayers[:0], mapview.Layer{Tiles: a.tiles, MaxTileLevel: base.MaxZoom})
 	for _, o := range a.overlays {
 		if o.tiles != nil {
-			a.mapLayers = append(a.mapLayers, mapview.Layer{Tiles: o.tiles, Opacity: o.Opacity})
+			a.mapLayers = append(a.mapLayers, mapview.Layer{Tiles: o.tiles, Opacity: o.Opacity, MaxTileLevel: o.Layer.MaxZoom})
 		}
 	}
 	return a.mapView.Layout(gtx, a.mapLayers...)

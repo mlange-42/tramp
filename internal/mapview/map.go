@@ -81,6 +81,8 @@ type Layer struct {
 	Tiles *tiles.Manager
 	// Opacity of the layer. Zero is treated as fully opaque.
 	Opacity float32
+	// MaxTileLevel limits [Map.MaxTileLevel] for this layer. Zero means no extra limit.
+	MaxTileLevel int
 }
 
 // Layout handles input and draws the layers bottom to top, filling the maximum constraints.
@@ -161,8 +163,20 @@ func (m *Map) update(gtx layout.Context) {
 
 // TileLevel returns the tile level used for the current zoom.
 func (m *Map) TileLevel() int {
+	return m.tileLevel(0)
+}
+
+// tileLevel returns the tile level for the current zoom, additionally limited by maxLevel if positive.
+func (m *Map) tileLevel(maxLevel int) int {
 	z := int(math.Round(m.View.Zoom))
-	return max(0, min(m.MaxTileLevel, z))
+	return max(0, min(m.maxTileLevel(maxLevel), z))
+}
+
+func (m *Map) maxTileLevel(maxLevel int) int {
+	if maxLevel > 0 {
+		return min(m.MaxTileLevel, maxLevel)
+	}
+	return m.MaxTileLevel
 }
 
 func (m *Map) drawLayer(gtx layout.Context, l Layer) {
@@ -172,11 +186,11 @@ func (m *Map) drawLayer(gtx layout.Context, l Layer) {
 	if l.Opacity > 0 && l.Opacity < 1 {
 		defer paint.PushOpacity(gtx.Ops, l.Opacity).Pop()
 	}
-	m.drawTiles(gtx, l.Tiles)
+	m.drawTiles(gtx, l.Tiles, l.MaxTileLevel)
 }
 
-func (m *Map) drawTiles(gtx layout.Context, mgr *tiles.Manager) {
-	z := m.TileLevel()
+func (m *Map) drawTiles(gtx layout.Context, mgr *tiles.Manager, maxLevel int) {
+	z := m.tileLevel(maxLevel)
 	n := geo.TileCount(z)
 	b := m.View.Bounds()
 	tl := geo.TileAt(z, geo.Point{X: b.Min.X, Y: b.Max.Y})
@@ -193,7 +207,7 @@ func (m *Map) drawTiles(gtx layout.Context, mgr *tiles.Manager) {
 				continue
 			}
 			m.wanted = append(m.wanted, key)
-			m.drawFallback(gtx, mgr, key)
+			m.drawFallback(gtx, mgr, key, maxLevel)
 		}
 	}
 
@@ -208,8 +222,8 @@ func (m *Map) drawTiles(gtx layout.Context, mgr *tiles.Manager) {
 // drawFallback fills the area of a missing tile with the four finer tiles if all are cached,
 // as after zooming out, or otherwise with a coarser cached tile.
 // It never draws both, so that semi-transparent layers don't get darker where they overlap.
-func (m *Map) drawFallback(gtx layout.Context, mgr *tiles.Manager, key geo.TileKey) {
-	if key.Z < m.MaxTileLevel {
+func (m *Map) drawFallback(gtx layout.Context, mgr *tiles.Manager, key geo.TileKey, maxLevel int) {
+	if key.Z < m.maxTileLevel(maxLevel) {
 		var children [4]*tiles.Tile
 		complete := true
 		for i := range children {

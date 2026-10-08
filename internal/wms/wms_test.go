@@ -46,6 +46,22 @@ func TestMapURL(t *testing.T) {
 	}
 }
 
+func TestTileURL(t *testing.T) {
+	l := Layer{Type: TypeXYZ, URL: "https://example.com/{z}/{x}/{y}.png"}
+	if got := l.TileURL(geo.TileKey{Z: 3, X: 4, Y: 5}); got != "https://example.com/3/4/5.png" {
+		t.Errorf("unexpected XYZ URL %q", got)
+	}
+
+	l = Layer{URL: "https://example.com/wms", Layers: "a"}
+	u, err := url.Parse(l.TileURL(geo.TileKey{Z: 0}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.Query().Get("REQUEST") != "GetMap" || u.Query().Get("WIDTH") != "256" {
+		t.Errorf("expected a WMS GetMap request, got %s", u.RawQuery)
+	}
+}
+
 func TestGetMap(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("LAYERS") == "bad" {
