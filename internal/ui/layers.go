@@ -28,11 +28,17 @@ type Overlay struct {
 }
 
 const (
-	eoxURL = "https://tiles.maps.eox.at/wms"
-	bkgURL = "https://sgx.geodatenzentrum.de"
+	eoxURL       = "https://tiles.maps.eox.at/wms"
+	bkgURL       = "https://sgx.geodatenzentrum.de"
+	cyclosmURL   = "https://a.tile-cyclosm.openstreetmap.fr"
+	waymarkedURL = "https://tile.waymarkedtrails.org"
 
-	eoxOSMAttribution = "Data © OpenStreetMap contributors and others, Rendering © EOX"
-	bkgAttribution    = "© Bundesamt für Kartographie und Geodäsie"
+	osmAttribution       = "© OpenStreetMap contributors"
+	eoxOSMAttribution    = "Data © OpenStreetMap contributors and others, Rendering © EOX"
+	bkgAttribution       = "© Bundesamt für Kartographie und Geodäsie"
+	basemapAttribution   = "© basemap.de / BKG, Datenquellen: © GeoBasis-DE"
+	cyclosmAttribution   = osmAttribution + ", Style CyclOSM, Tiles OpenStreetMap France"
+	waymarkedAttribution = osmAttribution + ", Overlay © waymarkedtrails.org"
 )
 
 // DefaultOverlays are the built-in overlays, in drawing order.
@@ -53,17 +59,51 @@ func DefaultOverlays() []Overlay {
 			Shade:   true,
 		},
 		{
-			// Germany only, 200 m resolution.
+			// Germany only, high resolution. White on flat terrain, unlike the plain "hillshade" layer.
 			Layer: wms.Layer{
-				Name:        "Hillshade Germany (BKG)",
-				URL:         bkgURL + "/wms_dgm200",
-				Layers:      "schummerung",
-				Format:      "image/png",
-				Version:     "1.3.0",
-				Attribution: bkgAttribution,
+				Name:        "Hillshade Germany (basemap.de)",
+				Type:        wms.TypeXYZ,
+				URL:         bkgURL + "/wmts_basemapde_schummerung/tile/1.0.0/de_basemapde_web_raster_combshade/default/GLOBAL_WEBMERCATOR/{z}/{y}/{x}.png",
+				Attribution: basemapAttribution,
 			},
 			Opacity: 0.6,
 			Shade:   true,
+		},
+		{
+			Layer: wms.Layer{
+				Name:        "Hiking routes",
+				Type:        wms.TypeXYZ,
+				URL:         waymarkedURL + "/hiking/{z}/{x}/{y}.png",
+				MaxZoom:     18,
+				Attribution: waymarkedAttribution,
+			},
+		},
+		{
+			Layer: wms.Layer{
+				Name:        "Cycling routes",
+				Type:        wms.TypeXYZ,
+				URL:         waymarkedURL + "/cycling/{z}/{x}/{y}.png",
+				MaxZoom:     18,
+				Attribution: waymarkedAttribution,
+			},
+		},
+		{
+			Layer: wms.Layer{
+				Name:        "MTB routes",
+				Type:        wms.TypeXYZ,
+				URL:         waymarkedURL + "/mtb/{z}/{x}/{y}.png",
+				MaxZoom:     18,
+				Attribution: waymarkedAttribution,
+			},
+		},
+		{
+			Layer: wms.Layer{
+				Name:        "Cycle infrastructure",
+				Type:        wms.TypeXYZ,
+				URL:         cyclosmURL + "/cyclosm-lite/{z}/{x}/{y}.png",
+				MaxZoom:     20,
+				Attribution: cyclosmAttribution,
+			},
 		},
 		{
 			// Dark labels, for bright maps.
@@ -111,6 +151,12 @@ func DefaultLayers() []wms.Layer {
 			Attribution: bkgAttribution,
 		},
 		{
+			Name:        "basemap.de",
+			Type:        wms.TypeXYZ,
+			URL:         bkgURL + "/wmts_basemapde/tile/1.0.0/de_basemapde_web_raster_farbe/default/GLOBAL_WEBMERCATOR/{z}/{y}/{x}.png",
+			Attribution: basemapAttribution,
+		},
+		{
 			Name:        "Terrain Light",
 			URL:         eoxURL,
 			Layers:      "terrain-light_3857",
@@ -125,6 +171,20 @@ func DefaultLayers() []wms.Layer {
 			Format:      "image/png",
 			Version:     "1.3.0",
 			Attribution: eoxOSMAttribution,
+		},
+		{
+			Name:        "OSM Standard",
+			Type:        wms.TypeXYZ,
+			URL:         "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+			MaxZoom:     19,
+			Attribution: osmAttribution,
+		},
+		{
+			Name:        "CyclOSM",
+			Type:        wms.TypeXYZ,
+			URL:         cyclosmURL + "/cyclosm/{z}/{x}/{y}.png",
+			MaxZoom:     20,
+			Attribution: cyclosmAttribution,
 		},
 		{
 			Name: "OpenTopoMap",
