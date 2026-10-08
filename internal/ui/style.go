@@ -1,11 +1,19 @@
 package ui
 
 import (
+	"fmt"
 	"image/color"
 
+	"gioui.org/font"
+	"gioui.org/font/opentype"
 	"gioui.org/layout"
+	"gioui.org/text"
 	"gioui.org/unit"
 	"gioui.org/widget/material"
+	"golang.org/x/image/font/gofont/gomono"
+	"golang.org/x/image/font/gofont/gomonobold"
+	"golang.org/x/image/font/gofont/gomonobolditalic"
+	"golang.org/x/image/font/gofont/gomonoitalic"
 )
 
 // Style collects the theme and all sizes and colors of the UI, to tune the look in one place.
@@ -45,6 +53,11 @@ type Style struct {
 func DefaultStyle() *Style {
 	th := material.NewTheme()
 	th.TextSize = 14
+	// A monospaced font keeps changing numbers, like coordinates, from moving around.
+	// System fonts remain as a fallback for glyphs that Go Mono lacks.
+	faces := monoFaces()
+	th.Shaper = text.NewShaper(text.WithCollection(faces))
+	th.Face = faces[0].Font.Typeface
 
 	return &Style{
 		Theme:         th,
@@ -63,6 +76,19 @@ func DefaultStyle() *Style {
 		PanelBorder: color.NRGBA{R: 0xa0, G: 0xa0, B: 0xa0, A: 0xff},
 		StatusBg:    color.NRGBA{R: 0xf4, G: 0xf4, B: 0xf4, A: 0xff},
 	}
+}
+
+// monoFaces returns the Go Mono font faces, regular first.
+func monoFaces() []font.FontFace {
+	var faces []font.FontFace
+	for _, ttf := range [][]byte{gomono.TTF, gomonobold.TTF, gomonoitalic.TTF, gomonobolditalic.TTF} {
+		f, err := opentype.ParseCollection(ttf)
+		if err != nil {
+			panic(fmt.Errorf("parsing Go Mono font: %w", err))
+		}
+		faces = append(faces, f[0])
+	}
+	return faces
 }
 
 // Label returns a label with the regular text size.
