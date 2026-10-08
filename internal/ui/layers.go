@@ -203,8 +203,7 @@ func DefaultLayers() []wms.Layer {
 			Attribution: "Sentinel-2 cloudless by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2025)",
 		},
 		// The free terrestris service adds advertising watermarks to some tiles.
-		// Use them with the -wms flag if needed:
-		//   -wms https://ows.terrestris.de/osm/service -layers OSM-WMS
-		//   -wms https://ows.terrestris.de/osm/service -layers TOPO-OSM-WMS
+		// Add them to the WMS configuration file if needed:
+		//   url: https://ows.terrestris.de/osm/service, layers: OSM-WMS or TOPO-OSM-WMS
 	}
 }
