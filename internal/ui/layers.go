@@ -2,13 +2,29 @@ package ui
 
 import "github.com/mlange-42/tramp/internal/wms"
 
+// WMSFile is the name of the WMS configuration file in the settings directory.
+const WMSFile = "wms.yaml"
+
+// WMSConfig are the available background maps and overlays.
+type WMSConfig struct {
+	// Maps are the background maps. There must be at least one.
+	Maps []wms.Layer `yaml:"maps"`
+	// Overlays are drawn on top of the background map, in this order.
+	Overlays []Overlay `yaml:"overlays"`
+}
+
+// DefaultWMS returns the built-in maps and overlays.
+func DefaultWMS() WMSConfig {
+	return WMSConfig{Maps: DefaultLayers(), Overlays: DefaultOverlays()}
+}
+
 // Overlay is a layer drawn on top of the background map.
 type Overlay struct {
-	Layer wms.Layer
+	Layer wms.Layer `yaml:",inline"`
 	// Opacity of the overlay. Zero is treated as fully opaque.
-	Opacity float32
+	Opacity float32 `yaml:"opacity,omitempty"`
 	// Shade converts a grayscale relief image into a transparent shading.
-	Shade bool
+	Shade bool `yaml:"shade,omitempty"`
 }
 
 const (

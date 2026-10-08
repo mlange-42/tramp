@@ -59,6 +59,33 @@ The file is located in:
 - Linux: `$XDG_CONFIG_HOME/tramp` or `~/.config/tramp`
 - macOS: `~/Library/Application Support/tramp`
 
+### Maps
+
+The available background maps and overlays are configured in `wms.yaml` in the same directory.
+It is created with the built-in maps on the first start.
+All services must support EPSG:3857.
+
+```yaml
+maps:
+  - name: OpenStreetMap
+    url: https://tiles.maps.eox.at/wms
+    layers: osm_3857
+    format: image/png
+    version: 1.3.0
+    attribution: Data © OpenStreetMap contributors and others, Rendering © EOX
+overlays:
+  - name: Hillshade (SRTM)
+    url: https://ows.terrestris.de/osm/service
+    layers: SRTM30-Hillshade
+    format: image/png
+    version: 1.3.0
+    attribution: SRTM, terrestris
+    opacity: 0.6  # 0 or missing means opaque
+    shade: true   # turn a grayscale relief into a transparent shading
+```
+
+Delete the file to restore the built-in maps.
+
 ## License
 
 TRAMP and all its sources and documentation are distributed under the [MIT license](https://github.com/mlange-42/tramp/blob/main/LICENSE).

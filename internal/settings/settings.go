@@ -1,4 +1,4 @@
-// Package settings stores user preferences in a YAML file in the user's config directory.
+// Package settings stores user preferences and configuration in YAML files in the user's config directory.
 package settings
 
 import (
@@ -57,11 +57,36 @@ func Dir() (string, error) {
 
 // Path returns the path of the settings file.
 func Path() (string, error) {
+	return FilePath(fileName)
+}
+
+// FilePath returns the path of the file with the given name in the settings directory.
+func FilePath(name string) (string, error) {
 	dir, err := Dir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, fileName), nil
+	return filepath.Join(dir, name), nil
+}
+
+// LoadFile reads the YAML file with the given name in the settings directory into v.
+// If the file does not exist, v is left unchanged and exists is false.
+func LoadFile(name string, v any) (exists bool, err error) {
+	path, err := FilePath(name)
+	if err != nil {
+		return false, err
+	}
+	return readYAML(path, v)
+}
+
+// SaveFile writes v to the YAML file with the given name in the settings directory,
+// creating the directory if necessary.
+func SaveFile(name string, v any) error {
+	path, err := FilePath(name)
+	if err != nil {
+		return err
+	}
+	return writeYAML(path, v)
 }
 
 // Load reads the settings file.
@@ -84,19 +109,9 @@ func Save(s *Settings) error {
 }
 
 func load(path string) (s Settings, exists bool, err error) {
-	data, err := os.ReadFile(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		s.setDefaults()
-		return s, false, nil
-	}
-	if err != nil {
-		return s, false, err
-	}
-	if err := yaml.Unmarshal(data, &s); err != nil {
-		return s, true, fmt.Errorf("parsing %s: %w", path, err)
-	}
+	exists, err = readYAML(path, &s)
 	s.setDefaults()
-	return s, true, nil
+	return s, exists, err
 }
 
 // setDefaults fills in missing or invalid values.
@@ -110,7 +125,25 @@ func (s *Settings) setDefaults() {
 }
 
 func save(path string, s *Settings) error {
-	data, err := yaml.Marshal(s)
+	return writeYAML(path, s)
+}
+
+func readYAML(path string, v any) (exists bool, err error) {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if err := yaml.Unmarshal(data, v); err != nil {
+		return true, fmt.Errorf("parsing %s: %w", path, err)
+	}
+	return true, nil
+}
+
+func writeYAML(path string, v any) error {
+	data, err := yaml.Marshal(v)
 	if err != nil {
 		return err
 	}

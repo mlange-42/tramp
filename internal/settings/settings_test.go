@@ -38,3 +38,28 @@ func TestSaveLoad(t *testing.T) {
 		t.Errorf("got %+v, want %+v", got, s)
 	}
 }
+
+func TestReadWriteYAML(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "sub", "test.yaml")
+
+	type config struct {
+		Names []string `yaml:"names"`
+	}
+	var c config
+	exists, err := readYAML(path, &c)
+	if err != nil || exists {
+		t.Fatalf("missing file: exists %v, err %v", exists, err)
+	}
+
+	want := config{Names: []string{"a", "b"}}
+	if err := writeYAML(path, &want); err != nil {
+		t.Fatal(err)
+	}
+	exists, err = readYAML(path, &c)
+	if err != nil || !exists {
+		t.Fatalf("exists %v, err %v", exists, err)
+	}
+	if !reflect.DeepEqual(c, want) {
+		t.Errorf("got %+v, want %+v", c, want)
+	}
+}
