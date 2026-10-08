@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"image"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/text"
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/mapview"
 	"github.com/mlange-42/tramp/internal/tiles"
@@ -207,7 +209,9 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	for _, o := range a.overlays {
 		if o.tiles != nil {
 			loading += o.tiles.Loading()
-			attribution = append(attribution, o.Layer.Attribution)
+			if !slices.Contains(attribution, o.Layer.Attribution) {
+				attribution = append(attribution, o.Layer.Attribution)
+			}
 		}
 	}
 	if loading > 0 {
@@ -218,9 +222,16 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	macro := op.Record(gtx.Ops)
 	dims := st.BarInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
-		return layout.Flex{Spacing: layout.SpaceBetween}.Layout(gtx,
+		return layout.Flex{}.Layout(gtx,
 			layout.Rigid(st.SmallLabel(status).Layout),
-			layout.Rigid(st.SmallLabel(strings.Join(attribution, " | ")).Layout),
+			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				gtx.Constraints.Min.X = gtx.Constraints.Max.X
+				l := st.SmallLabel(strings.Join(attribution, " | "))
+				l.Alignment = text.End
+				l.MaxLines = 1
+				return l.Layout(gtx)
+			}),
 		)
 	})
 	call := macro.Stop()
