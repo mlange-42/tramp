@@ -36,17 +36,7 @@ Binaries for Windows, Linux and macOS will be available on the GitHub [releases 
 Run `tramp` to open the map. Drag to pan, scroll to zoom.
 The background map and overlays like hillshading can be selected in the toolbar.
 
-```sh
-tramp -lon 11.58 -lat 48.14 -zoom 13
-```
-
-Any WMS service that supports EPSG:3857 can be added:
-
-```sh
-tramp -wms https://ows.terrestris.de/osm/service -layers SRTM30-Colored-Hillshade
-```
-
-Run `tramp -h` for all options.
+Further maps can be added in the [maps configuration](#maps).
 
 ### Settings
 
