@@ -75,6 +75,24 @@ func TestManagerEvicts(t *testing.T) {
 	}
 }
 
+func TestManagerSetCapacity(t *testing.T) {
+	f := &fakeFetcher{}
+	m := NewManager(f, Options{Workers: 1, Capacity: 3})
+	defer m.Close()
+
+	for x := range 3 {
+		k := geo.TileKey{Z: 2, X: x}
+		m.Request([]geo.TileKey{k})
+		waitFor(t, func() bool { _, ok := m.Get(k); return ok })
+	}
+	m.SetCapacity(1)
+	for x, want := range []bool{false, false, true} {
+		if _, ok := m.Get(geo.TileKey{Z: 2, X: x}); ok != want {
+			t.Errorf("tile %d cached: %v, want %v", x, ok, want)
+		}
+	}
+}
+
 func TestManagerFailedNotRetried(t *testing.T) {
 	f := &fakeFetcher{fail: true}
 	m := NewManager(f, Options{Workers: 1, RetryAfter: time.Hour})

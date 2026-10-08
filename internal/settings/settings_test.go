@@ -9,15 +9,19 @@ import (
 func TestSaveLoad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "sub", fileName)
 
-	_, exists, err := load(path)
+	def, exists, err := load(path)
 	if err != nil || exists {
 		t.Fatalf("missing file: exists %v, err %v", exists, err)
 	}
+	if def.TileCache != DefaultTileCache {
+		t.Errorf("tile cache default not set: %d", def.TileCache)
+	}
 
 	s := Settings{
-		Map:      "OpenStreetMap",
-		Overlays: []string{"Hillshade (SRTM)", "Labels & roads"},
-		View:     &View{Lon: 12.5, Lat: -51.25, Zoom: 10.5},
+		TileCache: 100,
+		Map:       "OpenStreetMap",
+		Overlays:  []string{"Hillshade (SRTM)", "Labels & roads"},
+		View:      &View{Lon: 12.5, Lat: -51.25, Zoom: 10.5},
 	}
 	if err := save(path, &s); err != nil {
 		t.Fatal(err)

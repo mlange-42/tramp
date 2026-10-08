@@ -50,7 +50,10 @@ Run `tramp -h` for all options.
 
 ### Settings
 
-TRAMP remembers the selected map, overlays and map position in a YAML file `settings.yaml` in the user's config directory:
+TRAMP remembers the selected map, overlays and map position in a YAML file `settings.yaml` in the user's config directory.
+The file also contains `tile_cache`, the number of map tiles kept in memory (default 2048, about 512 MB).
+
+The file is located in:
 
 - Windows: `%AppData%\tramp`
 - Linux: `$XDG_CONFIG_HOME/tramp` or `~/.config/tramp`
