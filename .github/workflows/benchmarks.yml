@@ -6,18 +6,25 @@ on:
     - main
   pull_request:
 
+env:
+  # Headers required by Gio on Linux, see https://gioui.org/doc/install/linux
+  GIO_DEPS: gcc pkg-config libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev libffi-dev libxcursor-dev libvulkan-dev
+
 jobs:
   internal:
     name: Benchmarks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Go
-        uses: actions/setup-go@v3
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.27.x'
-      - name: Install dependencies
-        run: go get .
+          go-version-file: go.mod
+      - name: Install Gio dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y $GIO_DEPS
       - name: Run benchmarks
         run: |
           go test -benchmem -run=^$ -bench ^.*$ ./...
