@@ -36,7 +36,9 @@ Binaries for Windows, Linux and macOS will be available on the GitHub [releases 
 ## Usage
 
 Run `tramp` to open the map. Drag to pan, scroll to zoom.
+
 The background map and overlays like hillshading can be selected in the toolbar.
+Further maps can be added in the [maps configuration](#maps).
 
 Open GPX files with the *Open* button or Ctrl+O, or pass them on the command line:
 
@@ -49,8 +51,6 @@ Click a file to zoom to it, use the checkbox to show or hide it, and × to close
 Files with several tracks, routes or waypoint sets can be expanded to show or hide them individually.
 
 On Linux, the file dialog requires `zenity`, `kdialog` or a similar tool, which most desktops have installed.
-
-Further maps can be added in the [maps configuration](#maps).
 
 ### Settings
 
@@ -102,4 +102,3 @@ Delete the file to restore the built-in maps.
 ## License
 
 TRAMP and all its sources and documentation are distributed under the [MIT license](https://github.com/mlange-42/tramp/blob/main/LICENSE).
-
