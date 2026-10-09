@@ -20,7 +20,7 @@ const (
 // A tile takes 256 KB of memory, so this is about 512 MB.
 const DefaultTileCache = 2048
 
-// DefaultPanelWidth is the default for [Settings.PanelWidth].
+// DefaultPanelWidth is the default for [Window.PanelWidth].
 const DefaultPanelWidth = 250
 
 // Defaults for the sizes of tracks, routes and waypoints on the map, in device-independent pixels.
@@ -35,24 +35,24 @@ type Settings struct {
 	// TileCache is the maximum number of map tiles kept in memory, shared by all visible layers.
 	// A tile takes 256 KB.
 	TileCache int `yaml:"tile_cache"`
-	// PanelWidth is the width of the side panel, in device-independent pixels.
-	PanelWidth float32 `yaml:"panel_width"`
-	// TrackWidth and RouteWidth are the line widths of tracks and routes on the map,
-	// in device-independent pixels.
-	TrackWidth float32 `yaml:"track_width"`
-	RouteWidth float32 `yaml:"route_width"`
-	// WaypointSize is the diameter of waypoint dots on the map, in device-independent pixels.
-	WaypointSize float32 `yaml:"waypoint_size"`
-	// Map is the name of the selected background map.
-	Map string `yaml:"map"`
-	// Overlays are the names of the enabled overlays.
-	Overlays []string `yaml:"overlays"`
-	// View is the last map view. Nil if not known yet.
+	// Style is how tracks, routes and waypoints are drawn on the map.
+	Style Style `yaml:"style"`
+	// View is the last map view, with the selected map and overlays. Nil if not known yet.
 	View *View `yaml:"view,omitempty"`
 	// Window is the last main window size, position and state. Nil if not known yet.
 	Window *Window `yaml:"window,omitempty"`
 	// Files are the opened track files, in panel order.
 	Files []File `yaml:"files,omitempty"`
+}
+
+// Style is how tracks, routes and waypoints are drawn on the map.
+type Style struct {
+	// TrackWidth and RouteWidth are the line widths of tracks and routes,
+	// in device-independent pixels.
+	TrackWidth float32 `yaml:"track_width"`
+	RouteWidth float32 `yaml:"route_width"`
+	// WaypointSize is the diameter of waypoint dots, in device-independent pixels.
+	WaypointSize float32 `yaml:"waypoint_size"`
 	// ColorBy is the metric tracks are colored by: none, speed, elevation or slope.
 	ColorBy string `yaml:"color_by,omitempty"`
 	// Gradients are the names of the color gradients per metric.
@@ -84,6 +84,8 @@ type Window struct {
 	Y *int `yaml:"top,omitempty"`
 	// Maximized is whether the window is maximized.
 	Maximized bool `yaml:"maximized"`
+	// PanelWidth is the width of the side panel, in device-independent pixels.
+	PanelWidth float32 `yaml:"panel_width"`
 }
 
 // Valid reports whether the window has a usable size.
@@ -91,11 +93,15 @@ func (w *Window) Valid() bool {
 	return w != nil && w.Width > 0 && w.Height > 0
 }
 
-// View is a map position and zoom level.
+// View is a map position and zoom level, with the selected map and overlays.
 type View struct {
 	Lon  float64 `yaml:"lon"`
 	Lat  float64 `yaml:"lat"`
 	Zoom float64 `yaml:"zoom"`
+	// Map is the name of the selected background map.
+	Map string `yaml:"map"`
+	// Overlays are the names of the enabled overlays.
+	Overlays []string `yaml:"overlays"`
 }
 
 // Dir returns the settings directory, e.g. %AppData%\tramp on Windows,
@@ -172,17 +178,17 @@ func (s *Settings) setDefaults() {
 	if s.TileCache <= 0 {
 		s.TileCache = DefaultTileCache
 	}
-	if s.PanelWidth <= 0 {
-		s.PanelWidth = DefaultPanelWidth
+	if s.Window != nil && s.Window.PanelWidth <= 0 {
+		s.Window.PanelWidth = DefaultPanelWidth
 	}
-	if s.TrackWidth <= 0 {
-		s.TrackWidth = DefaultTrackWidth
+	if s.Style.TrackWidth <= 0 {
+		s.Style.TrackWidth = DefaultTrackWidth
 	}
-	if s.RouteWidth <= 0 {
-		s.RouteWidth = DefaultRouteWidth
+	if s.Style.RouteWidth <= 0 {
+		s.Style.RouteWidth = DefaultRouteWidth
 	}
-	if s.WaypointSize <= 0 {
-		s.WaypointSize = DefaultWaypointSize
+	if s.Style.WaypointSize <= 0 {
+		s.Style.WaypointSize = DefaultWaypointSize
 	}
 }
 
