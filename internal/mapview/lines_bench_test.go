@@ -35,7 +35,7 @@ func benchLines(b *testing.B, colored bool, bins int, pan, rebuild bool) {
 	defer w.Release()
 
 	line, vals := benchTrack(11000)
-	g := LineGroup{Color: color.NRGBA{R: 255, A: 255}, Lines: []Polyline{line}}
+	g := LineGroup{Color: color.NRGBA{R: 255, A: 255}, Lines: []Polyline{line}, Width: 3, DotSize: 8}
 	var c *Coloring
 	if colored {
 		g.Values = [][]float64{vals}
@@ -45,8 +45,6 @@ func benchLines(b *testing.B, colored bool, bins int, pan, rebuild bool) {
 		}
 	}
 	var l Lines
-	l.Width = 3
-	l.DotRadius = 4
 	l.Set([]LineGroup{g, g}, c)
 
 	v := View{Zoom: 13, Size: image.Pt(1600, 900)}

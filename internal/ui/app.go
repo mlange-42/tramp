@@ -81,6 +81,8 @@ type App struct {
 	mapView   *mapview.Map
 	mapLayers []mapview.Layer
 	tracks    mapview.Lines
+	// Sizes of tracks, routes and waypoints on the map.
+	trackWidth, routeWidth, waypointSize unit.Dp
 
 	// colorBy selects the metric to color tracks by, gradientSel the gradient.
 	colorBy     Select
@@ -117,17 +119,19 @@ func New(w *app.Window, opts Options) *App {
 
 func newApp(invalidate func(), opts Options) *App {
 	a := &App{
-		invalidate: invalidate,
-		style:      DefaultStyle(),
-		client:     &wms.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent},
-		tileCache:  opts.State.TileCache,
-		split:      Split{Width: unit.Dp(opts.State.PanelWidth)},
-		layers:     opts.Layers,
-		overlaySel: NewMultiSelect("Overlays", len(opts.Overlays)),
-		mapView:    mapview.New(geo.LonLat{}, 0),
-		tracks:     mapview.Lines{Width: 3, DotRadius: 4},
-		fileList:   widget.List{List: layout.List{Axis: layout.Vertical}},
-		pending:    map[int][]settings.File{},
+		invalidate:   invalidate,
+		style:        DefaultStyle(),
+		client:       &wms.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent},
+		tileCache:    opts.State.TileCache,
+		split:        Split{Width: unit.Dp(opts.State.PanelWidth)},
+		layers:       opts.Layers,
+		overlaySel:   NewMultiSelect("Overlays", len(opts.Overlays)),
+		mapView:      mapview.New(geo.LonLat{}, 0),
+		trackWidth:   dpOr(opts.State.TrackWidth, settings.DefaultTrackWidth),
+		routeWidth:   dpOr(opts.State.RouteWidth, settings.DefaultRouteWidth),
+		waypointSize: dpOr(opts.State.WaypointSize, settings.DefaultWaypointSize),
+		fileList:     widget.List{List: layout.List{Axis: layout.Vertical}},
+		pending:      map[int][]settings.File{},
 	}
 	if opts.State.Window.Valid() {
 		a.win = *opts.State.Window
@@ -164,16 +168,27 @@ func newApp(invalidate func(), opts Options) *App {
 	return a
 }
 
+// dpOr returns v, or def if v is not positive.
+func dpOr(v, def float32) unit.Dp {
+	if v <= 0 {
+		return unit.Dp(def)
+	}
+	return unit.Dp(v)
+}
+
 // State returns the selected map and overlays and the current view, for saving them.
 func (a *App) State() settings.Settings {
 	ll := geo.ToLonLat(a.mapView.View.Center)
 	s := settings.Settings{
-		TileCache:  a.tileCache,
-		PanelWidth: float32(a.split.Width),
-		Map:        a.layerNames[a.layerSelect.Selected()],
-		View:       &settings.View{Lon: ll.Lon, Lat: ll.Lat, Zoom: a.mapView.View.Zoom},
-		Window:     new(a.win),
-		Files:      a.fileState(),
+		TileCache:    a.tileCache,
+		TrackWidth:   float32(a.trackWidth),
+		RouteWidth:   float32(a.routeWidth),
+		WaypointSize: float32(a.waypointSize),
+		PanelWidth:   float32(a.split.Width),
+		Map:          a.layerNames[a.layerSelect.Selected()],
+		View:         &settings.View{Lon: ll.Lon, Lat: ll.Lat, Zoom: a.mapView.View.Zoom},
+		Window:       new(a.win),
+		Files:        a.fileState(),
 	}
 	s.ColorBy, s.Gradients = a.coloringState()
 	for i, name := range a.overlayNames {

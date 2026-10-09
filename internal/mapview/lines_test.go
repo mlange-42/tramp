@@ -115,8 +115,7 @@ func TestLinesRebuild(t *testing.T) {
 		{"large", large, true},
 	} {
 		var l Lines
-		l.Width = 3
-		l.Set([]LineGroup{{Lines: []Polyline{c.line}}}, nil)
+		l.Set([]LineGroup{{Lines: []Polyline{c.line}, Width: 3}}, nil)
 		layoutAt(&l, 0)
 		if l.complete == c.rebuild {
 			t.Errorf("%s: unexpected complete %v", c.name, l.complete)

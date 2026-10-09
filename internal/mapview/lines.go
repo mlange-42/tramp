@@ -13,6 +13,9 @@ import (
 	"github.com/mlange-42/tramp/internal/geo"
 )
 
+// casingWidth is how much wider the casing below colored lines is than the lines.
+const casingWidth unit.Dp = 3
+
 // minStep is the minimum screen distance in pixels between drawn line vertices.
 // Closer points are skipped, which keeps long, dense tracks fast at low zoom.
 const minStep = 1.5
@@ -39,6 +42,10 @@ type LineGroup struct {
 	Color color.NRGBA
 	Lines []Polyline
 	Dots  []geo.Point
+	// Width of the lines.
+	Width unit.Dp
+	// DotSize is the diameter of dots.
+	DotSize unit.Dp
 	// Values are optional values for coloring the lines with the [Coloring] of [Lines].
 	// If not nil, there is one entry per line, which is nil or has one value per line segment.
 	// Lines and segments without values (NaN) are drawn in Color.
@@ -72,11 +79,6 @@ func (c *Coloring) index(v float64) int {
 // and vertices closer than [minStep] pixels are skipped.
 // Lines colored by value are drawn with one path per color.
 type Lines struct {
-	// Width of the lines.
-	Width unit.Dp
-	// DotRadius is the radius of dots.
-	DotRadius unit.Dp
-
 	groups   []LineGroup
 	coloring *Coloring
 	version  int
@@ -102,9 +104,7 @@ type linesKey struct {
 	zoom    float64
 	sizeX   int
 	sizeY   int
-	width   int
-	casing  int
-	radius  int
+	pxPerDp float32
 }
 
 // Set replaces the drawn groups, and the coloring for groups with values.
@@ -134,9 +134,7 @@ func (l *Lines) Layout(gtx layout.Context, v *View) {
 		zoom:    v.Zoom,
 		sizeX:   v.Size.X,
 		sizeY:   v.Size.Y,
-		width:   gtx.Dp(l.Width),
-		casing:  gtx.Dp(3),
-		radius:  gtx.Dp(l.DotRadius),
+		pxPerDp: gtx.Metric.PxPerDp,
 	}
 	res := v.Resolution()
 	dx := (l.origin.X - v.Center.X) / res
@@ -207,9 +205,10 @@ func (l *Lines) drawGroup(g *LineGroup, v *View, area screenRect, cull geo.Rect,
 		})
 	}
 
-	width := float32(key.width)
+	m := unit.Metric{PxPerDp: key.pxPerDp}
+	width := float32(m.Dp(g.Width))
 	if colored {
-		l.stroke(&l.casing, width+float32(key.casing), c.Casing)
+		l.stroke(&l.casing, width+float32(m.Dp(casingWidth)), c.Casing)
 	}
 	l.stroke(&l.solid, width, g.Color)
 	if colored {
@@ -218,7 +217,7 @@ func (l *Lines) drawGroup(g *LineGroup, v *View, area screenRect, cull geo.Rect,
 		}
 	}
 
-	r := float32(key.radius)
+	r := float32(m.Dp(g.DotSize)) / 2
 	for _, p := range g.Dots {
 		x, y := v.ToScreen(p)
 		if !area.contains(x, y) {
