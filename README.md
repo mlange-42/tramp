@@ -50,6 +50,10 @@ Opened files are listed in the side panel, with length, duration and sampling in
 Click a file to zoom to it, use the checkbox to show or hide it, and × to close it.
 Files with several tracks, routes or waypoint sets can be expanded to show or hide them individually.
 
+Use *Color by* in the toolbar to color all tracks by speed, elevation or slope, with a choice of color gradients.
+The color range covers the values of all visible tracks, ignoring the most extreme 2% at each end, and is shown in a legend on the map.
+Tracks and routes without the required data, like routes without times for speed, keep their own color.
+
 On Linux, the file dialog requires `zenity`, `kdialog` or a similar tool, which most desktops have installed.
 
 ### Settings

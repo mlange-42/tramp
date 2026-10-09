@@ -40,6 +40,10 @@ type Settings struct {
 	Window *Window `yaml:"window,omitempty"`
 	// Files are the opened track files, in panel order.
 	Files []File `yaml:"files,omitempty"`
+	// ColorBy is the metric tracks are colored by: none, speed, elevation or slope.
+	ColorBy string `yaml:"color_by,omitempty"`
+	// Gradients are the names of the color gradients per metric.
+	Gradients map[string]string `yaml:"gradients,omitempty"`
 }
 
 // File is an opened track file.

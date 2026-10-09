@@ -90,3 +90,13 @@ func TestDistance(t *testing.T) {
 		t.Errorf("expected zero distance, got %f", d)
 	}
 }
+
+func TestRectContains(t *testing.T) {
+	r := Rect{Min: Point{0, 0}, Max: Point{10, 10}}
+	if !r.Contains(Rect{Min: Point{1, 1}, Max: Point{10, 9}}) || !r.Contains(EmptyRect()) {
+		t.Error("expected contained")
+	}
+	if r.Contains(Rect{Min: Point{-1, 1}, Max: Point{5, 5}}) || r.Contains(Rect{Min: Point{5, 5}, Max: Point{11, 6}}) {
+		t.Error("expected not contained")
+	}
+}

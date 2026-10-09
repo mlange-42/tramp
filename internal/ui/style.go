@@ -64,6 +64,10 @@ type Style struct {
 	HintFg color.NRGBA
 	// DragBg is the background of a side panel entry while it is dragged.
 	DragBg color.NRGBA
+	// LegendBg is the background of the color legend on the map.
+	LegendBg color.NRGBA
+	// LegendWidth is the width of the color bar in the legend.
+	LegendWidth unit.Dp
 }
 
 // DefaultStyle returns a compact style.
@@ -100,6 +104,8 @@ func DefaultStyle() *Style {
 		SideBg:       color.NRGBA{R: 0xfa, G: 0xfa, B: 0xfa, A: 0xff},
 		HintFg:       color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xff},
 		DragBg:       color.NRGBA{R: 0xe4, G: 0xe8, B: 0xf4, A: 0xff},
+		LegendBg:     color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xe0},
+		LegendWidth:  180,
 	}
 }
 

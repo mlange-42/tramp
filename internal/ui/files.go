@@ -44,9 +44,13 @@ type fileItem struct {
 	name    string
 	summary string
 	lines   []mapview.Polyline
-	dots    []geo.Point
-	bounds  geo.Rect
-	color   color.NRGBA
+	// points are the original points of the lines, for computing values to color them by.
+	points [][]track.Point
+	// values caches the values of the lines per metric, see [mapview.LineGroup.Values].
+	values map[track.Metric][][]float64
+	dots   []geo.Point
+	bounds geo.Rect
+	color  color.NRGBA
 	// index is the position of the item in the file, independent of the panel order.
 	index int
 
@@ -70,6 +74,7 @@ func newOpenFile(path string, f *track.File) *openFile {
 				pts[k] = geo.ToMercator(p.Pos)
 			}
 			it.lines = append(it.lines, mapview.NewPolyline(pts))
+			it.points = append(it.points, t.Segments[j].Points)
 		}
 		of.add(it)
 	}
@@ -77,10 +82,13 @@ func newOpenFile(path string, f *track.File) *openFile {
 		r := &f.Routes[i]
 		it := &fileItem{name: itemName(r.Name, "Route", i, len(f.Routes)), summary: "route · " + formatDistance(r.Length())}
 		pts := make([]geo.Point, len(r.Points))
+		tps := make([]track.Point, len(r.Points))
 		for k, p := range r.Points {
 			pts[k] = geo.ToMercator(p.Pos)
+			tps[k] = track.Point{Pos: p.Pos, Ele: p.Ele, Time: p.Time}
 		}
 		it.lines = append(it.lines, mapview.NewPolyline(pts))
+		it.points = append(it.points, tps)
 		of.add(it)
 	}
 	if len(f.Waypoints) > 0 {
@@ -165,6 +173,31 @@ func (f *openFile) blockHeight() int {
 		}
 	}
 	return h
+}
+
+// lineValues returns the values of a metric for the lines of the item,
+// or nil if no line has values.
+func (it *fileItem) lineValues(m track.Metric) [][]float64 {
+	if m == track.NoMetric {
+		return nil
+	}
+	if vals, ok := it.values[m]; ok {
+		return vals
+	}
+	vals := make([][]float64, len(it.points))
+	found := false
+	for i, pts := range it.points {
+		vals[i] = track.SegmentValues(pts, m)
+		found = found || vals[i] != nil
+	}
+	if !found {
+		vals = nil
+	}
+	if it.values == nil {
+		it.values = map[track.Metric][][]float64{}
+	}
+	it.values[m] = vals
+	return vals
 }
 
 // colors returns the distinct colors of the items, in item order.
@@ -408,9 +441,15 @@ func (a *App) fileState() []settings.File {
 	return files
 }
 
-// updateTracks shows the visible items on the map.
+// updateTracks shows the visible items on the map, colored by the selected metric.
 func (a *App) updateTracks() {
-	a.tracks.Set(a.trackGroups())
+	groups := a.trackGroups()
+	a.legend = a.newLegend(groups)
+	var c *mapview.Coloring
+	if a.legend != nil {
+		c = a.legend.coloring()
+	}
+	a.tracks.Set(groups, c)
 }
 
 // trackGroups returns the visible items in drawing order:
@@ -423,7 +462,7 @@ func (a *App) trackGroups() []mapview.LineGroup {
 		}
 		for _, it := range slices.Backward(f.items) {
 			if it.visible.Value {
-				groups = append(groups, mapview.LineGroup{Color: it.color, Lines: it.lines, Dots: it.dots})
+				groups = append(groups, mapview.LineGroup{Color: it.color, Lines: it.lines, Dots: it.dots, Values: it.lineValues(a.colorMetric())})
 			}
 		}
 	}

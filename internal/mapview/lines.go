@@ -33,11 +33,36 @@ func NewPolyline(pts []geo.Point) Polyline {
 	return Polyline{Points: pts, Bounds: b}
 }
 
-// LineGroup is a set of polylines and dots drawn in one color.
+// LineGroup is a set of polylines and dots drawn in one color,
+// or with a color gradient by value.
 type LineGroup struct {
 	Color color.NRGBA
 	Lines []Polyline
 	Dots  []geo.Point
+	// Values are optional values for coloring the lines with the [Coloring] of [Lines].
+	// If not nil, there is one entry per line, which is nil or has one value per line segment.
+	// Lines and segments without values (NaN) are drawn in Color.
+	Values [][]float64
+}
+
+// Coloring maps values to colors.
+type Coloring struct {
+	// Min and Max are the values for the first and the last color.
+	// Values outside are clamped.
+	Min, Max float64
+	// Colors are the colors for equal-width value bins from Min to Max.
+	Colors []color.NRGBA
+	// Casing is drawn below colored lines, to set them off from the map.
+	Casing color.NRGBA
+}
+
+// index returns the index of the color for value v.
+func (c *Coloring) index(v float64) int {
+	t := (v - c.Min) / (c.Max - c.Min)
+	if !(t > 0) { // also NaN, for Min == Max
+		return 0
+	}
+	return min(int(t*float64(len(c.Colors))), len(c.Colors)-1)
 }
 
 // Lines draws groups of polylines and dots on top of the map, later groups on top.
@@ -45,14 +70,26 @@ type LineGroup struct {
 // The drawing is cached and only rebuilt when the zoom, the view size or the content changes,
 // or when the view was panned far. Lines are cut to an area around the view,
 // and vertices closer than [minStep] pixels are skipped.
+// Lines colored by value are drawn with one path per color.
 type Lines struct {
 	// Width of the lines.
 	Width unit.Dp
 	// DotRadius is the radius of dots.
 	DotRadius unit.Dp
 
-	groups  []LineGroup
-	version int
+	groups   []LineGroup
+	coloring *Coloring
+	version  int
+	// bounds is the extent of all lines and dots.
+	bounds geo.Rect
+	// complete is whether the cached drawing contains everything, so that it never needs
+	// to be rebuilt for panning.
+	complete bool
+
+	// Reused buffers for collecting line segments: solid, casing, and one per color.
+	solid  strokes
+	casing strokes
+	bins   []strokes
 
 	cache  op.Ops
 	call   op.CallOp
@@ -66,13 +103,25 @@ type linesKey struct {
 	sizeX   int
 	sizeY   int
 	width   int
+	casing  int
 	radius  int
 }
 
-// Set replaces the drawn groups.
-func (l *Lines) Set(groups []LineGroup) {
+// Set replaces the drawn groups, and the coloring for groups with values.
+// Without coloring, all lines are drawn in their group's color.
+func (l *Lines) Set(groups []LineGroup, coloring *Coloring) {
 	l.groups = groups
+	l.coloring = coloring
 	l.version++
+	l.bounds = geo.EmptyRect()
+	for _, g := range groups {
+		for _, line := range g.Lines {
+			l.bounds = l.bounds.Union(line.Bounds)
+		}
+		for _, p := range g.Dots {
+			l.bounds = l.bounds.Extend(p)
+		}
+	}
 }
 
 // Layout draws the lines for the given view, which must have its size set.
@@ -86,12 +135,14 @@ func (l *Lines) Layout(gtx layout.Context, v *View) {
 		sizeX:   v.Size.X,
 		sizeY:   v.Size.Y,
 		width:   gtx.Dp(l.Width),
+		casing:  gtx.Dp(3),
 		radius:  gtx.Dp(l.DotRadius),
 	}
 	res := v.Resolution()
 	dx := (l.origin.X - v.Center.X) / res
 	dy := (v.Center.Y - l.origin.Y) / res
-	if key != l.key || math.Abs(dx) > float64(v.Size.X)/2 || math.Abs(dy) > float64(v.Size.Y)/2 {
+	panned := !l.complete && (math.Abs(dx) > float64(v.Size.X)/2 || math.Abs(dy) > float64(v.Size.Y)/2)
+	if key != l.key || panned {
 		l.key = key
 		l.origin = v.Center
 		l.rebuild(v, key)
@@ -116,6 +167,7 @@ func (l *Lines) rebuild(v *View, key linesKey) {
 	b := ov.Bounds()
 	bw, bh := b.Max.X-b.Min.X, b.Max.Y-b.Min.Y
 	cull := geo.Rect{Min: geo.Point{X: b.Min.X - bw, Y: b.Min.Y - bh}, Max: geo.Point{X: b.Max.X + bw, Y: b.Max.Y + bh}}
+	l.complete = cull.Contains(l.bounds)
 
 	for i := range l.groups {
 		l.drawGroup(&l.groups[i], &ov, area, cull, key)
@@ -124,17 +176,46 @@ func (l *Lines) rebuild(v *View, key linesKey) {
 }
 
 func (l *Lines) drawGroup(g *LineGroup, v *View, area screenRect, cull geo.Rect, key linesKey) {
-	var path clip.Path
-	path.Begin(&l.cache)
-	n := 0
-	for i := range g.Lines {
-		if g.Lines[i].Bounds.Intersects(cull) {
-			n += appendLine(&path, v, area, g.Lines[i].Points)
+	c := l.coloring
+	colored := c != nil && len(c.Colors) > 0 && g.Values != nil
+	l.solid.reset()
+	l.casing.reset()
+	if colored {
+		for len(l.bins) < len(c.Colors) {
+			l.bins = append(l.bins, strokes{})
+		}
+		for i := range l.bins {
+			l.bins[i].reset()
 		}
 	}
-	spec := path.End()
-	if n > 0 {
-		paint.FillShape(&l.cache, g.Color, clip.Stroke{Path: spec, Width: float32(key.width)}.Op())
+
+	for i := range g.Lines {
+		if !g.Lines[i].Bounds.Intersects(cull) {
+			continue
+		}
+		var vals []float64
+		if colored {
+			vals = g.Values[i]
+		}
+		walkLine(v, area, g.Lines[i].Points, func(a, b f32.Point, seg int) {
+			if vals == nil || math.IsNaN(vals[seg]) {
+				l.solid.add(a, b)
+				return
+			}
+			l.casing.add(a, b)
+			l.bins[c.index(vals[seg])].add(a, b)
+		})
+	}
+
+	width := float32(key.width)
+	if colored {
+		l.stroke(&l.casing, width+float32(key.casing), c.Casing)
+	}
+	l.stroke(&l.solid, width, g.Color)
+	if colored {
+		for i := range c.Colors {
+			l.stroke(&l.bins[i], width, c.Colors[i])
+		}
 	}
 
 	r := float32(key.radius)
@@ -147,6 +228,65 @@ func (l *Lines) drawGroup(g *LineGroup, v *View, area screenRect, cull geo.Rect,
 		ell := clip.Ellipse{Min: c.Sub(f32.Pt(r, r)).Round(), Max: c.Add(f32.Pt(r, r)).Round()}
 		paint.FillShape(&l.cache, g.Color, ell.Op(&l.cache))
 	}
+}
+
+// stroke draws the collected line segments with the given width.
+//
+// Each segment is drawn as a filled rectangle, extended by half the width at both ends
+// so that neighbors overlap at joints. This is much faster than [clip.Stroke],
+// which computes round joins and caps on the CPU in every frame after a rebuild.
+// The rectangles are filled by the non-zero winding rule, so overlaps don't cancel out.
+func (l *Lines) stroke(s *strokes, width float32, col color.NRGBA) {
+	if len(s.pts) == 0 {
+		return
+	}
+	hw := width / 2
+	var path clip.Path
+	path.Begin(&l.cache)
+	for r, start := range s.starts {
+		end := len(s.pts)
+		if r+1 < len(s.starts) {
+			end = s.starts[r+1]
+		}
+		for i := start + 1; i < end; i++ {
+			a, b := s.pts[i-1], s.pts[i]
+			d := b.Sub(a)
+			length := float32(math.Hypot(float64(d.X), float64(d.Y)))
+			if length == 0 {
+				continue
+			}
+			d = d.Mul(hw / length)
+			n := f32.Pt(-d.Y, d.X)
+			a, b = a.Sub(d), b.Add(d)
+			path.MoveTo(a.Add(n))
+			path.LineTo(b.Add(n))
+			path.LineTo(b.Sub(n))
+			path.LineTo(a.Sub(n))
+			path.Close()
+		}
+	}
+	paint.FillShape(&l.cache, col, clip.Outline{Path: path.End()}.Op())
+}
+
+// strokes collects line segments as connected runs of points.
+type strokes struct {
+	pts []f32.Point
+	// starts are the indices in pts where runs start.
+	starts []int
+}
+
+func (s *strokes) reset() {
+	s.pts = s.pts[:0]
+	s.starts = s.starts[:0]
+}
+
+// add adds a segment, continuing the last run if it ends at a.
+func (s *strokes) add(a, b f32.Point) {
+	if len(s.pts) == 0 || s.pts[len(s.pts)-1] != a {
+		s.starts = append(s.starts, len(s.pts))
+		s.pts = append(s.pts, a)
+	}
+	s.pts = append(s.pts, b)
 }
 
 // screenRect is a rectangle in screen coordinates.
@@ -165,33 +305,25 @@ func (r screenRect) outside(x0, y0, x1, y1 float64) bool {
 		(y0 < r.minY && y1 < r.minY) || (y0 > r.maxY && y1 > r.maxY)
 }
 
-// appendLine adds the parts of a line that may be visible in area to path, in screen coordinates of v.
-// It returns the number of drawn line segments.
-func appendLine(path *clip.Path, v *View, area screenRect, pts []geo.Point) int {
+// walkLine calls fn for the parts of a line that may be visible in area, in screen coordinates of v.
+// Vertices closer than [minStep] to the last drawn vertex are skipped.
+// seg is the index of the last original segment that a drawn segment covers.
+func walkLine(v *View, area screenRect, pts []geo.Point, fn func(a, b f32.Point, seg int)) {
 	if len(pts) < 2 {
-		return 0
+		return
 	}
-	n := 0
 	lx, ly := v.ToScreen(pts[0])
-	penDown := false
 	for i := 1; i < len(pts); i++ {
 		x, y := v.ToScreen(pts[i])
 		if area.outside(lx, ly, x, y) {
 			lx, ly = x, y
-			penDown = false
 			continue
 		}
 		ddx, ddy := x-lx, y-ly
 		if ddx*ddx+ddy*ddy < minStep*minStep && i < len(pts)-1 {
 			continue
 		}
-		if !penDown {
-			path.MoveTo(f32.Pt(float32(lx), float32(ly)))
-			penDown = true
-		}
-		path.LineTo(f32.Pt(float32(x), float32(y)))
+		fn(f32.Pt(float32(lx), float32(ly)), f32.Pt(float32(x), float32(y)), i-1)
 		lx, ly = x, y
-		n++
 	}
-	return n
 }
