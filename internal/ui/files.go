@@ -363,16 +363,22 @@ func (a *App) fileState() []settings.File {
 
 // updateTracks shows the visible items on the map.
 func (a *App) updateTracks() {
+	a.tracks.Set(a.trackGroups())
+}
+
+// trackGroups returns the visible items in drawing order:
+// from the bottom of the panel to the top, so that the top-most entry is on top.
+func (a *App) trackGroups() []mapview.LineGroup {
 	var groups []mapview.LineGroup
-	for _, f := range a.files {
+	for _, f := range slices.Backward(a.files) {
 		if !f.visible.Value {
 			continue
 		}
-		for _, it := range f.items {
+		for _, it := range slices.Backward(f.items) {
 			if it.visible.Value {
 				groups = append(groups, mapview.LineGroup{Color: it.color, Lines: it.lines, Dots: it.dots})
 			}
 		}
 	}
-	a.tracks.Set(groups)
+	return groups
 }

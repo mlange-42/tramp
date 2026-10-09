@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -137,8 +138,20 @@ func TestOpenFiles(t *testing.T) {
 		t.Errorf("expected a single changed color, got %v", c)
 	}
 
-	// Hidden files and items are not drawn.
+	// Hidden files and items are not drawn, the top-most entry is drawn last.
 	a.files[0].items[1].visible.Value = false
+	a.files[1].visible.Value = true
+	for i, it := range a.files[0].items {
+		it.color = color.NRGBA{R: uint8(i), A: 0xff}
+	}
+	a.files[1].items[0].color = color.NRGBA{R: 9, A: 0xff}
+	var order []uint8
+	for _, g := range a.trackGroups() {
+		order = append(order, g.Color.R)
+	}
+	if !slices.Equal(order, []uint8{9, 2, 0}) {
+		t.Errorf("unexpected drawing order %v", order)
+	}
 	a.updateTracks()
 
 	// Opening an open file again doesn't add it, but shows it.
