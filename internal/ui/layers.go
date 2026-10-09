@@ -205,5 +205,10 @@ func DefaultLayers() []wms.Layer {
 		// The free terrestris service adds advertising watermarks to some tiles.
 		// Add them to the WMS configuration file if needed:
 		//   url: https://ows.terrestris.de/osm/service, layers: OSM-WMS or TOPO-OSM-WMS
+		{
+			// No background map, for showing only the overlays. Last, so it is not the default.
+			Name: "None",
+			Type: wms.TypeNone,
+		},
 	}
 }

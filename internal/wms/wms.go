@@ -25,17 +25,19 @@ const (
 	TypeWMS = "wms"
 	// TypeXYZ is a tile service with a URL template containing {z}, {x} and {y}.
 	TypeXYZ = "xyz"
+	// TypeNone is an empty layer that is not fetched, e.g. for showing only overlays.
+	TypeNone = "none"
 )
 
 // Layer describes a map layer to request.
 type Layer struct {
 	// Name is a human-readable name for the layer.
 	Name string `yaml:"name"`
-	// Type is [TypeWMS] (the default if empty) or [TypeXYZ].
+	// Type is [TypeWMS] (the default if empty), [TypeXYZ] or [TypeNone].
 	Type string `yaml:"type,omitempty"`
 	// URL is the service endpoint, without request parameters.
 	// For XYZ layers, it is a template like "https://tile.example.com/{z}/{x}/{y}.png".
-	URL string `yaml:"url"`
+	URL string `yaml:"url,omitempty"`
 	// Layers is the comma-separated list of WMS layer names. Not used for XYZ layers.
 	Layers string `yaml:"layers,omitempty"`
 	// Styles is the comma-separated list of styles. May be empty.
@@ -51,12 +53,17 @@ type Layer struct {
 	// It is set automatically for overlays, so it is not part of the configuration file.
 	Transparent bool `yaml:"-"`
 	// Attribution is shown on the map.
-	Attribution string `yaml:"attribution"`
+	Attribution string `yaml:"attribution,omitempty"`
 }
 
 // IsXYZ reports whether the layer is an XYZ tile service.
 func (l *Layer) IsXYZ() bool {
 	return strings.EqualFold(l.Type, TypeXYZ)
+}
+
+// IsNone reports whether the layer is empty and has nothing to fetch.
+func (l *Layer) IsNone() bool {
+	return strings.EqualFold(l.Type, TypeNone)
 }
 
 // TileURL returns the request URL for a tile.
