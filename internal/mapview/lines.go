@@ -80,6 +80,11 @@ type Lines struct {
 	groups   []LineGroup
 	coloring *Coloring
 	version  int
+	// bounds is the extent of all lines and dots.
+	bounds geo.Rect
+	// complete is whether the cached drawing contains everything, so that it never needs
+	// to be rebuilt for panning.
+	complete bool
 
 	// Reused buffers for collecting line segments: solid, casing, and one per color.
 	solid  strokes
@@ -108,6 +113,15 @@ func (l *Lines) Set(groups []LineGroup, coloring *Coloring) {
 	l.groups = groups
 	l.coloring = coloring
 	l.version++
+	l.bounds = geo.EmptyRect()
+	for _, g := range groups {
+		for _, line := range g.Lines {
+			l.bounds = l.bounds.Union(line.Bounds)
+		}
+		for _, p := range g.Dots {
+			l.bounds = l.bounds.Extend(p)
+		}
+	}
 }
 
 // Layout draws the lines for the given view, which must have its size set.
@@ -127,7 +141,8 @@ func (l *Lines) Layout(gtx layout.Context, v *View) {
 	res := v.Resolution()
 	dx := (l.origin.X - v.Center.X) / res
 	dy := (v.Center.Y - l.origin.Y) / res
-	if key != l.key || math.Abs(dx) > float64(v.Size.X)/2 || math.Abs(dy) > float64(v.Size.Y)/2 {
+	panned := !l.complete && (math.Abs(dx) > float64(v.Size.X)/2 || math.Abs(dy) > float64(v.Size.Y)/2)
+	if key != l.key || panned {
 		l.key = key
 		l.origin = v.Center
 		l.rebuild(v, key)
@@ -152,6 +167,7 @@ func (l *Lines) rebuild(v *View, key linesKey) {
 	b := ov.Bounds()
 	bw, bh := b.Max.X-b.Min.X, b.Max.Y-b.Min.Y
 	cull := geo.Rect{Min: geo.Point{X: b.Min.X - bw, Y: b.Min.Y - bh}, Max: geo.Point{X: b.Max.X + bw, Y: b.Max.Y + bh}}
+	l.complete = cull.Contains(l.bounds)
 
 	for i := range l.groups {
 		l.drawGroup(&l.groups[i], &ov, area, cull, key)
@@ -214,11 +230,17 @@ func (l *Lines) drawGroup(g *LineGroup, v *View, area screenRect, cull geo.Rect,
 	}
 }
 
-// stroke draws the collected line segments.
+// stroke draws the collected line segments with the given width.
+//
+// Each segment is drawn as a filled rectangle, extended by half the width at both ends
+// so that neighbors overlap at joints. This is much faster than [clip.Stroke],
+// which computes round joins and caps on the CPU in every frame after a rebuild.
+// The rectangles are filled by the non-zero winding rule, so overlaps don't cancel out.
 func (l *Lines) stroke(s *strokes, width float32, col color.NRGBA) {
 	if len(s.pts) == 0 {
 		return
 	}
+	hw := width / 2
 	var path clip.Path
 	path.Begin(&l.cache)
 	for r, start := range s.starts {
@@ -226,12 +248,24 @@ func (l *Lines) stroke(s *strokes, width float32, col color.NRGBA) {
 		if r+1 < len(s.starts) {
 			end = s.starts[r+1]
 		}
-		path.MoveTo(s.pts[start])
-		for _, p := range s.pts[start+1 : end] {
-			path.LineTo(p)
+		for i := start + 1; i < end; i++ {
+			a, b := s.pts[i-1], s.pts[i]
+			d := b.Sub(a)
+			length := float32(math.Hypot(float64(d.X), float64(d.Y)))
+			if length == 0 {
+				continue
+			}
+			d = d.Mul(hw / length)
+			n := f32.Pt(-d.Y, d.X)
+			a, b = a.Sub(d), b.Add(d)
+			path.MoveTo(a.Add(n))
+			path.LineTo(b.Add(n))
+			path.LineTo(b.Sub(n))
+			path.LineTo(a.Sub(n))
+			path.Close()
 		}
 	}
-	paint.FillShape(&l.cache, col, clip.Stroke{Path: path.End(), Width: width}.Op())
+	paint.FillShape(&l.cache, col, clip.Outline{Path: path.End()}.Op())
 }
 
 // strokes collects line segments as connected runs of points.

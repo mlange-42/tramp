@@ -74,6 +74,11 @@ func (r Rect) Union(o Rect) Rect {
 	return r.Extend(o.Min).Extend(o.Max)
 }
 
+// Contains reports whether o lies completely inside r. An empty o is contained in any r.
+func (r Rect) Contains(o Rect) bool {
+	return o.Empty() || (o.Min.X >= r.Min.X && o.Max.X <= r.Max.X && o.Min.Y >= r.Min.Y && o.Max.Y <= r.Max.Y)
+}
+
 // Intersects reports whether r and o overlap or touch.
 func (r Rect) Intersects(o Rect) bool {
 	return r.Min.X <= o.Max.X && o.Min.X <= r.Max.X && r.Min.Y <= o.Max.Y && o.Min.Y <= r.Max.Y

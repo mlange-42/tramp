@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"gioui.org/f32"
+	"gioui.org/layout"
+	"gioui.org/op"
 	"github.com/mlange-42/tramp/internal/geo"
 )
 
@@ -88,5 +90,40 @@ func TestNewPolyline(t *testing.T) {
 	l := NewPolyline([]geo.Point{{X: 1, Y: 2}, {X: -1, Y: 5}})
 	if l.Bounds != (geo.Rect{Min: geo.Point{X: -1, Y: 2}, Max: geo.Point{X: 1, Y: 5}}) {
 		t.Errorf("unexpected bounds %v", l.Bounds)
+	}
+}
+
+func TestLinesRebuild(t *testing.T) {
+	v := View{Zoom: 10, Size: image.Pt(200, 100)}
+	res := v.Resolution()
+	small := NewPolyline([]geo.Point{{X: 0, Y: 0}, {X: 50 * res, Y: 20 * res}})
+	large := NewPolyline([]geo.Point{{X: 0, Y: 0}, {X: 5000 * res, Y: 0}})
+
+	layoutAt := func(l *Lines, x float64) {
+		var ops op.Ops
+		v.Center = geo.Point{X: x * res}
+		l.Layout(layout.Context{Ops: &ops, Constraints: layout.Exact(v.Size)}, &v)
+	}
+	for _, c := range []struct {
+		name    string
+		line    Polyline
+		rebuild bool
+	}{
+		// Everything is in the drawing, so panning never rebuilds it.
+		{"small", small, false},
+		// Panning by more than half the view rebuilds a drawing that was cut.
+		{"large", large, true},
+	} {
+		var l Lines
+		l.Width = 3
+		l.Set([]LineGroup{{Lines: []Polyline{c.line}}}, nil)
+		layoutAt(&l, 0)
+		if l.complete == c.rebuild {
+			t.Errorf("%s: unexpected complete %v", c.name, l.complete)
+		}
+		layoutAt(&l, 150)
+		if rebuilt := l.origin.X != 0; rebuilt != c.rebuild {
+			t.Errorf("%s: expected rebuild %v, got %v", c.name, c.rebuild, rebuilt)
+		}
 	}
 }
