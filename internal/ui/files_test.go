@@ -2,8 +2,11 @@ package ui
 
 import (
 	"image"
+	"image/color"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -100,7 +103,8 @@ func TestOpenFiles(t *testing.T) {
 	plain := writeTemp(t, "plain.gpx", testTrackGPX)
 	missing := filepath.Join(t.TempDir(), "missing.gpx")
 
-	a.openFiles([]settings.File{{Path: mixed}, {Path: missing}, {Path: plain, Hidden: true}}, false)
+	saved := []string{"#010203", "#040506", "#070809"}
+	a.openFiles([]settings.File{{Path: mixed, Colors: saved}, {Path: missing}, {Path: plain, Hidden: true}}, false)
 	// Files still being read are saved.
 	if s := a.fileState(); len(s) != 3 {
 		t.Errorf("expected 3 pending files, got %v", s)
@@ -114,12 +118,40 @@ func TestOpenFiles(t *testing.T) {
 	if !a.files[0].visible.Value || a.files[1].visible.Value || !a.tracksChanged {
 		t.Errorf("unexpected visibility")
 	}
-	if s := a.fileState(); len(s) != 2 || s[0] != (settings.File{Path: mixed}) || s[1] != (settings.File{Path: plain, Hidden: true}) {
+	// Saved colors are restored, files without get the first default color.
+	want := []settings.File{
+		{Path: mixed, Colors: saved},
+		{Path: plain, Hidden: true, Colors: []string{formatColor(trackColors[0])}},
+	}
+	if s := a.fileState(); !reflect.DeepEqual(s, want) {
 		t.Errorf("unexpected state %v", s)
 	}
+	if c := a.files[0].colors(); len(c) != 3 {
+		t.Errorf("expected 3 distinct colors, got %v", c)
+	}
 
-	// Hidden files and items are not drawn.
+	// A color chosen for a whole file applies to all its items.
+	a.colorChanges = []colorChange{{items: a.files[0].items, color: trackColors[3]}}
+	a.tracksChanged = false
+	a.applyColors()
+	if c := a.files[0].colors(); len(c) != 1 || c[0] != trackColors[3] || !a.tracksChanged {
+		t.Errorf("expected a single changed color, got %v", c)
+	}
+
+	// Hidden files and items are not drawn, the top-most entry is drawn last.
 	a.files[0].items[1].visible.Value = false
+	a.files[1].visible.Value = true
+	for i, it := range a.files[0].items {
+		it.color = color.NRGBA{R: uint8(i), A: 0xff}
+	}
+	a.files[1].items[0].color = color.NRGBA{R: 9, A: 0xff}
+	var order []uint8
+	for _, g := range a.trackGroups() {
+		order = append(order, g.Color.R)
+	}
+	if !slices.Equal(order, []uint8{9, 2, 0}) {
+		t.Errorf("unexpected drawing order %v", order)
+	}
 	a.updateTracks()
 
 	// Opening an open file again doesn't add it, but shows it.
@@ -133,5 +165,109 @@ func TestOpenFiles(t *testing.T) {
 	}
 	if a.mapView.View.Zoom == zoom {
 		t.Errorf("expected the map to show the file")
+	}
+}
+
+func TestParseColor(t *testing.T) {
+	for _, c := range trackColors {
+		got, err := parseColor(formatColor(c))
+		if err != nil || got != c {
+			t.Errorf("round trip of %v gave %v, %v", c, got, err)
+		}
+	}
+	for _, s := range []string{"", "e01010", "#e0101", "#e0101g", "#e01010ff"} {
+		if _, err := parseColor(s); err == nil {
+			t.Errorf("expected error for %q", s)
+		}
+	}
+}
+
+func TestSetColors(t *testing.T) {
+	f := &openFile{items: []*fileItem{{}, {}}}
+	def := color.NRGBA{R: 1, A: 0xff}
+	for _, c := range []struct {
+		saved []string
+		want  []color.NRGBA
+	}{
+		{nil, []color.NRGBA{def, def}},
+		{[]string{"#000010", "#000020"}, []color.NRGBA{{B: 0x10, A: 0xff}, {B: 0x20, A: 0xff}}},
+		// The file changed, or the colors are invalid.
+		{[]string{"#000010"}, []color.NRGBA{def, def}},
+		{[]string{"#000010", "blue"}, []color.NRGBA{def, def}},
+	} {
+		f.setColors(c.saved, def)
+		for i, it := range f.items {
+			if it.color != c.want[i] {
+				t.Errorf("%v: item %d: got %v, want %v", c.saved, i, it.color, c.want[i])
+			}
+		}
+	}
+}
+
+func TestItemOrder(t *testing.T) {
+	f := &openFile{bounds: geo.EmptyRect()}
+	for range 3 {
+		f.add(&fileItem{})
+	}
+	if o := f.order(); o != nil {
+		t.Errorf("expected nil for file order, got %v", o)
+	}
+	f.setOrder([]int{2, 0, 1})
+	if o := f.order(); !slices.Equal(o, []int{2, 0, 1}) {
+		t.Errorf("unexpected order %v", o)
+	}
+	// Invalid orders are ignored.
+	for _, o := range [][]int{{0, 1}, {0, 0, 1}, {0, 1, 3}, {-1, 0, 1}} {
+		f.setOrder(o)
+		if got := f.order(); !slices.Equal(got, []int{2, 0, 1}) {
+			t.Errorf("%v: order changed to %v", o, got)
+		}
+	}
+}
+
+func TestItemOrderState(t *testing.T) {
+	loaded := make(chan struct{}, 10)
+	a := &App{
+		invalidate: func() { loaded <- struct{}{} },
+		mapView:    mapview.New(geo.LonLat{}, 0),
+		pending:    map[int][]settings.File{},
+	}
+	path := writeTemp(t, "mixed.gpx", testGPX)
+	saved := settings.File{Path: path, Colors: []string{"#000001", "#000002", "#000003"}, Order: []int{2, 0, 1}}
+	a.openFiles([]settings.File{saved}, false)
+	<-loaded
+	a.addLoaded()
+
+	// Colors are saved in file order, independent of the panel order.
+	f := a.files[0]
+	if f.items[0].name != "Waypoints" || f.items[0].color.B != 3 {
+		t.Errorf("unexpected first item %q %v", f.items[0].name, f.items[0].color)
+	}
+	if s := a.fileState(); !reflect.DeepEqual(s, []settings.File{saved}) {
+		t.Errorf("unexpected state %v", s)
+	}
+}
+
+func TestDragMove(t *testing.T) {
+	for _, c := range []struct {
+		dy         float32
+		prev, next int
+		want       int
+	}{
+		{0, 40, 40, 0},
+		{19, 40, 40, 0},
+		{21, 40, 40, 1},
+		{-21, 40, 40, -1},
+		{-19, 40, 40, 0},
+		// No neighbor on that side.
+		{100, 40, 0, 0},
+		{-100, 0, 40, 0},
+		// After moving down past a row of 40, the pointer is 40 higher relative to the handle.
+		// It must not move back up right away.
+		{21 - 40, 40, 60, 0},
+	} {
+		if got := dragMove(c.dy, c.prev, c.next); got != c.want {
+			t.Errorf("dragMove(%v, %d, %d) = %d, want %d", c.dy, c.prev, c.next, got, c.want)
+		}
 	}
 }

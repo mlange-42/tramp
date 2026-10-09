@@ -62,6 +62,8 @@ type Style struct {
 	SideBg color.NRGBA
 	// HintFg is the color of hint text, like in an empty side panel.
 	HintFg color.NRGBA
+	// DragBg is the background of a side panel entry while it is dragged.
+	DragBg color.NRGBA
 }
 
 // DefaultStyle returns a compact style.
@@ -97,6 +99,7 @@ func DefaultStyle() *Style {
 		StatusBg:     color.NRGBA{R: 0xf4, G: 0xf4, B: 0xf4, A: 0xff},
 		SideBg:       color.NRGBA{R: 0xfa, G: 0xfa, B: 0xfa, A: 0xff},
 		HintFg:       color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xff},
+		DragBg:       color.NRGBA{R: 0xe4, G: 0xe8, B: 0xf4, A: 0xff},
 	}
 }
 

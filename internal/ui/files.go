@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"image/color"
 	"log"
 	"math"
 	"path/filepath"
@@ -33,7 +34,9 @@ type openFile struct {
 	zoom     widget.Clickable
 	close    widget.Clickable
 	expand   widget.Clickable
+	colorBtn widget.Clickable
 	expanded bool
+	drag     rowDrag
 }
 
 // fileItem is a track, a route, or the waypoints of a file.
@@ -43,9 +46,14 @@ type fileItem struct {
 	lines   []mapview.Polyline
 	dots    []geo.Point
 	bounds  geo.Rect
+	color   color.NRGBA
+	// index is the position of the item in the file, independent of the panel order.
+	index int
 
-	visible widget.Bool
-	zoom    widget.Clickable
+	visible  widget.Bool
+	zoom     widget.Clickable
+	colorBtn widget.Clickable
+	drag     rowDrag
 }
 
 // newOpenFile prepares a read file for the panel and the map.
@@ -114,7 +122,85 @@ func (f *openFile) add(it *fileItem) {
 		it.bounds = it.bounds.Extend(p)
 	}
 	f.bounds = f.bounds.Union(it.bounds)
+	it.index = len(f.items)
 	f.items = append(f.items, it)
+}
+
+// order returns the file indices of the items in panel order, or nil if that is the file order.
+func (f *openFile) order() []int {
+	order := make([]int, len(f.items))
+	sorted := true
+	for i, it := range f.items {
+		order[i] = it.index
+		sorted = sorted && it.index == i
+	}
+	if sorted {
+		return nil
+	}
+	return order
+}
+
+// setOrder puts the items in the given order of file indices.
+// It is ignored unless it is a permutation of all items, e.g. if the file changed.
+func (f *openFile) setOrder(order []int) {
+	if len(order) != len(f.items) {
+		return
+	}
+	items := make([]*fileItem, len(order))
+	for i, idx := range order {
+		if idx < 0 || idx >= len(items) || slices.Contains(items, f.items[idx]) {
+			return
+		}
+		items[i] = f.items[idx]
+	}
+	f.items = items
+}
+
+// blockHeight returns the height of the file row and its item rows, if expanded, at the last layout.
+func (f *openFile) blockHeight() int {
+	h := f.drag.height
+	if f.expanded && f.expandable() {
+		for _, it := range f.items {
+			h += it.drag.height
+		}
+	}
+	return h
+}
+
+// colors returns the distinct colors of the items, in item order.
+func (f *openFile) colors() []color.NRGBA {
+	var cols []color.NRGBA
+	for _, it := range f.items {
+		if !slices.Contains(cols, it.color) {
+			cols = append(cols, it.color)
+		}
+	}
+	return cols
+}
+
+// setColors sets the item colors from saved colors, if there is one per item,
+// or otherwise all to the given default.
+func (f *openFile) setColors(saved []string, def color.NRGBA) {
+	ok := len(saved) == len(f.items)
+	cols := make([]color.NRGBA, len(f.items))
+	for i := range cols {
+		if !ok {
+			break
+		}
+		c, err := parseColor(saved[i])
+		if err != nil {
+			log.Printf("%s: %v", f.path, err)
+			ok = false
+		}
+		cols[i] = c
+	}
+	for i, it := range f.items {
+		if ok {
+			it.color = cols[i]
+		} else {
+			it.color = def
+		}
+	}
 }
 
 // expandable reports whether the file has items to show below it.
@@ -200,11 +286,11 @@ func (a *App) openFiles(files []settings.File, fit bool) {
 			files[i].Path = abs
 		}
 	}
-	a.loadMu.Lock()
+	a.bgMu.Lock()
 	id := a.nextBatch
 	a.nextBatch++
 	a.pending[id] = files
-	a.loadMu.Unlock()
+	a.bgMu.Unlock()
 
 	go func() {
 		b := loadBatch{id: id, fit: fit}
@@ -217,9 +303,9 @@ func (a *App) openFiles(files []settings.File, fit bool) {
 			}
 			b.results = append(b.results, loadResult{File: f, file: data, err: err})
 		}
-		a.loadMu.Lock()
+		a.bgMu.Lock()
 		a.loaded = append(a.loaded, b)
-		a.loadMu.Unlock()
+		a.bgMu.Unlock()
 		a.invalidate()
 
 		// Missing files on restore are only logged.
@@ -231,13 +317,13 @@ func (a *App) openFiles(files []settings.File, fit bool) {
 
 // addLoaded adds files read in the background to the panel.
 func (a *App) addLoaded() {
-	a.loadMu.Lock()
+	a.bgMu.Lock()
 	batches := a.loaded
 	a.loaded = nil
 	for _, b := range batches {
 		delete(a.pending, b.id)
 	}
-	a.loadMu.Unlock()
+	a.bgMu.Unlock()
 
 	for _, b := range batches {
 		fit := geo.EmptyRect()
@@ -249,6 +335,11 @@ func (a *App) addLoaded() {
 			if i < 0 {
 				f := newOpenFile(r.Path, r.file)
 				f.visible.Value = !r.Hidden
+				f.setColors(r.Colors, trackColors[a.nextColor%len(trackColors)])
+				f.setOrder(r.Order)
+				if len(r.Colors) == 0 {
+					a.nextColor++
+				}
 				a.files = append(a.files, f)
 				i = len(a.files) - 1
 			}
@@ -294,10 +385,14 @@ func (a *App) showOpenDialog() {
 func (a *App) fileState() []settings.File {
 	var files []settings.File
 	for _, f := range a.files {
-		files = append(files, settings.File{Path: f.path, Hidden: !f.visible.Value})
+		cols := make([]string, len(f.items))
+		for _, it := range f.items {
+			cols[it.index] = formatColor(it.color)
+		}
+		files = append(files, settings.File{Path: f.path, Hidden: !f.visible.Value, Colors: cols, Order: f.order()})
 	}
-	a.loadMu.Lock()
-	defer a.loadMu.Unlock()
+	a.bgMu.Lock()
+	defer a.bgMu.Unlock()
 	ids := make([]int, 0, len(a.pending))
 	for id := range a.pending {
 		ids = append(ids, id)
@@ -315,18 +410,22 @@ func (a *App) fileState() []settings.File {
 
 // updateTracks shows the visible items on the map.
 func (a *App) updateTracks() {
-	var lines []mapview.Polyline
-	var dots []geo.Point
-	for _, f := range a.files {
+	a.tracks.Set(a.trackGroups())
+}
+
+// trackGroups returns the visible items in drawing order:
+// from the bottom of the panel to the top, so that the top-most entry is on top.
+func (a *App) trackGroups() []mapview.LineGroup {
+	var groups []mapview.LineGroup
+	for _, f := range slices.Backward(a.files) {
 		if !f.visible.Value {
 			continue
 		}
-		for _, it := range f.items {
+		for _, it := range slices.Backward(f.items) {
 			if it.visible.Value {
-				lines = append(lines, it.lines...)
-				dots = append(dots, it.dots...)
+				groups = append(groups, mapview.LineGroup{Color: it.color, Lines: it.lines, Dots: it.dots})
 			}
 		}
 	}
-	a.tracks.Set(lines, dots)
+	return groups
 }

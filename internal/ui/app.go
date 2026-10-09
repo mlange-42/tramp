@@ -90,11 +90,15 @@ type App struct {
 	tracksChanged bool
 	dialogOpen    atomic.Bool
 
-	// loadMu guards the fields for files read in the background.
-	loadMu    sync.Mutex
-	nextBatch int
-	pending   map[int][]settings.File
-	loaded    []loadBatch
+	// nextColor is the index of the default color for the next opened file.
+	nextColor int
+
+	// bgMu guards the fields for results of background work: files being read and chosen colors.
+	bgMu         sync.Mutex
+	nextBatch    int
+	pending      map[int][]settings.File
+	loaded       []loadBatch
+	colorChanges []colorChange
 }
 
 // New creates the application for the given window.
@@ -114,7 +118,7 @@ func newApp(invalidate func(), opts Options) *App {
 		layers:     opts.Layers,
 		overlaySel: NewMultiSelect("Overlays", len(opts.Overlays)),
 		mapView:    mapview.New(geo.LonLat{}, 0),
-		tracks:     mapview.Lines{Color: trackColor, Width: 3, DotRadius: 4},
+		tracks:     mapview.Lines{Width: 3, DotRadius: 4},
 		fileList:   widget.List{List: layout.List{Axis: layout.Vertical}},
 		pending:    map[int][]settings.File{},
 	}
@@ -271,6 +275,7 @@ func (a *App) update(gtx layout.Context) {
 	}
 
 	a.addLoaded()
+	a.applyColors()
 	a.updateFiles(gtx)
 	if a.tracksChanged {
 		a.tracksChanged = false

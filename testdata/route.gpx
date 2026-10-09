@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="TRAMP test data" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>Lakes south of Leipzig</name>
+    <desc>Planned bike route from Leipzig to Cospudener and Markkleeberger See, with waypoints.</desc>
+    <time>2026-10-09T12:00:00Z</time>
+  </metadata>
+  <wpt lat="51.3397" lon="12.3731">
+    <ele>113</ele>
+    <name>Start: Markt</name>
+    <sym>Flag, Green</sym>
+    <type>start</type>
+  </wpt>
+  <wpt lat="51.3168" lon="12.3708">
+    <ele>116</ele>
+    <name>Connewitzer Kreuz</name>
+    <sym>Crossing</sym>
+  </wpt>
+  <wpt lat="51.2697" lon="12.3505">
+    <ele>113</ele>
+    <name>Cospudener See, north beach</name>
+    <desc>Swimming and café</desc>
+    <sym>Swimming Area</sym>
+  </wpt>
+  <wpt lat="51.2600" lon="12.4228">
+    <ele>116</ele>
+    <name>Kanupark</name>
+    <sym>Scenic Area</sym>
+  </wpt>
+  <wpt lat="51.2837" lon="12.3893">
+    <ele>121</ele>
+    <name>Markkleeberg station</name>
+    <sym>Ground Transportation</sym>
+    <type>end</type>
+  </wpt>
+  <rte>
+    <name>Lake loop</name>
+    <desc>About 30 km, mostly flat</desc>
+    <type>cycling</type>
+    <rtept lat="51.3397" lon="12.3731"><ele>113</ele><name>Markt</name></rtept>
+    <rtept lat="51.3336" lon="12.3721"><ele>114</ele></rtept>
+    <rtept lat="51.3262" lon="12.3695"><ele>115</ele></rtept>
+    <rtept lat="51.3168" lon="12.3708"><ele>116</ele><name>Connewitzer Kreuz</name></rtept>
+    <rtept lat="51.3040" lon="12.3640"><ele>117</ele></rtept>
+    <rtept lat="51.2905" lon="12.3560"><ele>118</ele></rtept>
+    <rtept lat="51.2775" lon="12.3500"><ele>115</ele></rtept>
+    <rtept lat="51.2697" lon="12.3505"><ele>113</ele><name>Cospudener See</name></rtept>
+    <rtept lat="51.2560" lon="12.3480"><ele>114</ele></rtept>
+    <rtept lat="51.2440" lon="12.3560"><ele>118</ele></rtept>
+    <rtept lat="51.2455" lon="12.3800"><ele>124</ele></rtept>
+    <rtept lat="51.2520" lon="12.4020"><ele>120</ele></rtept>
+    <rtept lat="51.2600" lon="12.4228"><ele>116</ele><name>Kanupark</name></rtept>
+    <rtept lat="51.2700" lon="12.4180"><ele>117</ele></rtept>
+    <rtept lat="51.2780" lon="12.4010"><ele>119</ele></rtept>
+    <rtept lat="51.2837" lon="12.3893"><ele>121</ele><name>Markkleeberg station</name></rtept>
+  </rte>
+</gpx>

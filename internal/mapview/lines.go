@@ -33,21 +33,25 @@ func NewPolyline(pts []geo.Point) Polyline {
 	return Polyline{Points: pts, Bounds: b}
 }
 
-// Lines draws polylines and dots in a single color on top of the map.
+// LineGroup is a set of polylines and dots drawn in one color.
+type LineGroup struct {
+	Color color.NRGBA
+	Lines []Polyline
+	Dots  []geo.Point
+}
+
+// Lines draws groups of polylines and dots on top of the map, later groups on top.
 //
 // The drawing is cached and only rebuilt when the zoom, the view size or the content changes,
 // or when the view was panned far. Lines are cut to an area around the view,
 // and vertices closer than [minStep] pixels are skipped.
 type Lines struct {
-	// Color of lines and dots.
-	Color color.NRGBA
 	// Width of the lines.
 	Width unit.Dp
 	// DotRadius is the radius of dots.
 	DotRadius unit.Dp
 
-	lines   []Polyline
-	dots    []geo.Point
+	groups  []LineGroup
 	version int
 
 	cache  op.Ops
@@ -65,16 +69,15 @@ type linesKey struct {
 	radius  int
 }
 
-// Set replaces the drawn lines and dots.
-func (l *Lines) Set(lines []Polyline, dots []geo.Point) {
-	l.lines = lines
-	l.dots = dots
+// Set replaces the drawn groups.
+func (l *Lines) Set(groups []LineGroup) {
+	l.groups = groups
 	l.version++
 }
 
 // Layout draws the lines for the given view, which must have its size set.
 func (l *Lines) Layout(gtx layout.Context, v *View) {
-	if len(l.lines) == 0 && len(l.dots) == 0 {
+	if len(l.groups) == 0 {
 		return
 	}
 	key := linesKey{
@@ -114,31 +117,36 @@ func (l *Lines) rebuild(v *View, key linesKey) {
 	bw, bh := b.Max.X-b.Min.X, b.Max.Y-b.Min.Y
 	cull := geo.Rect{Min: geo.Point{X: b.Min.X - bw, Y: b.Min.Y - bh}, Max: geo.Point{X: b.Max.X + bw, Y: b.Max.Y + bh}}
 
+	for i := range l.groups {
+		l.drawGroup(&l.groups[i], &ov, area, cull, key)
+	}
+	l.call = macro.Stop()
+}
+
+func (l *Lines) drawGroup(g *LineGroup, v *View, area screenRect, cull geo.Rect, key linesKey) {
 	var path clip.Path
 	path.Begin(&l.cache)
 	n := 0
-	for i := range l.lines {
-		if l.lines[i].Bounds.Intersects(cull) {
-			n += appendLine(&path, &ov, area, l.lines[i].Points)
+	for i := range g.Lines {
+		if g.Lines[i].Bounds.Intersects(cull) {
+			n += appendLine(&path, v, area, g.Lines[i].Points)
 		}
 	}
 	spec := path.End()
 	if n > 0 {
-		paint.FillShape(&l.cache, l.Color, clip.Stroke{Path: spec, Width: float32(key.width)}.Op())
+		paint.FillShape(&l.cache, g.Color, clip.Stroke{Path: spec, Width: float32(key.width)}.Op())
 	}
 
 	r := float32(key.radius)
-	for _, p := range l.dots {
-		x, y := ov.ToScreen(p)
+	for _, p := range g.Dots {
+		x, y := v.ToScreen(p)
 		if !area.contains(x, y) {
 			continue
 		}
 		c := f32.Pt(float32(x), float32(y))
 		ell := clip.Ellipse{Min: c.Sub(f32.Pt(r, r)).Round(), Max: c.Add(f32.Pt(r, r)).Round()}
-		paint.FillShape(&l.cache, l.Color, ell.Op(&l.cache))
+		paint.FillShape(&l.cache, g.Color, ell.Op(&l.cache))
 	}
-
-	l.call = macro.Stop()
 }
 
 // screenRect is a rectangle in screen coordinates.
