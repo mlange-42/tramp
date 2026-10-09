@@ -9,6 +9,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/text"
 	"gioui.org/unit"
+	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/font/gofont/gomonobold"
@@ -120,4 +121,13 @@ func (s *Style) Label(txt string) material.LabelStyle {
 // SmallLabel returns a label with the small text size.
 func (s *Style) SmallLabel(txt string) material.LabelStyle {
 	return material.Label(s.Theme, s.SmallTextSize, txt)
+}
+
+// Button returns a button with the regular text size.
+func (s *Style) Button(clk *widget.Clickable, txt string) material.ButtonStyle {
+	b := material.Button(s.Theme, clk, txt)
+	b.TextSize = s.TextSize
+	b.Inset = s.ButtonInset
+	b.CornerRadius = s.CornerRadius
+	return b
 }

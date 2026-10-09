@@ -7,15 +7,19 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"gioui.org/app"
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/text"
 	"gioui.org/unit"
+	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/mapview"
 	"github.com/mlange-42/tramp/internal/settings"
@@ -39,7 +43,10 @@ type Options struct {
 	// State is the initial map, overlays and view, as returned by [App.State].
 	// Unknown map and overlay names are ignored.
 	// If State.View is nil, the map shows the whole world.
+	// State.Files are reopened.
 	State settings.Settings
+	// Files are opened in addition to State.Files, and shown on the map.
+	Files []string
 }
 
 // overlayState is an overlay with its tiles, which are only loaded while it is enabled.
@@ -73,6 +80,21 @@ type App struct {
 	split     Split
 	mapView   *mapview.Map
 	mapLayers []mapview.Layer
+	tracks    mapview.Lines
+
+	openBtn   widget.Clickable
+	fileList  widget.List
+	files     []*openFile
+	panelRows []panelRow
+	// tracksChanged requests updating the lines on the map.
+	tracksChanged bool
+	dialogOpen    atomic.Bool
+
+	// loadMu guards the fields for files read in the background.
+	loadMu    sync.Mutex
+	nextBatch int
+	pending   map[int][]settings.File
+	loaded    []loadBatch
 }
 
 // New creates the application for the given window.
@@ -92,6 +114,9 @@ func newApp(invalidate func(), opts Options) *App {
 		layers:     opts.Layers,
 		overlaySel: NewMultiSelect("Overlays", len(opts.Overlays)),
 		mapView:    mapview.New(geo.LonLat{}, 0),
+		tracks:     mapview.Lines{Color: trackColor, Width: 3, DotRadius: 4},
+		fileList:   widget.List{List: layout.List{Axis: layout.Vertical}},
+		pending:    map[int][]settings.File{},
 	}
 	if opts.State.Window.Valid() {
 		a.win = *opts.State.Window
@@ -118,6 +143,12 @@ func newApp(invalidate func(), opts Options) *App {
 	} else {
 		a.mapView.Fit(worldBounds)
 	}
+	a.openFiles(slices.Clone(opts.State.Files), false)
+	files := make([]settings.File, len(opts.Files))
+	for i, p := range opts.Files {
+		files[i].Path = p
+	}
+	a.openFiles(files, true)
 	return a
 }
 
@@ -130,6 +161,7 @@ func (a *App) State() settings.Settings {
 		Map:        a.layerNames[a.layerSelect.Selected()],
 		View:       &settings.View{Lon: ll.Lon, Lat: ll.Lat, Zoom: a.mapView.View.Zoom},
 		Window:     new(a.win),
+		Files:      a.fileState(),
 	}
 	for i, name := range a.overlayNames {
 		if a.overlaySel.Checked(i) {
@@ -223,6 +255,27 @@ func (a *App) update(gtx layout.Context) {
 	for _, i := range a.overlaySel.Update(gtx) {
 		a.setOverlay(i, a.overlaySel.Checked(i))
 	}
+
+	open := a.openBtn.Clicked(gtx)
+	for {
+		ev, ok := gtx.Event(key.Filter{Name: "O", Required: key.ModShortcut})
+		if !ok {
+			break
+		}
+		if e, ok := ev.(key.Event); ok && e.State == key.Press {
+			open = true
+		}
+	}
+	if open {
+		a.showOpenDialog()
+	}
+
+	a.addLoaded()
+	a.updateFiles(gtx)
+	if a.tracksChanged {
+		a.tracksChanged = false
+		a.updateTracks()
+	}
 }
 
 func (a *App) layout(gtx layout.Context) layout.Dimensions {
@@ -238,17 +291,6 @@ func (a *App) layout(gtx layout.Context) layout.Dimensions {
 	)
 }
 
-// layoutPanel draws the side panel, which will list the opened elements.
-func (a *App) layoutPanel(gtx layout.Context) layout.Dimensions {
-	st := a.style
-	paint.Fill(gtx.Ops, st.SideBg)
-	return st.SideInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		l := st.SmallLabel("Nothing opened")
-		l.Color = st.HintFg
-		return l.Layout(gtx)
-	})
-}
-
 func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	base := &a.layers[a.layerSelect.Selected()]
 	a.mapLayers = append(a.mapLayers[:0], mapview.Layer{Tiles: a.tiles, MaxTileLevel: base.MaxZoom})
@@ -257,13 +299,19 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 			a.mapLayers = append(a.mapLayers, mapview.Layer{Tiles: o.tiles, Opacity: o.Opacity, MaxTileLevel: o.Layer.MaxZoom})
 		}
 	}
-	return a.mapView.Layout(gtx, a.mapLayers...)
+	dims := a.mapView.Layout(gtx, a.mapLayers...)
+	a.tracks.Layout(gtx, &a.mapView.View)
+	return dims
 }
 
 func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 	st := a.style
 	return st.BarInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return st.Button(&a.openBtn, "Open").Layout(gtx)
+			}),
+			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
 			layout.Rigid(st.Label("Map").Layout),
 			layout.Rigid(layout.Spacer{Width: st.Spacing}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {

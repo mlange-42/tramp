@@ -60,3 +60,33 @@ func TestLonLatString(t *testing.T) {
 		}
 	}
 }
+
+func TestRect(t *testing.T) {
+	r := EmptyRect()
+	if !r.Empty() {
+		t.Error("expected empty rect")
+	}
+	r = r.Extend(Point{1, 2}).Extend(Point{-1, 5})
+	if r != (Rect{Min: Point{-1, 2}, Max: Point{1, 5}}) || r.Empty() {
+		t.Errorf("unexpected rect %v", r)
+	}
+	if u := r.Union(EmptyRect()); u != r {
+		t.Errorf("union with empty rect changed %v to %v", r, u)
+	}
+	if u := r.Union(Rect{Min: Point{0, 0}, Max: Point{3, 3}}); u != (Rect{Min: Point{-1, 0}, Max: Point{3, 5}}) {
+		t.Errorf("unexpected union %v", u)
+	}
+	if !r.Intersects(Rect{Min: Point{1, 5}, Max: Point{2, 6}}) || r.Intersects(Rect{Min: Point{1.1, 0}, Max: Point{2, 6}}) {
+		t.Error("unexpected intersection result")
+	}
+}
+
+func TestDistance(t *testing.T) {
+	// One degree of latitude is about 111.2 km.
+	if d := Distance(LonLat{12, 51}, LonLat{12, 52}); math.Abs(d-111_195) > 10 {
+		t.Errorf("unexpected distance %f", d)
+	}
+	if d := Distance(LonLat{12.37, 51.34}, LonLat{12.37, 51.34}); d != 0 {
+		t.Errorf("expected zero distance, got %f", d)
+	}
+}

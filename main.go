@@ -36,6 +36,8 @@ func main() {
 			Layers:   wmsConfig.Maps,
 			Overlays: wmsConfig.Overlays,
 			State:    state,
+			// Track files to open, e.g. from "Open with" or dropping files on the executable.
+			Files: os.Args[1:],
 		})
 		if !exists && err == nil {
 			saveSettings(a.State())

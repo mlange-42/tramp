@@ -11,6 +11,7 @@ import (
 	"gioui.org/app"
 	"gioui.org/io/event"
 	"github.com/mlange-42/tramp/internal/settings"
+	"github.com/ncruces/zenity"
 )
 
 // hasPlacement reports whether the window position can be saved and restored.
@@ -206,4 +207,12 @@ func monitorDPI(mon uintptr) uint32 {
 		return defaultDPI
 	}
 	return x
+}
+
+// dialogOptions returns options to attach dialogs to the window.
+func (p *platformWindow) dialogOptions() []zenity.Option {
+	if p.hwnd == 0 {
+		return nil
+	}
+	return []zenity.Option{zenity.Attach(p.hwnd)}
 }
