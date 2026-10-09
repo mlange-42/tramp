@@ -91,6 +91,8 @@ type Window struct {
 	PanelWidth float32 `yaml:"panel_width"`
 	// ChartHeight is the height of the chart below the map, in device-independent pixels.
 	ChartHeight float32 `yaml:"chart_height"`
+	// ChartClosed is whether the chart below the map is closed.
+	ChartClosed bool `yaml:"chart_closed,omitempty"`
 }
 
 // Valid reports whether the window has a usable size.

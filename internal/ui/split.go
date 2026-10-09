@@ -23,6 +23,13 @@ type Split struct {
 	End bool
 	// Size of the panel along the axis. It is clamped to leave room for both sides.
 	Size unit.Dp
+	// MinSize is the minimum size of the panel. If zero, [Style.MinPaneSize] is used.
+	MinSize unit.Dp
+	// Collapsible lets the panel be closed by dragging the divider below 2/3 of the minimum size.
+	// The divider stays visible, for dragging the panel open again.
+	Collapsible bool
+	// Collapsed is whether the panel is closed. Size is kept for the next time it is open.
+	Collapsed bool
 
 	drag gesture.Drag
 	// grab is the distance of the pointer from the divider position when the drag started.
@@ -64,8 +71,26 @@ func (s *Split) update(gtx layout.Context, st *Style) {
 		if s.End {
 			p = float32(s.n-bar) - p
 		}
-		s.Size = max(st.MinPaneSize, unit.Dp(p/gtx.Metric.PxPerDp))
+		size := unit.Dp(p / gtx.Metric.PxPerDp)
+		// Well below the minimum size, a collapsible panel snaps closed.
+		collapsed := s.Collapsible && size < s.minSize(st)*2/3
+		if collapsed != s.Collapsed {
+			s.Collapsed = collapsed
+			// Others may depend on the panel being open, and only notice in the next frame.
+			gtx.Execute(op.InvalidateCmd{})
+		}
+		if !s.Collapsed {
+			s.Size = max(s.minSize(st), size)
+		}
 	}
+}
+
+// minSize returns the minimum size of the panel.
+func (s *Split) minSize(st *Style) unit.Dp {
+	if s.MinSize > 0 {
+		return s.MinSize
+	}
+	return st.MinPaneSize
 }
 
 // along returns the coordinate of p along the axis.
@@ -85,9 +110,11 @@ func (s *Split) Layout(gtx layout.Context, st *Style, panel, main layout.Widget)
 	n, cross := s.Axis.Convert(size).X, s.Axis.Convert(size).Y
 	s.n = n
 	bar := gtx.Dp(st.DividerWidth)
-	minPx := gtx.Dp(st.MinPaneSize)
 	// Keep the minimum size for the main content first, then for the panel.
-	s.px = min(max(min(gtx.Dp(s.Size), n-bar-minPx), minPx), max(0, n-bar))
+	s.px = min(max(min(gtx.Dp(s.Size), n-bar-gtx.Dp(st.MinPaneSize)), gtx.Dp(s.minSize(st))), max(0, n-bar))
+	if s.Collapsed {
+		s.px = 0
+	}
 
 	// rect converts a range along the axis to a rectangle spanning the cross axis.
 	rect := func(from, to int) image.Rectangle {
@@ -101,12 +128,21 @@ func (s *Split) Layout(gtx layout.Context, st *Style, panel, main layout.Widget)
 		s.layoutPane(gtx, rect(0, d), panel)
 		s.layoutPane(gtx, rect(d+bar, n), main)
 	}
+	// The handle of a closed panel at the edge would be half outside, so keep it inside.
+	grip := gtx.Dp(st.DividerGrip)
+	handleAt := d
+	if s.Collapsed {
+		if s.End {
+			handleAt = min(d, n-bar/2-grip+grip/2)
+		} else {
+			handleAt = max(d, grip/2-bar/2)
+		}
+	}
 	paint.FillShape(gtx.Ops, st.DividerColor, clip.Rect(rect(d, d+bar)).Op())
 
 	// The handle is wider than the divider for easier grabbing, and on top of both panes.
 	// It is not offset, so that pointer positions don't depend on the moving divider.
-	grip := gtx.Dp(st.DividerGrip)
-	defer clip.Rect(rect(d+bar/2-grip/2, d+bar/2+grip-grip/2)).Push(gtx.Ops).Pop()
+	defer clip.Rect(rect(handleAt+bar/2-grip/2, handleAt+bar/2+grip-grip/2)).Push(gtx.Ops).Pop()
 	s.drag.Add(gtx.Ops)
 	if s.Axis == layout.Vertical {
 		pointer.CursorRowResize.Add(gtx.Ops)
@@ -117,8 +153,11 @@ func (s *Split) Layout(gtx layout.Context, st *Style, panel, main layout.Widget)
 	return layout.Dimensions{Size: size}
 }
 
-// layoutPane draws w into the given rectangle, clipped.
+// layoutPane draws w into the given rectangle, clipped. Empty panes are not drawn.
 func (s *Split) layoutPane(gtx layout.Context, r image.Rectangle, w layout.Widget) {
+	if r.Empty() {
+		return
+	}
 	defer op.Offset(r.Min).Push(gtx.Ops).Pop()
 	defer clip.Rect{Max: r.Size()}.Push(gtx.Ops).Pop()
 	gtx.Constraints = layout.Exact(r.Size())
