@@ -56,21 +56,16 @@ func (a *App) showColorDialog(items []*fileItem) {
 	if len(items) == 0 || !a.dialogOpen.CompareAndSwap(false, true) {
 		return
 	}
-	opts := append([]zenity.Option{
-		zenity.Title("Track color"),
-		zenity.Color(items[0].color),
-	}, a.plat.dialogOptions()...)
+	pick := a.plat.colorDialog(items[0].color)
 	go func() {
 		defer a.dialogOpen.Store(false)
-		c, err := zenity.SelectColor(opts...)
+		nc, err := pick()
 		if err != nil {
 			if !errors.Is(err, zenity.ErrCanceled) {
 				log.Printf("color dialog: %v", err)
 			}
 			return
 		}
-		nc := color.NRGBAModel.Convert(c).(color.NRGBA)
-		nc.A = 0xff
 		a.bgMu.Lock()
 		a.colorChanges = append(a.colorChanges, colorChange{items: items, color: nc})
 		a.bgMu.Unlock()
