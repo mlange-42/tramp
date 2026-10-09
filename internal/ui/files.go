@@ -36,6 +36,7 @@ type openFile struct {
 	expand   widget.Clickable
 	colorBtn widget.Clickable
 	expanded bool
+	drag     rowDrag
 }
 
 // fileItem is a track, a route, or the waypoints of a file.
@@ -46,10 +47,13 @@ type fileItem struct {
 	dots    []geo.Point
 	bounds  geo.Rect
 	color   color.NRGBA
+	// index is the position of the item in the file, independent of the panel order.
+	index int
 
 	visible  widget.Bool
 	zoom     widget.Clickable
 	colorBtn widget.Clickable
+	drag     rowDrag
 }
 
 // newOpenFile prepares a read file for the panel and the map.
@@ -118,7 +122,49 @@ func (f *openFile) add(it *fileItem) {
 		it.bounds = it.bounds.Extend(p)
 	}
 	f.bounds = f.bounds.Union(it.bounds)
+	it.index = len(f.items)
 	f.items = append(f.items, it)
+}
+
+// order returns the file indices of the items in panel order, or nil if that is the file order.
+func (f *openFile) order() []int {
+	order := make([]int, len(f.items))
+	sorted := true
+	for i, it := range f.items {
+		order[i] = it.index
+		sorted = sorted && it.index == i
+	}
+	if sorted {
+		return nil
+	}
+	return order
+}
+
+// setOrder puts the items in the given order of file indices.
+// It is ignored unless it is a permutation of all items, e.g. if the file changed.
+func (f *openFile) setOrder(order []int) {
+	if len(order) != len(f.items) {
+		return
+	}
+	items := make([]*fileItem, len(order))
+	for i, idx := range order {
+		if idx < 0 || idx >= len(items) || slices.Contains(items, f.items[idx]) {
+			return
+		}
+		items[i] = f.items[idx]
+	}
+	f.items = items
+}
+
+// blockHeight returns the height of the file row and its item rows, if expanded, at the last layout.
+func (f *openFile) blockHeight() int {
+	h := f.drag.height
+	if f.expanded && f.expandable() {
+		for _, it := range f.items {
+			h += it.drag.height
+		}
+	}
+	return h
 }
 
 // colors returns the distinct colors of the items, in item order.
@@ -290,6 +336,7 @@ func (a *App) addLoaded() {
 				f := newOpenFile(r.Path, r.file)
 				f.visible.Value = !r.Hidden
 				f.setColors(r.Colors, trackColors[a.nextColor%len(trackColors)])
+				f.setOrder(r.Order)
 				if len(r.Colors) == 0 {
 					a.nextColor++
 				}
@@ -339,10 +386,10 @@ func (a *App) fileState() []settings.File {
 	var files []settings.File
 	for _, f := range a.files {
 		cols := make([]string, len(f.items))
-		for i, it := range f.items {
-			cols[i] = formatColor(it.color)
+		for _, it := range f.items {
+			cols[it.index] = formatColor(it.color)
 		}
-		files = append(files, settings.File{Path: f.path, Hidden: !f.visible.Value, Colors: cols})
+		files = append(files, settings.File{Path: f.path, Hidden: !f.visible.Value, Colors: cols, Order: f.order()})
 	}
 	a.bgMu.Lock()
 	defer a.bgMu.Unlock()

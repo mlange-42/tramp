@@ -50,6 +50,9 @@ type File struct {
 	Hidden bool `yaml:"hidden,omitempty"`
 	// Colors are the colors of the tracks, routes and waypoints of the file, in file order, like "#e01010".
 	Colors []string `yaml:"colors,omitempty"`
+	// Order is the order of the tracks, routes and waypoints in the panel, as indices in file order.
+	// Empty for file order.
+	Order []int `yaml:"order,omitempty"`
 }
 
 // Window is the size, position and state of the main window.

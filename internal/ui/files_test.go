@@ -203,3 +203,71 @@ func TestSetColors(t *testing.T) {
 		}
 	}
 }
+
+func TestItemOrder(t *testing.T) {
+	f := &openFile{bounds: geo.EmptyRect()}
+	for range 3 {
+		f.add(&fileItem{})
+	}
+	if o := f.order(); o != nil {
+		t.Errorf("expected nil for file order, got %v", o)
+	}
+	f.setOrder([]int{2, 0, 1})
+	if o := f.order(); !slices.Equal(o, []int{2, 0, 1}) {
+		t.Errorf("unexpected order %v", o)
+	}
+	// Invalid orders are ignored.
+	for _, o := range [][]int{{0, 1}, {0, 0, 1}, {0, 1, 3}, {-1, 0, 1}} {
+		f.setOrder(o)
+		if got := f.order(); !slices.Equal(got, []int{2, 0, 1}) {
+			t.Errorf("%v: order changed to %v", o, got)
+		}
+	}
+}
+
+func TestItemOrderState(t *testing.T) {
+	loaded := make(chan struct{}, 10)
+	a := &App{
+		invalidate: func() { loaded <- struct{}{} },
+		mapView:    mapview.New(geo.LonLat{}, 0),
+		pending:    map[int][]settings.File{},
+	}
+	path := writeTemp(t, "mixed.gpx", testGPX)
+	saved := settings.File{Path: path, Colors: []string{"#000001", "#000002", "#000003"}, Order: []int{2, 0, 1}}
+	a.openFiles([]settings.File{saved}, false)
+	<-loaded
+	a.addLoaded()
+
+	// Colors are saved in file order, independent of the panel order.
+	f := a.files[0]
+	if f.items[0].name != "Waypoints" || f.items[0].color.B != 3 {
+		t.Errorf("unexpected first item %q %v", f.items[0].name, f.items[0].color)
+	}
+	if s := a.fileState(); !reflect.DeepEqual(s, []settings.File{saved}) {
+		t.Errorf("unexpected state %v", s)
+	}
+}
+
+func TestDragMove(t *testing.T) {
+	for _, c := range []struct {
+		dy         float32
+		prev, next int
+		want       int
+	}{
+		{0, 40, 40, 0},
+		{19, 40, 40, 0},
+		{21, 40, 40, 1},
+		{-21, 40, 40, -1},
+		{-19, 40, 40, 0},
+		// No neighbor on that side.
+		{100, 40, 0, 0},
+		{-100, 0, 40, 0},
+		// After moving down past a row of 40, the pointer is 40 higher relative to the handle.
+		// It must not move back up right away.
+		{21 - 40, 40, 60, 0},
+	} {
+		if got := dragMove(c.dy, c.prev, c.next); got != c.want {
+			t.Errorf("dragMove(%v, %d, %d) = %d, want %d", c.dy, c.prev, c.next, got, c.want)
+		}
+	}
+}
