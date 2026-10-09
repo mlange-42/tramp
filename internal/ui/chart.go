@@ -6,8 +6,11 @@ import (
 	"image/color"
 	"math"
 	"slices"
+	"sort"
 
 	"gioui.org/f32"
+	"gioui.org/io/event"
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -22,15 +25,36 @@ const (
 	// chartQuantile is the share of pixel columns cut off at each end of the value axis,
 	// so that spikes like GPS jumps don't squeeze the rest of the chart.
 	chartQuantile = 0.005
+	// chartScrollPerDouble is the scroll distance for zooming the chart in or out by a factor of two.
+	// A mouse wheel notch scrolls 120 units on most platforms.
+	chartScrollPerDouble = 240
+	// chartMinSpan is the shortest distance the chart can be zoomed to, in meters.
+	chartMinSpan = 20
 )
 
 // chart shows a metric of a track or route over the distance along it.
 //
 // The values are averaged per pixel column, so that the drawing doesn't depend on the number of points.
-// The drawing is cached and only rebuilt when the content or the size changes.
+// The drawing is cached and only rebuilt when the content, the size or the shown range changes.
+//
+// The chart is zoomed with the scroll wheel and panned by dragging with the secondary (right) mouse button,
+// both only along the distance axis.
 type chart struct {
 	chartData
 	version int
+
+	// item is the shown item. The shown range is kept while the item stays the same.
+	item *fileItem
+	// from and to are the shown distance range, in meters.
+	from, to float64
+	// plot is the plot area at the last layout, for converting pointer positions.
+	plot     image.Rectangle
+	dragging bool
+	dragID   pointer.ID
+	lastX    float32
+
+	// yRange caches the value range of the whole item, see [chart.valueRange].
+	yRange chartYRange
 
 	cache op.Ops
 	call  op.CallOp
@@ -55,9 +79,10 @@ type chartData struct {
 }
 
 type chartKey struct {
-	version int
-	size    image.Point
-	pxPerDp float32
+	version  int
+	size     image.Point
+	pxPerDp  float32
+	from, to float64
 }
 
 // updateChart shows the selected item in the chart, with the metric tracks are colored by.
@@ -96,6 +121,74 @@ func (a *App) updateChart() {
 		c.info = nil
 		c.hint = "Too short for a profile"
 	}
+	if it != c.item {
+		c.item = it
+		c.from, c.to = 0, c.total
+	}
+	c.setRange(c.from, c.to-c.from)
+}
+
+// clampSpan limits a span of the distance range to between [chartMinSpan] and the whole item.
+func (c *chart) clampSpan(span float64) float64 {
+	return math.Min(math.Max(span, math.Min(chartMinSpan, c.total)), c.total)
+}
+
+// setRange shows the given distance range, with the span limited by [chart.clampSpan]
+// and shifted to lie within the item.
+func (c *chart) setRange(from, span float64) {
+	span = c.clampSpan(span)
+	if !(span > 0) {
+		c.from, c.to = 0, c.total
+		return
+	}
+	from = math.Min(math.Max(from, 0), c.total-span)
+	c.from, c.to = from, from+span
+}
+
+// toDist converts a horizontal pointer position to a distance along the item.
+func (c *chart) toDist(x float32) float64 {
+	return c.from + float64(x-float32(c.plot.Min.X))/float64(c.plot.Dx())*(c.to-c.from)
+}
+
+// update applies zooming and panning.
+func (c *chart) update(gtx layout.Context) {
+	for {
+		ev, ok := gtx.Event(pointer.Filter{
+			Target:  c,
+			Kinds:   pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel | pointer.Scroll,
+			ScrollY: pointer.ScrollRange{Min: math.MinInt32, Max: math.MaxInt32},
+		})
+		if !ok {
+			break
+		}
+		e, ok := ev.(pointer.Event)
+		if !ok || c.info == nil || c.plot.Dx() <= 0 {
+			continue
+		}
+		switch e.Kind {
+		case pointer.Press:
+			if !c.dragging && e.Buttons.Contain(pointer.ButtonSecondary) {
+				c.dragging, c.dragID, c.lastX = true, e.PointerID, e.Position.X
+				gtx.Execute(pointer.GrabCmd{Tag: c, ID: e.PointerID})
+			}
+		case pointer.Drag:
+			if c.dragging && e.PointerID == c.dragID {
+				c.setRange(c.from+c.toDist(c.lastX)-c.toDist(e.Position.X), c.to-c.from)
+				c.lastX = e.Position.X
+			}
+		case pointer.Release, pointer.Cancel:
+			// Releasing another button doesn't end the drag.
+			if e.PointerID == c.dragID && (e.Kind == pointer.Cancel || !e.Buttons.Contain(pointer.ButtonSecondary)) {
+				c.dragging = false
+			}
+		case pointer.Scroll:
+			// Zoom around the distance under the pointer.
+			d := c.toDist(e.Position.X)
+			span := c.to - c.from
+			ns := c.clampSpan(span * math.Pow(2, float64(e.Scroll.Y)/chartScrollPerDouble))
+			c.setRange(d-(d-c.from)/span*ns, ns)
+		}
+	}
 }
 
 // metricIndex returns the index of the metric in [metrics].
@@ -121,7 +214,9 @@ func (a *App) layoutChart(gtx layout.Context) layout.Dimensions {
 		})
 		return layout.Dimensions{Size: gtx.Constraints.Max}
 	}
-	key := chartKey{version: c.version, size: gtx.Constraints.Max, pxPerDp: gtx.Metric.PxPerDp}
+	c.plot = chartPlot(gtx, st)
+	c.update(gtx)
+	key := chartKey{version: c.version, size: gtx.Constraints.Max, pxPerDp: gtx.Metric.PxPerDp, from: c.from, to: c.to}
 	if key != c.key {
 		c.key = key
 		c.cache.Reset()
@@ -132,24 +227,41 @@ func (a *App) layoutChart(gtx layout.Context) layout.Dimensions {
 		c.call = macro.Stop()
 	}
 	c.call.Add(gtx.Ops)
+
+	defer clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops).Pop()
+	event.Op(gtx.Ops, c)
+	if c.dragging {
+		pointer.CursorGrabbing.Add(gtx.Ops)
+	}
 	return layout.Dimensions{Size: gtx.Constraints.Max}
+}
+
+// chartPlot returns the plot area of the chart for the maximum constraints.
+// Below it is a narrow strip for the distance labels.
+func chartPlot(gtx layout.Context, st *Style) image.Rectangle {
+	size := gtx.Constraints.Max
+	inset := gtx.Dp(st.Spacing / 2)
+	return image.Rect(inset, inset, size.X-inset, size.Y-chartLabelHeight(gtx, st))
+}
+
+// chartLabelHeight returns the height of the strip for the distance labels.
+func chartLabelHeight(gtx layout.Context, st *Style) int {
+	return int(math.Ceil(float64(gtx.Sp(st.SmallTextSize)) * 1.3))
 }
 
 // draw draws the chart into the maximum constraints.
 // Tick labels are drawn inside the plot for the y axis, and in a narrow strip below it for the x axis.
 func (c *chart) draw(gtx layout.Context, st *Style) {
-	size := gtx.Constraints.Max
-	inset := gtx.Dp(st.Spacing / 2)
-	labelH := int(math.Ceil(float64(gtx.Sp(st.SmallTextSize)) * 1.3))
-	plot := image.Rect(inset, inset, size.X-inset, size.Y-labelH)
+	plot := chartPlot(gtx, st)
+	labelH := chartLabelHeight(gtx, st)
 	if plot.Dx() < 2 || plot.Dy() < 2 {
 		return
 	}
-	cols := columnMeans(c.dist, c.vals, c.total, plot.Dx())
-	lo, hi, ok := columnRange(cols)
+	lo, hi, ok := c.valueRange(plot.Dx())
 	if !ok {
 		return
 	}
+	cols := columnMeans(c.dist, c.vals, c.from, c.to, plot.Dx())
 	scale := c.info.scale
 	tickPx := float64(gtx.Dp(st.ChartTickSpacing))
 
@@ -187,10 +299,11 @@ func (c *chart) drawGrid(gtx layout.Context, st *Style, plot image.Rectangle, la
 	}
 
 	// Distance labels are wider than value labels, so they need more space.
-	xStep := niceStep(c.total / max(1, float64(plot.Dx())/float64(3*gtx.Dp(st.ChartTickSpacing))))
+	span := c.to - c.from
+	xStep := niceStep(span / max(1, float64(plot.Dx())/float64(3*gtx.Dp(st.ChartTickSpacing))))
 	right := math.MinInt
-	for _, d := range ticks(0, c.total, xStep) {
-		x := plot.Min.X + int(math.Round(d/c.total*float64(plot.Dx())))
+	for _, d := range ticks(c.from, c.to, xStep) {
+		x := plot.Min.X + int(math.Round((d-c.from)/span*float64(plot.Dx())))
 		paint.FillShape(gtx.Ops, st.ChartGrid, clip.Rect(image.Rect(x, plot.Min.Y, x+w, plot.Max.Y)).Op())
 
 		l := st.SmallLabel(formatTick(d, xStep))
@@ -320,19 +433,25 @@ func segmentRect(path *clip.Path, a, b f32.Point, hw float32) {
 	path.Close()
 }
 
-// columnMeans returns the mean value for n equal-width columns over the distance from 0 to total,
+// columnMeans returns the mean value for n equal-width columns over the distance from from to to,
 // weighted by the length of the line segments in each column. Columns without values are NaN.
-func columnMeans(dist, vals [][]float64, total float64, n int) []float64 {
+func columnMeans(dist, vals [][]float64, from, to float64, n int) []float64 {
 	sum := make([]float64, n)
 	weight := make([]float64, n)
-	scale := float64(n) / total
+	scale := float64(n) / (to - from)
 	for i, line := range vals {
 		d := dist[i]
-		for j, v := range line {
+		if len(line) == 0 || d[0] > to || d[len(d)-1] < from {
+			continue
+		}
+		// Start at the last segment that begins before the range.
+		start := max(0, sort.SearchFloat64s(d, from)-1)
+		for j := start; j < len(line) && d[j] <= to; j++ {
+			v := line[j]
 			if math.IsNaN(v) {
 				continue
 			}
-			x0, x1 := d[j]*scale, d[j+1]*scale
+			x0, x1 := (d[j]-from)*scale, (d[j+1]-from)*scale
 			for col := max(0, int(x0)); col < n && float64(col) < x1; col++ {
 				if w := math.Min(x1, float64(col+1)) - math.Max(x0, float64(col)); w > 0 {
 					sum[col] += v * w
@@ -349,6 +468,24 @@ func columnMeans(dist, vals [][]float64, total float64, n int) []float64 {
 		}
 	}
 	return sum
+}
+
+// chartYRange is the value range of the whole item for a plot width.
+type chartYRange struct {
+	version, width int
+	lo, hi         float64
+	ok             bool
+}
+
+// valueRange returns the range of the value axis: the range of the column values of the whole item,
+// for the given plot width. It doesn't change with zooming or panning.
+func (c *chart) valueRange(width int) (lo, hi float64, ok bool) {
+	r := &c.yRange
+	if r.version != c.version || r.width != width {
+		*r = chartYRange{version: c.version, width: width}
+		r.lo, r.hi, r.ok = columnRange(columnMeans(c.dist, c.vals, 0, c.total, width))
+	}
+	return r.lo, r.hi, r.ok
 }
 
 // columnRange returns the range of the column values without the outer [chartQuantile] at each end,
@@ -391,13 +528,17 @@ func ticks(lo, hi, step float64) []float64 {
 	return out
 }
 
-// formatTick formats a distance tick, in meters or kilometers depending on the tick step.
+// formatTick formats a distance tick, in meters below 1 km, otherwise in kilometers
+// with as many decimals as the tick step needs.
 func formatTick(m, step float64) string {
-	if m == 0 {
+	switch {
+	case m == 0:
 		return "0"
+	case m < 1000:
+		return fmt.Sprintf("%.0f m", m)
+	case step >= 1000:
+		return fmt.Sprintf("%.0f km", m/1000)
 	}
-	if step < 1000 {
-		return fmt.Sprintf("%g m", m)
-	}
-	return fmt.Sprintf("%g km", m/1000)
+	decimals := int(math.Ceil(-math.Log10(step/1000) - 1e-9))
+	return fmt.Sprintf("%.*f km", decimals, m/1000)
 }

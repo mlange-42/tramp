@@ -29,6 +29,7 @@ const (
 var background = color.NRGBA{R: 0xe0, G: 0xe0, B: 0xe0, A: 0xff}
 
 // Map is an interactive map widget showing tiles from a [tiles.Manager].
+// It is panned by dragging with the secondary (right) mouse button, and zoomed with the scroll wheel.
 type Map struct {
 	View    View
 	MinZoom float64
@@ -106,8 +107,6 @@ func (m *Map) Layout(gtx layout.Context, layers ...Layer) layout.Dimensions {
 	event.Op(gtx.Ops, m)
 	if m.dragging {
 		pointer.CursorGrabbing.Add(gtx.Ops)
-	} else {
-		pointer.CursorGrab.Add(gtx.Ops)
 	}
 	return layout.Dimensions{Size: size}
 }
@@ -129,7 +128,7 @@ func (m *Map) update(gtx layout.Context) {
 		}
 		switch e.Kind {
 		case pointer.Press:
-			if !m.dragging && e.Buttons.Contain(pointer.ButtonPrimary) {
+			if !m.dragging && e.Buttons.Contain(pointer.ButtonSecondary) {
 				m.dragging = true
 				m.dragID = e.PointerID
 				m.last = e.Position
@@ -142,7 +141,8 @@ func (m *Map) update(gtx layout.Context) {
 				m.last = e.Position
 			}
 		case pointer.Release, pointer.Cancel:
-			if e.PointerID == m.dragID {
+			// Releasing another button doesn't end the drag.
+			if e.PointerID == m.dragID && (e.Kind == pointer.Cancel || !e.Buttons.Contain(pointer.ButtonSecondary)) {
 				m.dragging = false
 			}
 		case pointer.Scroll:
