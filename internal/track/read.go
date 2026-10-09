@@ -22,7 +22,8 @@ func ReadFile(path string) (*File, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer r.Close()
+	// Closing a file that was only read can't lose data.
+	defer func() { _ = r.Close() }()
 
 	f, err := ReadGPX(r)
 	if err != nil {
