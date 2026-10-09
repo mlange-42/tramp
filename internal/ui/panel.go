@@ -135,7 +135,7 @@ func (a *App) selectedRow(r panelRow) bool {
 	if r.item != nil {
 		return r.item == a.selected
 	}
-	return !(r.file.expanded && r.file.expandable()) && slices.Contains(r.file.items, a.selected)
+	return (!r.file.expanded || !r.file.expandable()) && slices.Contains(r.file.items, a.selected)
 }
 
 // updateDrags moves dragged files, and dragged items within their file.
