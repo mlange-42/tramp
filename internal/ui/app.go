@@ -160,7 +160,7 @@ func newApp(invalidate func(), opts Options) *App {
 	if v := opts.State.View; v != nil {
 		mapName, overlays = v.Map, v.Overlays
 	}
-	for _, l := range opts.Layers {
+	for _, l := range a.layers {
 		a.layerNames = append(a.layerNames, l.Name)
 	}
 	for _, o := range opts.Overlays {
@@ -252,7 +252,9 @@ func (a *App) Run() error {
 }
 
 func (a *App) closeTiles() {
-	a.tiles.Close()
+	if a.tiles != nil {
+		a.tiles.Close()
+	}
 	for _, o := range a.overlays {
 		if o.tiles != nil {
 			o.tiles.Close()
@@ -272,7 +274,10 @@ func (a *App) setLayer(i int) {
 		go a.tiles.Close()
 	}
 	a.layerSelect.SetSelected(i)
-	a.tiles = a.newManager(&a.layers[i], false)
+	a.tiles = nil
+	if !a.layers[i].IsNone() {
+		a.tiles = a.newManager(&a.layers[i], false)
+	}
 	a.updateCapacity()
 }
 
@@ -295,7 +300,10 @@ func (a *App) updateCapacity() {
 		// Use the tile manager's default.
 		return
 	}
-	managers := []*tiles.Manager{a.tiles}
+	var managers []*tiles.Manager
+	if a.tiles != nil {
+		managers = append(managers, a.tiles)
+	}
 	for _, o := range a.overlays {
 		if o.tiles != nil {
 			managers = append(managers, o.tiles)
@@ -409,12 +417,16 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	}
 	status := fmt.Sprintf("%s   zoom %.1f (tiles %d)", pos, a.mapView.View.Zoom, a.mapView.TileLevel())
 
-	loading := a.tiles.Loading()
-	attribution := []string{a.layers[a.layerSelect.Selected()].Attribution}
+	var loading int
+	var attribution []string
+	if a.tiles != nil {
+		loading = a.tiles.Loading()
+		attribution = append(attribution, a.layers[a.layerSelect.Selected()].Attribution)
+	}
 	for _, o := range a.overlays {
 		if o.tiles != nil {
 			loading += o.tiles.Loading()
-			if !slices.Contains(attribution, o.Layer.Attribution) {
+			if o.Layer.Attribution != "" && !slices.Contains(attribution, o.Layer.Attribution) {
 				attribution = append(attribution, o.Layer.Attribution)
 			}
 		}
