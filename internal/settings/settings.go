@@ -48,6 +48,8 @@ type File struct {
 	Path string `yaml:"path"`
 	// Hidden is whether the file is hidden on the map.
 	Hidden bool `yaml:"hidden,omitempty"`
+	// Colors are the colors of the tracks, routes and waypoints of the file, in file order, like "#e01010".
+	Colors []string `yaml:"colors,omitempty"`
 }
 
 // Window is the size, position and state of the main window.

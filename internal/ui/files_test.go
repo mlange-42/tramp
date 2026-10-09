@@ -2,8 +2,10 @@ package ui
 
 import (
 	"image"
+	"image/color"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -100,7 +102,8 @@ func TestOpenFiles(t *testing.T) {
 	plain := writeTemp(t, "plain.gpx", testTrackGPX)
 	missing := filepath.Join(t.TempDir(), "missing.gpx")
 
-	a.openFiles([]settings.File{{Path: mixed}, {Path: missing}, {Path: plain, Hidden: true}}, false)
+	saved := []string{"#010203", "#040506", "#070809"}
+	a.openFiles([]settings.File{{Path: mixed, Colors: saved}, {Path: missing}, {Path: plain, Hidden: true}}, false)
 	// Files still being read are saved.
 	if s := a.fileState(); len(s) != 3 {
 		t.Errorf("expected 3 pending files, got %v", s)
@@ -114,8 +117,24 @@ func TestOpenFiles(t *testing.T) {
 	if !a.files[0].visible.Value || a.files[1].visible.Value || !a.tracksChanged {
 		t.Errorf("unexpected visibility")
 	}
-	if s := a.fileState(); len(s) != 2 || s[0] != (settings.File{Path: mixed}) || s[1] != (settings.File{Path: plain, Hidden: true}) {
+	// Saved colors are restored, files without get the first default color.
+	want := []settings.File{
+		{Path: mixed, Colors: saved},
+		{Path: plain, Hidden: true, Colors: []string{formatColor(trackColors[0])}},
+	}
+	if s := a.fileState(); !reflect.DeepEqual(s, want) {
 		t.Errorf("unexpected state %v", s)
+	}
+	if c := a.files[0].colors(); len(c) != 3 {
+		t.Errorf("expected 3 distinct colors, got %v", c)
+	}
+
+	// A color chosen for a whole file applies to all its items.
+	a.colorChanges = []colorChange{{items: a.files[0].items, color: trackColors[3]}}
+	a.tracksChanged = false
+	a.applyColors()
+	if c := a.files[0].colors(); len(c) != 1 || c[0] != trackColors[3] || !a.tracksChanged {
+		t.Errorf("expected a single changed color, got %v", c)
 	}
 
 	// Hidden files and items are not drawn.
@@ -133,5 +152,41 @@ func TestOpenFiles(t *testing.T) {
 	}
 	if a.mapView.View.Zoom == zoom {
 		t.Errorf("expected the map to show the file")
+	}
+}
+
+func TestParseColor(t *testing.T) {
+	for _, c := range trackColors {
+		got, err := parseColor(formatColor(c))
+		if err != nil || got != c {
+			t.Errorf("round trip of %v gave %v, %v", c, got, err)
+		}
+	}
+	for _, s := range []string{"", "e01010", "#e0101", "#e0101g", "#e01010ff"} {
+		if _, err := parseColor(s); err == nil {
+			t.Errorf("expected error for %q", s)
+		}
+	}
+}
+
+func TestSetColors(t *testing.T) {
+	f := &openFile{items: []*fileItem{{}, {}}}
+	def := color.NRGBA{R: 1, A: 0xff}
+	for _, c := range []struct {
+		saved []string
+		want  []color.NRGBA
+	}{
+		{nil, []color.NRGBA{def, def}},
+		{[]string{"#000010", "#000020"}, []color.NRGBA{{B: 0x10, A: 0xff}, {B: 0x20, A: 0xff}}},
+		// The file changed, or the colors are invalid.
+		{[]string{"#000010"}, []color.NRGBA{def, def}},
+		{[]string{"#000010", "blue"}, []color.NRGBA{def, def}},
+	} {
+		f.setColors(c.saved, def)
+		for i, it := range f.items {
+			if it.color != c.want[i] {
+				t.Errorf("%v: item %d: got %v, want %v", c.saved, i, it.color, c.want[i])
+			}
+		}
 	}
 }

@@ -10,9 +10,6 @@ import (
 	"gioui.org/widget/material"
 )
 
-// trackColor is the color of tracks, routes and waypoints on the map.
-var trackColor = color.NRGBA{R: 0xe0, G: 0x10, B: 0x10, A: 0xff}
-
 // panelRow is a row in the side panel: a file, or an item of an expanded file.
 type panelRow struct {
 	file *openFile
@@ -38,12 +35,18 @@ func (a *App) updateFiles(gtx layout.Context) {
 		if f.expand.Clicked(gtx) {
 			f.expanded = !f.expanded
 		}
+		if f.colorBtn.Clicked(gtx) {
+			a.showColorDialog(f.items)
+		}
 		for _, it := range f.items {
 			if it.visible.Update(gtx) {
 				a.tracksChanged = true
 			}
 			if it.zoom.Clicked(gtx) && !it.bounds.Empty() {
 				a.mapView.Fit(fitRect(it.bounds))
+			}
+			if it.colorBtn.Clicked(gtx) {
+				a.showColorDialog([]*fileItem{it})
 			}
 		}
 	}
@@ -84,6 +87,12 @@ func (a *App) layoutFileRow(gtx layout.Context, f *openFile) layout.Dimensions {
 	st := a.style
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(a.checkBox(&f.visible)),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if len(f.items) == 0 {
+				return layout.Dimensions{}
+			}
+			return a.layoutSwatch(gtx, &f.colorBtn, f.colors())
+		}),
 		layout.Flexed(1, a.rowText(&f.zoom, f.name, f.summary, f.visible.Value)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if !f.expandable() {
@@ -108,6 +117,9 @@ func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem) layou
 	return layout.Inset{Left: st.IconSize + st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(a.checkBox(&it.visible)),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return a.layoutSwatch(gtx, &it.colorBtn, []color.NRGBA{it.color})
+			}),
 			layout.Flexed(1, a.rowText(&it.zoom, it.name, it.summary, f.visible.Value && it.visible.Value)),
 		)
 	})
