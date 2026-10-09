@@ -59,9 +59,17 @@ On Linux, the file dialog requires `zenity`, `kdialog` or a similar tool, which 
 ### Settings
 
 TRAMP remembers the opened files, the selected map, overlays, map position and window size in a YAML file `settings.yaml` in the user's config directory.
-The file also contains `tile_cache`, the number of map tiles kept in memory (default 2048, about 512 MB).
-`track_width` and `route_width` set the line widths of tracks and routes on the map (default 3),
-and `waypoint_size` the diameter of waypoint dots (default 8), all in device-independent pixels.
+Some settings can only be changed in this file:
+
+```yaml
+tile_cache: 2048      # map tiles kept in memory, about 256 KB each
+style:
+  track_width: 3      # line width of tracks
+  route_width: 3      # line width of routes
+  waypoint_size: 8    # diameter of waypoint dots
+```
+
+Sizes are in device-independent pixels.
 
 The file is located in:
 

@@ -279,7 +279,7 @@ func TestLineSizes(t *testing.T) {
 	}
 	a := newApp(func() {}, Options{
 		Layers: DefaultLayers(),
-		State:  settings.Settings{TrackWidth: 4, RouteWidth: 2, WaypointSize: 10},
+		State:  settings.Settings{Style: settings.Style{TrackWidth: 4, RouteWidth: 2, WaypointSize: 10}},
 	})
 	defer a.closeTiles()
 	a.files = []*openFile{newOpenFile("mixed.gpx", data)}
@@ -288,8 +288,8 @@ func TestLineSizes(t *testing.T) {
 	if len(groups) != 3 || groups[0].DotSize != 10 || groups[1].Width != 2 || groups[2].Width != 4 {
 		t.Errorf("unexpected sizes %+v", groups)
 	}
-	if s := a.State(); s.TrackWidth != 4 || s.RouteWidth != 2 || s.WaypointSize != 10 {
-		t.Errorf("unexpected saved sizes %v %v %v", s.TrackWidth, s.RouteWidth, s.WaypointSize)
+	if st := a.State().Style; st.TrackWidth != 4 || st.RouteWidth != 2 || st.WaypointSize != 10 {
+		t.Errorf("unexpected saved style %+v", st)
 	}
 
 	// Missing sizes fall back to the defaults.
@@ -297,5 +297,24 @@ func TestLineSizes(t *testing.T) {
 	defer b.closeTiles()
 	if b.trackWidth != settings.DefaultTrackWidth || b.routeWidth != settings.DefaultRouteWidth || b.waypointSize != settings.DefaultWaypointSize {
 		t.Errorf("unexpected default sizes %v %v %v", b.trackWidth, b.routeWidth, b.waypointSize)
+	}
+}
+
+func TestViewState(t *testing.T) {
+	layers := DefaultLayers()
+	overlays := DefaultOverlays()
+	view := &settings.View{Lon: 12.4, Lat: 51.3, Zoom: 12, Map: layers[1].Name, Overlays: []string{overlays[2].Layer.Name, "unknown"}}
+	a := newApp(func() {}, Options{
+		Layers:   layers,
+		Overlays: overlays,
+		State:    settings.Settings{View: view, Window: &settings.Window{Width: 800, Height: 600, PanelWidth: 320}},
+	})
+	defer a.closeTiles()
+	s := a.State()
+	if s.View.Map != layers[1].Name || !slices.Equal(s.View.Overlays, []string{overlays[2].Layer.Name}) || s.View.Zoom != 12 {
+		t.Errorf("unexpected view %+v", s.View)
+	}
+	if s.Window.PanelWidth != 320 {
+		t.Errorf("unexpected panel width %v", s.Window.PanelWidth)
 	}
 }

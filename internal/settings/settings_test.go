@@ -16,21 +16,25 @@ func TestSaveLoad(t *testing.T) {
 	if def.TileCache != DefaultTileCache {
 		t.Errorf("tile cache default not set: %d", def.TileCache)
 	}
-	if def.PanelWidth != DefaultPanelWidth {
-		t.Errorf("panel width default not set: %v", def.PanelWidth)
-	}
-	if def.TrackWidth != DefaultTrackWidth || def.RouteWidth != DefaultRouteWidth || def.WaypointSize != DefaultWaypointSize {
-		t.Errorf("line defaults not set: %v %v %v", def.TrackWidth, def.RouteWidth, def.WaypointSize)
+	if st := def.Style; st.TrackWidth != DefaultTrackWidth || st.RouteWidth != DefaultRouteWidth || st.WaypointSize != DefaultWaypointSize {
+		t.Errorf("style defaults not set: %+v", st)
 	}
 
 	s := Settings{
-		TileCache:  100,
-		PanelWidth: 300,
-		TrackWidth: 4, RouteWidth: 2.5, WaypointSize: 10,
-		Map:      "OpenStreetMap",
-		Overlays: []string{"Hillshade (SRTM)", "Labels & roads"},
-		View:     &View{Lon: 12.5, Lat: -51.25, Zoom: 10.5},
-		Window:   &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true},
+		TileCache: 100,
+		Style: Style{
+			TrackWidth:   4,
+			RouteWidth:   2.5,
+			WaypointSize: 10,
+			ColorBy:      "slope",
+			Gradients:    map[string]string{"speed": "Turbo", "slope": "Blue–Red"},
+		},
+		View: &View{
+			Lon: 12.5, Lat: -51.25, Zoom: 10.5,
+			Map:      "OpenStreetMap",
+			Overlays: []string{"Hillshade (SRTM)", "Labels & roads"},
+		},
+		Window: &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true, PanelWidth: 300},
 	}
 	if err := save(path, &s); err != nil {
 		t.Fatal(err)
@@ -66,5 +70,19 @@ func TestReadWriteYAML(t *testing.T) {
 	}
 	if !reflect.DeepEqual(c, want) {
 		t.Errorf("got %+v, want %+v", c, want)
+	}
+}
+
+func TestPanelWidthDefault(t *testing.T) {
+	path := filepath.Join(t.TempDir(), fileName)
+	if err := save(path, &Settings{Window: &Window{Width: 800, Height: 600}}); err != nil {
+		t.Fatal(err)
+	}
+	s, _, err := load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Window.PanelWidth != DefaultPanelWidth {
+		t.Errorf("panel width default not set: %v", s.Window.PanelWidth)
 	}
 }

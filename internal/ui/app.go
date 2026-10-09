@@ -123,13 +123,12 @@ func newApp(invalidate func(), opts Options) *App {
 		style:        DefaultStyle(),
 		client:       &wms.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent},
 		tileCache:    opts.State.TileCache,
-		split:        Split{Width: unit.Dp(opts.State.PanelWidth)},
 		layers:       opts.Layers,
 		overlaySel:   NewMultiSelect("Overlays", len(opts.Overlays)),
 		mapView:      mapview.New(geo.LonLat{}, 0),
-		trackWidth:   dpOr(opts.State.TrackWidth, settings.DefaultTrackWidth),
-		routeWidth:   dpOr(opts.State.RouteWidth, settings.DefaultRouteWidth),
-		waypointSize: dpOr(opts.State.WaypointSize, settings.DefaultWaypointSize),
+		trackWidth:   dpOr(opts.State.Style.TrackWidth, settings.DefaultTrackWidth),
+		routeWidth:   dpOr(opts.State.Style.RouteWidth, settings.DefaultRouteWidth),
+		waypointSize: dpOr(opts.State.Style.WaypointSize, settings.DefaultWaypointSize),
 		fileList:     widget.List{List: layout.List{Axis: layout.Vertical}},
 		pending:      map[int][]settings.File{},
 	}
@@ -138,6 +137,12 @@ func newApp(invalidate func(), opts Options) *App {
 	} else {
 		a.win = defaultWindow
 	}
+	a.split.Width = dpOr(a.win.PanelWidth, settings.DefaultPanelWidth)
+	var mapName string
+	var overlays []string
+	if v := opts.State.View; v != nil {
+		mapName, overlays = v.Map, v.Overlays
+	}
 	for _, l := range opts.Layers {
 		a.layerNames = append(a.layerNames, l.Name)
 	}
@@ -145,9 +150,9 @@ func newApp(invalidate func(), opts Options) *App {
 		a.overlays = append(a.overlays, overlayState{Overlay: o})
 		a.overlayNames = append(a.overlayNames, o.Layer.Name)
 	}
-	a.setLayer(max(0, slices.Index(a.layerNames, opts.State.Map)))
+	a.setLayer(max(0, slices.Index(a.layerNames, mapName)))
 	for i, name := range a.overlayNames {
-		if slices.Contains(opts.State.Overlays, name) {
+		if slices.Contains(overlays, name) {
 			a.overlaySel.SetChecked(i, true)
 			a.setOverlay(i, true)
 		}
@@ -158,7 +163,7 @@ func newApp(invalidate func(), opts Options) *App {
 	} else {
 		a.mapView.Fit(worldBounds)
 	}
-	a.initColoring(opts.State.ColorBy, opts.State.Gradients)
+	a.initColoring(opts.State.Style.ColorBy, opts.State.Style.Gradients)
 	a.openFiles(slices.Clone(opts.State.Files), false)
 	files := make([]settings.File, len(opts.Files))
 	for i, p := range opts.Files {
@@ -180,20 +185,26 @@ func dpOr(v, def float32) unit.Dp {
 func (a *App) State() settings.Settings {
 	ll := geo.ToLonLat(a.mapView.View.Center)
 	s := settings.Settings{
-		TileCache:    a.tileCache,
-		TrackWidth:   float32(a.trackWidth),
-		RouteWidth:   float32(a.routeWidth),
-		WaypointSize: float32(a.waypointSize),
-		PanelWidth:   float32(a.split.Width),
-		Map:          a.layerNames[a.layerSelect.Selected()],
-		View:         &settings.View{Lon: ll.Lon, Lat: ll.Lat, Zoom: a.mapView.View.Zoom},
-		Window:       new(a.win),
-		Files:        a.fileState(),
+		TileCache: a.tileCache,
+		Style: settings.Style{
+			TrackWidth:   float32(a.trackWidth),
+			RouteWidth:   float32(a.routeWidth),
+			WaypointSize: float32(a.waypointSize),
+		},
+		View: &settings.View{
+			Lon:  ll.Lon,
+			Lat:  ll.Lat,
+			Zoom: a.mapView.View.Zoom,
+			Map:  a.layerNames[a.layerSelect.Selected()],
+		},
+		Window: new(a.win),
+		Files:  a.fileState(),
 	}
-	s.ColorBy, s.Gradients = a.coloringState()
+	s.Window.PanelWidth = float32(a.split.Width)
+	s.Style.ColorBy, s.Style.Gradients = a.coloringState()
 	for i, name := range a.overlayNames {
 		if a.overlaySel.Checked(i) {
-			s.Overlays = append(s.Overlays, name)
+			s.View.Overlays = append(s.View.Overlays, name)
 		}
 	}
 	return s
