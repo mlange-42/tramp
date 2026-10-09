@@ -30,8 +30,9 @@ type openFile struct {
 	items   []*fileItem
 	bounds  geo.Rect
 
-	visible  widget.Bool
-	zoom     widget.Clickable
+	visible widget.Bool
+	// click is the name of the file: a click selects its first track or route, a double click zooms to it.
+	click    widget.Clickable
 	close    widget.Clickable
 	expand   widget.Clickable
 	colorBtn widget.Clickable
@@ -58,14 +59,17 @@ type fileItem struct {
 	points [][]track.Point
 	// values caches the values of the lines per metric, see [mapview.LineGroup.Values].
 	values map[track.Metric][][]float64
+	// dist caches the distance along the item for each point, continuing over all lines, in meters.
+	dist   [][]float64
 	dots   []geo.Point
 	bounds geo.Rect
 	color  color.NRGBA
 	// index is the position of the item in the file, independent of the panel order.
 	index int
 
-	visible  widget.Bool
-	zoom     widget.Clickable
+	visible widget.Bool
+	// click is the name of the item: a click selects it, a double click zooms to it.
+	click    widget.Clickable
 	colorBtn widget.Clickable
 	drag     rowDrag
 }
@@ -208,6 +212,41 @@ func (it *fileItem) lineValues(m track.Metric) [][]float64 {
 	}
 	it.values[m] = vals
 	return vals
+}
+
+// distances returns the distance along the item for each point, continuing over all lines, in meters.
+func (it *fileItem) distances() [][]float64 {
+	if it.dist != nil || len(it.points) == 0 {
+		return it.dist
+	}
+	it.dist = make([][]float64, len(it.points))
+	var start float64
+	for i, pts := range it.points {
+		d := track.CumulativeDistance(pts)
+		for j := range d {
+			d[j] += start
+		}
+		if len(d) > 0 {
+			start = d[len(d)-1]
+		}
+		it.dist[i] = d
+	}
+	return it.dist
+}
+
+// chartable reports whether the item has lines to show in the chart.
+func (it *fileItem) chartable() bool {
+	return len(it.lines) > 0
+}
+
+// firstChartable returns the first item of the file that can be shown in the chart, or nil.
+func (f *openFile) firstChartable() *fileItem {
+	for _, it := range f.items {
+		if it.chartable() {
+			return it
+		}
+	}
+	return nil
 }
 
 // colors returns the distinct colors of the items, in item order.
@@ -385,6 +424,9 @@ func (a *App) addLoaded() {
 				}
 				a.files = append(a.files, f)
 				i = len(a.files) - 1
+				if a.selected == nil {
+					a.selected = f.firstChartable()
+				}
 			}
 			fit = fit.Union(a.files[i].bounds)
 		}
@@ -451,7 +493,8 @@ func (a *App) fileState() []settings.File {
 	return files
 }
 
-// updateTracks shows the visible items on the map, colored by the selected metric.
+// updateTracks shows the visible items on the map, colored by the selected metric,
+// and the selected item in the chart.
 func (a *App) updateTracks() {
 	groups := a.trackGroups()
 	a.legend = a.newLegend(groups)
@@ -460,6 +503,7 @@ func (a *App) updateTracks() {
 		c = a.legend.coloring()
 	}
 	a.tracks.Set(groups, c)
+	a.updateChart()
 }
 
 // trackGroups returns the visible items in drawing order:

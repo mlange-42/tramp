@@ -64,6 +64,16 @@ type Style struct {
 	HintFg color.NRGBA
 	// DragBg is the background of a side panel entry while it is dragged.
 	DragBg color.NRGBA
+	// SelectedBg is the background of the side panel entry shown in the chart.
+	SelectedBg color.NRGBA
+	// ChartGrid is the color of the grid lines in the chart.
+	ChartGrid color.NRGBA
+	// ChartLine is the color of the line on top of the chart's filled area.
+	ChartLine color.NRGBA
+	// ChartLineWidth is the width of the chart line.
+	ChartLineWidth unit.Dp
+	// ChartTickSpacing is the minimum distance between axis ticks in the chart.
+	ChartTickSpacing unit.Dp
 	// LegendBg is the background of the legend with scale and color bar on the map.
 	LegendBg color.NRGBA
 	// LegendWidth is the width of the color bar, and the maximum width of the scale bar, in the legend.
@@ -104,8 +114,14 @@ func DefaultStyle() *Style {
 		SideBg:       color.NRGBA{R: 0xfa, G: 0xfa, B: 0xfa, A: 0xff},
 		HintFg:       color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xff},
 		DragBg:       color.NRGBA{R: 0xe4, G: 0xe8, B: 0xf4, A: 0xff},
-		LegendBg:     color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xe0},
-		LegendWidth:  180,
+		SelectedBg:   color.NRGBA{R: 0xcc, G: 0xda, B: 0xf4, A: 0xff},
+		ChartGrid:    color.NRGBA{A: 0x20},
+		ChartLine:    color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xd0},
+
+		ChartLineWidth:   1.5,
+		ChartTickSpacing: 32,
+		LegendBg:         color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xe0},
+		LegendWidth:      180,
 	}
 }
 

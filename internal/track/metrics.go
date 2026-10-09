@@ -45,11 +45,11 @@ func SegmentValues(pts []Point, m Metric) []float64 {
 	var vals []float64
 	switch m {
 	case SpeedMetric:
-		vals = speedValues(pts, cumulativeDistance(pts))
+		vals = speedValues(pts, CumulativeDistance(pts))
 	case ElevationMetric:
 		vals = elevationValues(pts)
 	case SlopeMetric:
-		vals = slopeValues(pts, cumulativeDistance(pts))
+		vals = slopeValues(pts, CumulativeDistance(pts))
 	default:
 		return nil
 	}
@@ -61,8 +61,8 @@ func SegmentValues(pts []Point, m Metric) []float64 {
 	return nil
 }
 
-// cumulativeDistance returns the distance along the points from the first, for each point.
-func cumulativeDistance(pts []Point) []float64 {
+// CumulativeDistance returns the distance along the points from the first, for each point, in meters.
+func CumulativeDistance(pts []Point) []float64 {
 	cum := make([]float64, len(pts))
 	for i := 1; i < len(pts); i++ {
 		cum[i] = cum[i-1] + geo.Distance(pts[i-1].Pos, pts[i].Pos)

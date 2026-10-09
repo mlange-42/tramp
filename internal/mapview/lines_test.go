@@ -76,12 +76,12 @@ func TestColoringIndex(t *testing.T) {
 		v    float64
 		want int
 	}{{5, 0}, {10, 0}, {12.4, 0}, {12.6, 1}, {17.6, 3}, {20, 3}, {30, 3}, {math.NaN(), 0}} {
-		if got := c.index(tc.v); got != tc.want {
+		if got := c.Index(tc.v); got != tc.want {
 			t.Errorf("index(%v) = %d, want %d", tc.v, got, tc.want)
 		}
 	}
 	same := Coloring{Min: 1, Max: 1, Colors: make([]color.NRGBA, 4)}
-	if got := same.index(1); got != 0 {
+	if got := same.Index(1); got != 0 {
 		t.Errorf("expected 0 for empty range, got %d", got)
 	}
 }

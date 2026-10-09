@@ -96,6 +96,9 @@ type App struct {
 	// metricGradients are the selected gradients per metric, as indices in gradients.
 	metricGradients []int
 	legend          *legend
+	// selected is the item shown in the chart, or nil.
+	selected *fileItem
+	chart    chart
 
 	openBtn   widget.Clickable
 	fileList  widget.List
