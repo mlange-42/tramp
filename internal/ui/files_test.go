@@ -318,3 +318,39 @@ func TestViewState(t *testing.T) {
 		t.Errorf("unexpected panel width %v", s.Window.PanelWidth)
 	}
 }
+
+func TestRangeLines(t *testing.T) {
+	// Two lines along the x axis: 0-20 m in two segments, and 20-30 m in one.
+	pt := func(x float64) geo.Point { return geo.Point{X: x} }
+	lines := []mapview.Polyline{
+		mapview.NewPolyline([]geo.Point{pt(0), pt(10), pt(20)}),
+		mapview.NewPolyline([]geo.Point{pt(20), pt(30)}),
+	}
+	dist := [][]float64{{0, 10, 20}, {20, 30}}
+	vals := [][]float64{{1, 2}, {3}}
+
+	got, gotVals := rangeLines(lines, dist, vals, 5, 25)
+	if len(got) != 2 {
+		t.Fatalf("got %d lines", len(got))
+	}
+	if want := []geo.Point{pt(5), pt(10), pt(20)}; !slices.Equal(got[0].Points, want) {
+		t.Errorf("first line %v, want %v", got[0].Points, want)
+	}
+	if want := []geo.Point{pt(20), pt(25)}; !slices.Equal(got[1].Points, want) {
+		t.Errorf("second line %v, want %v", got[1].Points, want)
+	}
+	if !reflect.DeepEqual(gotVals, [][]float64{{1, 2}, {3}}) {
+		t.Errorf("values %v", gotVals)
+	}
+
+	// A range within a single segment.
+	got, gotVals = rangeLines(lines, dist, vals, 12, 18)
+	if len(got) != 1 || !slices.Equal(got[0].Points, []geo.Point{pt(12), pt(18)}) || !reflect.DeepEqual(gotVals, [][]float64{{2}}) {
+		t.Errorf("got %v, values %v", got, gotVals)
+	}
+
+	// Without values.
+	if _, gotVals = rangeLines(lines, dist, nil, 0, 30); gotVals != nil {
+		t.Errorf("values %v, want nil", gotVals)
+	}
+}

@@ -8,9 +8,11 @@ import (
 	"math"
 	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/mapview"
@@ -30,8 +32,9 @@ type openFile struct {
 	items   []*fileItem
 	bounds  geo.Rect
 
-	visible  widget.Bool
-	zoom     widget.Clickable
+	visible widget.Bool
+	// click is the name of the file: a click selects its first track or route, a double click zooms to it.
+	click    widget.Clickable
 	close    widget.Clickable
 	expand   widget.Clickable
 	colorBtn widget.Clickable
@@ -58,14 +61,17 @@ type fileItem struct {
 	points [][]track.Point
 	// values caches the values of the lines per metric, see [mapview.LineGroup.Values].
 	values map[track.Metric][][]float64
+	// dist caches the distance along the item for each point, continuing over all lines, in meters.
+	dist   [][]float64
 	dots   []geo.Point
 	bounds geo.Rect
 	color  color.NRGBA
 	// index is the position of the item in the file, independent of the panel order.
 	index int
 
-	visible  widget.Bool
-	zoom     widget.Clickable
+	visible widget.Bool
+	// click is the name of the item: a click selects it, a double click zooms to it.
+	click    widget.Clickable
 	colorBtn widget.Clickable
 	drag     rowDrag
 }
@@ -208,6 +214,41 @@ func (it *fileItem) lineValues(m track.Metric) [][]float64 {
 	}
 	it.values[m] = vals
 	return vals
+}
+
+// distances returns the distance along the item for each point, continuing over all lines, in meters.
+func (it *fileItem) distances() [][]float64 {
+	if it.dist != nil || len(it.points) == 0 {
+		return it.dist
+	}
+	it.dist = make([][]float64, len(it.points))
+	var start float64
+	for i, pts := range it.points {
+		d := track.CumulativeDistance(pts)
+		for j := range d {
+			d[j] += start
+		}
+		if len(d) > 0 {
+			start = d[len(d)-1]
+		}
+		it.dist[i] = d
+	}
+	return it.dist
+}
+
+// chartable reports whether the item has lines to show in the chart.
+func (it *fileItem) chartable() bool {
+	return len(it.lines) > 0
+}
+
+// firstChartable returns the first item of the file that can be shown in the chart, or nil.
+func (f *openFile) firstChartable() *fileItem {
+	for _, it := range f.items {
+		if it.chartable() {
+			return it
+		}
+	}
+	return nil
 }
 
 // colors returns the distinct colors of the items, in item order.
@@ -385,6 +426,9 @@ func (a *App) addLoaded() {
 				}
 				a.files = append(a.files, f)
 				i = len(a.files) - 1
+				if a.selected == nil {
+					a.selected = f.firstChartable()
+				}
 			}
 			fit = fit.Union(a.files[i].bounds)
 		}
@@ -451,40 +495,147 @@ func (a *App) fileState() []settings.File {
 	return files
 }
 
-// updateTracks shows the visible items on the map, colored by the selected metric.
+// updateTracks shows the visible items on the map, colored by the selected metric,
+// and the selected item in the chart.
 func (a *App) updateTracks() {
-	groups := a.trackGroups()
+	items := a.shownItems()
+	groups := a.lineGroups(items)
 	a.legend = a.newLegend(groups)
+	// While the chart is zoomed in, the selected item is muted, and the part visible in the chart
+	// is drawn on top, see [App.updateHighlight]. Its values still count for the color range.
+	for i, it := range items {
+		if a.chart.zoomedOn(it) {
+			groups[i].Color, groups[i].Values = a.style.MutedTrack, nil
+		}
+	}
 	var c *mapview.Coloring
 	if a.legend != nil {
 		c = a.legend.coloring()
 	}
 	a.tracks.Set(groups, c)
+	a.updateChart()
+}
+
+// lineWidth returns the width of the item's lines on the map.
+func (a *App) lineWidth(it *fileItem) unit.Dp {
+	if it.kind == routeItem {
+		return a.routeWidth
+	}
+	return a.trackWidth
+}
+
+// shown reports whether the item is visible on the map.
+func (a *App) shown(it *fileItem) bool {
+	return slices.Contains(a.shownItems(), it)
+}
+
+// highlightKey identifies the content of the map highlight.
+type highlightKey struct {
+	item         *fileItem
+	chartVersion int
+	from, to     float64
+}
+
+// updateHighlight shows the part of the selected item that is visible in the zoomed chart on the map,
+// colored like the map. It is only rebuilt when the shown range or the chart content changes.
+func (a *App) updateHighlight() {
+	c := &a.chart
+	var key highlightKey
+	if it := a.selected; c.zoomedOn(it) && a.shown(it) {
+		key = highlightKey{item: it, chartVersion: c.version, from: c.from, to: c.to}
+	}
+	if key == a.highlightKey {
+		return
+	}
+	a.highlightKey = key
+	it := key.item
+	if it == nil {
+		a.highlight.Set(nil, nil)
+		return
+	}
+	var coloring *mapview.Coloring
+	if a.legend != nil {
+		coloring = a.legend.coloring()
+	}
+	lines, vals := rangeLines(it.lines, it.distances(), it.lineValues(a.colorMetric()), key.from, key.to)
+	a.highlight.Set([]mapview.LineGroup{{
+		Color:  it.color,
+		Lines:  lines,
+		Width:  a.lineWidth(it),
+		Values: vals,
+	}}, coloring)
+}
+
+// rangeLines returns the parts of the lines within the distance range, given the distance of each point,
+// and the values of their segments if vals is not nil. The parts start and end exactly at the range limits.
+func rangeLines(lines []mapview.Polyline, dist, vals [][]float64, from, to float64) ([]mapview.Polyline, [][]float64) {
+	var outLines []mapview.Polyline
+	var outVals [][]float64
+	for i, l := range lines {
+		d := dist[i]
+		if len(d) < 2 || d[len(d)-1] <= from || d[0] >= to {
+			continue
+		}
+		// Segments j0 to j1-1 overlap the range.
+		j0 := max(0, sort.SearchFloat64s(d, from)-1)
+		j1 := min(len(d)-1, sort.SearchFloat64s(d, to))
+		at := func(j int, x float64) geo.Point {
+			a, b := l.Points[j], l.Points[j+1]
+			t := 0.0
+			if d[j+1] > d[j] {
+				t = math.Min(math.Max((x-d[j])/(d[j+1]-d[j]), 0), 1)
+			}
+			return geo.Point{X: a.X + (b.X-a.X)*t, Y: a.Y + (b.Y-a.Y)*t}
+		}
+		pts := make([]geo.Point, 0, j1-j0+1)
+		pts = append(pts, at(j0, from))
+		pts = append(pts, l.Points[j0+1:j1]...)
+		pts = append(pts, at(j1-1, to))
+		outLines = append(outLines, mapview.NewPolyline(pts))
+		if vals != nil {
+			var v []float64
+			if vals[i] != nil {
+				v = vals[i][j0:j1]
+			}
+			outVals = append(outVals, v)
+		}
+	}
+	return outLines, outVals
 }
 
 // trackGroups returns the visible items in drawing order:
 // from the bottom of the panel to the top, so that the top-most entry is on top.
 func (a *App) trackGroups() []mapview.LineGroup {
-	var groups []mapview.LineGroup
+	return a.lineGroups(a.shownItems())
+}
+
+// shownItems returns the visible items in drawing order, see [App.trackGroups].
+func (a *App) shownItems() []*fileItem {
+	var items []*fileItem
 	for _, f := range slices.Backward(a.files) {
 		if !f.visible.Value {
 			continue
 		}
 		for _, it := range slices.Backward(f.items) {
 			if it.visible.Value {
-				width := a.trackWidth
-				if it.kind == routeItem {
-					width = a.routeWidth
-				}
-				groups = append(groups, mapview.LineGroup{
-					Color:   it.color,
-					Lines:   it.lines,
-					Dots:    it.dots,
-					Width:   width,
-					DotSize: a.waypointSize,
-					Values:  it.lineValues(a.colorMetric()),
-				})
+				items = append(items, it)
 			}
+		}
+	}
+	return items
+}
+
+// lineGroups returns the map drawing of the items, colored by the selected metric.
+func (a *App) lineGroups(items []*fileItem) []mapview.LineGroup {
+	groups := make([]mapview.LineGroup, len(items))
+	for i, it := range items {
+		groups[i] = mapview.LineGroup{
+			Color:   it.color,
+			Lines:   it.lines,
+			Dots:    it.dots,
+			Width:   a.lineWidth(it),
+			DotSize: a.waypointSize,
+			Values:  it.lineValues(a.colorMetric()),
 		}
 	}
 	return groups

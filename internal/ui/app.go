@@ -79,10 +79,11 @@ type App struct {
 	overlayNames []string
 	overlaySel   *MultiSelect
 
-	split     Split
-	mapView   *mapview.Map
-	mapLayers []mapview.Layer
-	tracks    mapview.Lines
+	split      Split
+	chartSplit Split
+	mapView    *mapview.Map
+	mapLayers  []mapview.Layer
+	tracks     mapview.Lines
 	// Sizes of tracks, routes and waypoints on the map.
 	trackWidth, routeWidth, waypointSize unit.Dp
 
@@ -95,6 +96,12 @@ type App struct {
 	// metricGradients are the selected gradients per metric, as indices in gradients.
 	metricGradients []int
 	legend          *legend
+	// selected is the item shown in the chart, or nil.
+	selected *fileItem
+	chart    chart
+	// highlight shows the part of the selected item that is visible in the zoomed chart.
+	highlight    mapview.Lines
+	highlightKey highlightKey
 
 	openBtn   widget.Clickable
 	fileList  widget.List
@@ -142,7 +149,8 @@ func newApp(invalidate func(), opts Options) *App {
 	} else {
 		a.win = defaultWindow
 	}
-	a.split.Width = dpOr(a.win.PanelWidth, settings.DefaultPanelWidth)
+	a.split.Size = dpOr(a.win.PanelWidth, settings.DefaultPanelWidth)
+	a.chartSplit = Split{Axis: layout.Vertical, End: true, Size: dpOr(a.win.ChartHeight, settings.DefaultChartHeight)}
 	var mapName string
 	var overlays []string
 	if v := opts.State.View; v != nil {
@@ -205,7 +213,8 @@ func (a *App) State() settings.Settings {
 		Window: new(a.win),
 		Files:  a.fileState(),
 	}
-	s.Window.PanelWidth = float32(a.split.Width)
+	s.Window.PanelWidth = float32(a.split.Size)
+	s.Window.ChartHeight = float32(a.chartSplit.Size)
 	s.Style.ColorBy, s.Style.Gradients = a.coloringState()
 	for i, name := range a.overlayNames {
 		if a.overlaySel.Checked(i) {
@@ -318,10 +327,17 @@ func (a *App) update(gtx layout.Context) {
 	a.applyColors()
 	a.updateColoring(gtx)
 	a.updateFiles(gtx)
+	// The selected item is muted on the map while the chart is zoomed in.
+	zoomed := a.chart.zoomed()
+	a.chart.update(gtx)
+	if a.chart.zoomed() != zoomed {
+		a.tracksChanged = true
+	}
 	if a.tracksChanged {
 		a.tracksChanged = false
 		a.updateTracks()
 	}
+	a.updateHighlight()
 }
 
 func (a *App) layout(gtx layout.Context) layout.Dimensions {
@@ -331,7 +347,9 @@ func (a *App) layout(gtx layout.Context) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(a.layoutToolbar),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return a.split.Layout(gtx, a.style, a.layoutPanel, a.layoutMap)
+			return a.split.Layout(gtx, a.style, a.layoutPanel, func(gtx layout.Context) layout.Dimensions {
+				return a.chartSplit.Layout(gtx, a.style, a.layoutChart, a.layoutMap)
+			})
 		}),
 		layout.Rigid(a.layoutStatus),
 	)
@@ -347,6 +365,7 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	}
 	dims := a.mapView.Layout(gtx, a.mapLayers...)
 	a.tracks.Layout(gtx, &a.mapView.View)
+	a.highlight.Layout(gtx, &a.mapView.View)
 	a.layoutLegend(gtx)
 	return dims
 }

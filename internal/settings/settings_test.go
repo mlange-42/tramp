@@ -34,7 +34,7 @@ func TestSaveLoad(t *testing.T) {
 			Map:      "OpenStreetMap",
 			Overlays: []string{"Hillshade (SRTM)", "Labels & roads"},
 		},
-		Window: &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true, PanelWidth: 300},
+		Window: &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true, PanelWidth: 300, ChartHeight: 150},
 	}
 	if err := save(path, &s); err != nil {
 		t.Fatal(err)
@@ -73,7 +73,7 @@ func TestReadWriteYAML(t *testing.T) {
 	}
 }
 
-func TestPanelWidthDefault(t *testing.T) {
+func TestPaneSizeDefaults(t *testing.T) {
 	path := filepath.Join(t.TempDir(), fileName)
 	if err := save(path, &Settings{Window: &Window{Width: 800, Height: 600}}); err != nil {
 		t.Fatal(err)

@@ -63,8 +63,8 @@ type Coloring struct {
 	Casing color.NRGBA
 }
 
-// index returns the index of the color for value v.
-func (c *Coloring) index(v float64) int {
+// Index returns the index of the color for value v.
+func (c *Coloring) Index(v float64) int {
 	t := (v - c.Min) / (c.Max - c.Min)
 	if !(t > 0) { // also NaN, for Min == Max
 		return 0
@@ -201,7 +201,7 @@ func (l *Lines) drawGroup(g *LineGroup, v *View, area screenRect, cull geo.Rect,
 				return
 			}
 			l.casing.add(a, b)
-			l.bins[c.index(vals[seg])].add(a, b)
+			l.bins[c.Index(vals[seg])].add(a, b)
 		})
 	}
 

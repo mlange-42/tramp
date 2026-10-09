@@ -21,7 +21,10 @@ const (
 const DefaultTileCache = 2048
 
 // DefaultPanelWidth is the default for [Window.PanelWidth].
-const DefaultPanelWidth = 250
+const DefaultPanelWidth = 280
+
+// DefaultChartHeight is the default for [Window.ChartHeight].
+const DefaultChartHeight = 120
 
 // Defaults for the sizes of tracks, routes and waypoints on the map, in device-independent pixels.
 const (
@@ -86,6 +89,8 @@ type Window struct {
 	Maximized bool `yaml:"maximized"`
 	// PanelWidth is the width of the side panel, in device-independent pixels.
 	PanelWidth float32 `yaml:"panel_width"`
+	// ChartHeight is the height of the chart below the map, in device-independent pixels.
+	ChartHeight float32 `yaml:"chart_height"`
 }
 
 // Valid reports whether the window has a usable size.
@@ -180,6 +185,9 @@ func (s *Settings) setDefaults() {
 	}
 	if s.Window != nil && s.Window.PanelWidth <= 0 {
 		s.Window.PanelWidth = DefaultPanelWidth
+	}
+	if s.Window != nil && s.Window.ChartHeight <= 0 {
+		s.Window.ChartHeight = DefaultChartHeight
 	}
 	if s.Style.TrackWidth <= 0 {
 		s.Style.TrackWidth = DefaultTrackWidth

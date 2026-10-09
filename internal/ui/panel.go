@@ -13,6 +13,7 @@ import (
 	"gioui.org/op/paint"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"github.com/mlange-42/tramp/internal/geo"
 )
 
 // panelRow is a row in the side panel: a file, or an item of an expanded file.
@@ -77,6 +78,9 @@ func (a *App) updateFiles(gtx layout.Context) {
 	for i := 0; i < len(a.files); i++ {
 		f := a.files[i]
 		if f.close.Clicked(gtx) {
+			if a.selected != nil && slices.Contains(f.items, a.selected) {
+				a.selected = nil
+			}
 			a.files = slices.Delete(a.files, i, i+1)
 			a.tracksChanged = true
 			i--
@@ -85,9 +89,7 @@ func (a *App) updateFiles(gtx layout.Context) {
 		if f.visible.Update(gtx) {
 			a.tracksChanged = true
 		}
-		if f.zoom.Clicked(gtx) && !f.bounds.Empty() {
-			a.mapView.Fit(fitRect(f.bounds))
-		}
+		a.updateRowClick(gtx, &f.click, f.firstChartable(), f.bounds)
 		if f.expand.Clicked(gtx) {
 			f.expanded = !f.expanded
 		}
@@ -98,14 +100,42 @@ func (a *App) updateFiles(gtx layout.Context) {
 			if it.visible.Update(gtx) {
 				a.tracksChanged = true
 			}
-			if it.zoom.Clicked(gtx) && !it.bounds.Empty() {
-				a.mapView.Fit(fitRect(it.bounds))
-			}
+			a.updateRowClick(gtx, &it.click, it, it.bounds)
 			if it.colorBtn.Clicked(gtx) {
 				a.showColorDialog([]*fileItem{it})
 			}
 		}
 	}
+}
+
+// updateRowClick selects sel for the chart on a click on a row's name, if it is not nil and has lines,
+// and zooms to the bounds on a double click.
+func (a *App) updateRowClick(gtx layout.Context, clk *widget.Clickable, sel *fileItem, bounds geo.Rect) {
+	for {
+		c, ok := clk.Update(gtx)
+		if !ok {
+			break
+		}
+		if sel != nil && sel.chartable() && sel != a.selected {
+			a.selected = sel
+			a.tracksChanged = true
+		}
+		if c.NumClicks >= 2 && !bounds.Empty() {
+			a.mapView.Fit(fitRect(bounds))
+		}
+	}
+}
+
+// selectedRow reports whether a panel row shows the item selected for the chart:
+// the item's own row, or the row of its file if the item has no row of its own.
+func (a *App) selectedRow(r panelRow) bool {
+	if a.selected == nil {
+		return false
+	}
+	if r.item != nil {
+		return r.item == a.selected
+	}
+	return (!r.file.expanded || !r.file.expandable()) && slices.Contains(r.file.items, a.selected)
 }
 
 // updateDrags moves dragged files, and dragged items within their file.
@@ -178,6 +208,8 @@ func (a *App) layoutPanel(gtx layout.Context) layout.Dimensions {
 			d.height = dims.Size.Y
 			if d.dragging {
 				paint.FillShape(gtx.Ops, st.DragBg, clip.Rect{Max: dims.Size}.Op())
+			} else if a.selectedRow(r) {
+				paint.FillShape(gtx.Ops, st.SelectedBg, clip.Rect{Max: dims.Size}.Op())
 			}
 			call.Add(gtx.Ops)
 			return dims
@@ -195,7 +227,7 @@ func (a *App) layoutFileRow(gtx layout.Context, f *openFile) layout.Dimensions {
 			}
 			return a.layoutSwatch(gtx, &f.colorBtn, f.colors())
 		}),
-		layout.Flexed(1, a.rowText(&f.zoom, f.name, f.summary, f.visible.Value)),
+		layout.Flexed(1, a.rowText(&f.click, f.name, f.summary, f.visible.Value)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if !f.expandable() {
 				return layout.Dimensions{}
@@ -223,7 +255,7 @@ func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem) layou
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.layoutSwatch(gtx, &it.colorBtn, []color.NRGBA{it.color})
 			}),
-			layout.Flexed(1, a.rowText(&it.zoom, it.name, it.summary, f.visible.Value && it.visible.Value)),
+			layout.Flexed(1, a.rowText(&it.click, it.name, it.summary, f.visible.Value && it.visible.Value)),
 			layout.Rigid(a.dragHandle(&it.drag)),
 		)
 	})

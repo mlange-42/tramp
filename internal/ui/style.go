@@ -43,18 +43,18 @@ type Style struct {
 	PanelInset unit.Dp
 	// SideInset is the padding inside the side panel.
 	SideInset layout.Inset
-	// DividerWidth is the visible width of the divider between side panel and map.
+	// DividerWidth is the visible width of the dividers between side panel, map and chart.
 	DividerWidth unit.Dp
 	// DividerGrip is the width of the area for dragging the divider.
 	DividerGrip unit.Dp
-	// MinPaneWidth is the minimum width of the side panel and the map.
-	MinPaneWidth unit.Dp
+	// MinPaneSize is the minimum width or height of the side panel, map and chart.
+	MinPaneSize unit.Dp
 
 	// PanelBg is the background of drop-down panels.
 	PanelBg color.NRGBA
 	// PanelBorder is the border color of drop-down panels.
 	PanelBorder color.NRGBA
-	// DividerColor is the color of the divider between side panel and map.
+	// DividerColor is the color of the dividers between side panel, map and chart.
 	DividerColor color.NRGBA
 	// StatusBg is the background of the status bar.
 	StatusBg color.NRGBA
@@ -64,6 +64,19 @@ type Style struct {
 	HintFg color.NRGBA
 	// DragBg is the background of a side panel entry while it is dragged.
 	DragBg color.NRGBA
+	// SelectedBg is the background of the side panel entry shown in the chart.
+	SelectedBg color.NRGBA
+	// MutedTrack is the color of the selected track or route on the map,
+	// outside of the part visible in the zoomed chart.
+	MutedTrack color.NRGBA
+	// ChartGrid is the color of the grid lines in the chart.
+	ChartGrid color.NRGBA
+	// ChartLine is the color of the line on top of the chart's filled area.
+	ChartLine color.NRGBA
+	// ChartLineWidth is the width of the chart line.
+	ChartLineWidth unit.Dp
+	// ChartTickSpacing is the minimum distance between axis ticks in the chart.
+	ChartTickSpacing unit.Dp
 	// LegendBg is the background of the legend with scale and color bar on the map.
 	LegendBg color.NRGBA
 	// LegendWidth is the width of the color bar, and the maximum width of the scale bar, in the legend.
@@ -95,7 +108,7 @@ func DefaultStyle() *Style {
 		SideInset:    layout.UniformInset(6),
 		DividerWidth: 4,
 		DividerGrip:  7,
-		MinPaneWidth: 120,
+		MinPaneSize:  120,
 
 		PanelBg:      color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
 		PanelBorder:  color.NRGBA{R: 0xa0, G: 0xa0, B: 0xa0, A: 0xff},
@@ -104,8 +117,15 @@ func DefaultStyle() *Style {
 		SideBg:       color.NRGBA{R: 0xfa, G: 0xfa, B: 0xfa, A: 0xff},
 		HintFg:       color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xff},
 		DragBg:       color.NRGBA{R: 0xe4, G: 0xe8, B: 0xf4, A: 0xff},
-		LegendBg:     color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xe0},
-		LegendWidth:  180,
+		SelectedBg:   color.NRGBA{R: 0xcc, G: 0xda, B: 0xf4, A: 0xff},
+		MutedTrack:   color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xc0},
+		ChartGrid:    color.NRGBA{A: 0x20},
+		ChartLine:    color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xd0},
+
+		ChartLineWidth:   1.5,
+		ChartTickSpacing: 32,
+		LegendBg:         color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xe0},
+		LegendWidth:      180,
 	}
 }
 
