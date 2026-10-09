@@ -271,3 +271,31 @@ func TestDragMove(t *testing.T) {
 		}
 	}
 }
+
+func TestLineSizes(t *testing.T) {
+	data, err := track.ReadFile(writeTemp(t, "mixed.gpx", testGPX))
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := newApp(func() {}, Options{
+		Layers: DefaultLayers(),
+		State:  settings.Settings{TrackWidth: 4, RouteWidth: 2, WaypointSize: 10},
+	})
+	defer a.closeTiles()
+	a.files = []*openFile{newOpenFile("mixed.gpx", data)}
+	// Drawn bottom up: waypoints, route, track.
+	groups := a.trackGroups()
+	if len(groups) != 3 || groups[0].DotSize != 10 || groups[1].Width != 2 || groups[2].Width != 4 {
+		t.Errorf("unexpected sizes %+v", groups)
+	}
+	if s := a.State(); s.TrackWidth != 4 || s.RouteWidth != 2 || s.WaypointSize != 10 {
+		t.Errorf("unexpected saved sizes %v %v %v", s.TrackWidth, s.RouteWidth, s.WaypointSize)
+	}
+
+	// Missing sizes fall back to the defaults.
+	b := newApp(func() {}, Options{Layers: DefaultLayers()})
+	defer b.closeTiles()
+	if b.trackWidth != settings.DefaultTrackWidth || b.routeWidth != settings.DefaultRouteWidth || b.waypointSize != settings.DefaultWaypointSize {
+		t.Errorf("unexpected default sizes %v %v %v", b.trackWidth, b.routeWidth, b.waypointSize)
+	}
+}

@@ -39,8 +39,18 @@ type openFile struct {
 	drag     rowDrag
 }
 
+// itemKind is the kind of a file item.
+type itemKind int
+
+const (
+	trackItem itemKind = iota
+	routeItem
+	waypointItem
+)
+
 // fileItem is a track, a route, or the waypoints of a file.
 type fileItem struct {
+	kind    itemKind
 	name    string
 	summary string
 	lines   []mapview.Polyline
@@ -67,7 +77,7 @@ func newOpenFile(path string, f *track.File) *openFile {
 
 	for i := range f.Tracks {
 		t := &f.Tracks[i]
-		it := &fileItem{name: itemName(t.Name, "Track", i, len(f.Tracks)), summary: trackSummary(t)}
+		it := &fileItem{kind: trackItem, name: itemName(t.Name, "Track", i, len(f.Tracks)), summary: trackSummary(t)}
 		for j := range t.Segments {
 			pts := make([]geo.Point, t.Segments[j].Len())
 			for k, p := range t.Segments[j].Points {
@@ -80,7 +90,7 @@ func newOpenFile(path string, f *track.File) *openFile {
 	}
 	for i := range f.Routes {
 		r := &f.Routes[i]
-		it := &fileItem{name: itemName(r.Name, "Route", i, len(f.Routes)), summary: "route · " + formatDistance(r.Length())}
+		it := &fileItem{kind: routeItem, name: itemName(r.Name, "Route", i, len(f.Routes)), summary: "route · " + formatDistance(r.Length())}
 		pts := make([]geo.Point, len(r.Points))
 		tps := make([]track.Point, len(r.Points))
 		for k, p := range r.Points {
@@ -92,7 +102,7 @@ func newOpenFile(path string, f *track.File) *openFile {
 		of.add(it)
 	}
 	if len(f.Waypoints) > 0 {
-		it := &fileItem{name: "Waypoints", summary: count(len(f.Waypoints), "waypoint")}
+		it := &fileItem{kind: waypointItem, name: "Waypoints", summary: count(len(f.Waypoints), "waypoint")}
 		for _, w := range f.Waypoints {
 			it.dots = append(it.dots, geo.ToMercator(w.Pos))
 		}
@@ -462,7 +472,18 @@ func (a *App) trackGroups() []mapview.LineGroup {
 		}
 		for _, it := range slices.Backward(f.items) {
 			if it.visible.Value {
-				groups = append(groups, mapview.LineGroup{Color: it.color, Lines: it.lines, Dots: it.dots, Values: it.lineValues(a.colorMetric())})
+				width := a.trackWidth
+				if it.kind == routeItem {
+					width = a.routeWidth
+				}
+				groups = append(groups, mapview.LineGroup{
+					Color:   it.color,
+					Lines:   it.lines,
+					Dots:    it.dots,
+					Width:   width,
+					DotSize: a.waypointSize,
+					Values:  it.lineValues(a.colorMetric()),
+				})
 			}
 		}
 	}

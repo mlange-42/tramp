@@ -23,6 +23,13 @@ const DefaultTileCache = 2048
 // DefaultPanelWidth is the default for [Settings.PanelWidth].
 const DefaultPanelWidth = 250
 
+// Defaults for the sizes of tracks, routes and waypoints on the map, in device-independent pixels.
+const (
+	DefaultTrackWidth   = 3
+	DefaultRouteWidth   = 3
+	DefaultWaypointSize = 8
+)
+
 // Settings are the persisted user preferences.
 type Settings struct {
 	// TileCache is the maximum number of map tiles kept in memory, shared by all visible layers.
@@ -30,6 +37,12 @@ type Settings struct {
 	TileCache int `yaml:"tile_cache"`
 	// PanelWidth is the width of the side panel, in device-independent pixels.
 	PanelWidth float32 `yaml:"panel_width"`
+	// TrackWidth and RouteWidth are the line widths of tracks and routes on the map,
+	// in device-independent pixels.
+	TrackWidth float32 `yaml:"track_width"`
+	RouteWidth float32 `yaml:"route_width"`
+	// WaypointSize is the diameter of waypoint dots on the map, in device-independent pixels.
+	WaypointSize float32 `yaml:"waypoint_size"`
 	// Map is the name of the selected background map.
 	Map string `yaml:"map"`
 	// Overlays are the names of the enabled overlays.
@@ -161,6 +174,15 @@ func (s *Settings) setDefaults() {
 	}
 	if s.PanelWidth <= 0 {
 		s.PanelWidth = DefaultPanelWidth
+	}
+	if s.TrackWidth <= 0 {
+		s.TrackWidth = DefaultTrackWidth
+	}
+	if s.RouteWidth <= 0 {
+		s.RouteWidth = DefaultRouteWidth
+	}
+	if s.WaypointSize <= 0 {
+		s.WaypointSize = DefaultWaypointSize
 	}
 }
 

@@ -19,14 +19,18 @@ func TestSaveLoad(t *testing.T) {
 	if def.PanelWidth != DefaultPanelWidth {
 		t.Errorf("panel width default not set: %v", def.PanelWidth)
 	}
+	if def.TrackWidth != DefaultTrackWidth || def.RouteWidth != DefaultRouteWidth || def.WaypointSize != DefaultWaypointSize {
+		t.Errorf("line defaults not set: %v %v %v", def.TrackWidth, def.RouteWidth, def.WaypointSize)
+	}
 
 	s := Settings{
 		TileCache:  100,
 		PanelWidth: 300,
-		Map:        "OpenStreetMap",
-		Overlays:   []string{"Hillshade (SRTM)", "Labels & roads"},
-		View:       &View{Lon: 12.5, Lat: -51.25, Zoom: 10.5},
-		Window:     &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true},
+		TrackWidth: 4, RouteWidth: 2.5, WaypointSize: 10,
+		Map:      "OpenStreetMap",
+		Overlays: []string{"Hillshade (SRTM)", "Labels & roads"},
+		View:     &View{Lon: 12.5, Lat: -51.25, Zoom: 10.5},
+		Window:   &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true},
 	}
 	if err := save(path, &s); err != nil {
 		t.Fatal(err)
