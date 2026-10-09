@@ -64,9 +64,9 @@ type Style struct {
 	HintFg color.NRGBA
 	// DragBg is the background of a side panel entry while it is dragged.
 	DragBg color.NRGBA
-	// LegendBg is the background of the color legend on the map.
+	// LegendBg is the background of the legend with scale and color bar on the map.
 	LegendBg color.NRGBA
-	// LegendWidth is the width of the color bar in the legend.
+	// LegendWidth is the width of the color bar, and the maximum width of the scale bar, in the legend.
 	LegendWidth unit.Dp
 }
 
