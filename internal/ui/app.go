@@ -99,6 +99,9 @@ type App struct {
 	// selected is the item shown in the chart, or nil.
 	selected *fileItem
 	chart    chart
+	// highlight shows the part of the selected item that is visible in the zoomed chart.
+	highlight    mapview.Lines
+	highlightKey highlightKey
 
 	openBtn   widget.Clickable
 	fileList  widget.List
@@ -324,10 +327,17 @@ func (a *App) update(gtx layout.Context) {
 	a.applyColors()
 	a.updateColoring(gtx)
 	a.updateFiles(gtx)
+	// The selected item is muted on the map while the chart is zoomed in.
+	zoomed := a.chart.zoomed()
+	a.chart.update(gtx)
+	if a.chart.zoomed() != zoomed {
+		a.tracksChanged = true
+	}
 	if a.tracksChanged {
 		a.tracksChanged = false
 		a.updateTracks()
 	}
+	a.updateHighlight()
 }
 
 func (a *App) layout(gtx layout.Context) layout.Dimensions {
@@ -355,6 +365,7 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	}
 	dims := a.mapView.Layout(gtx, a.mapLayers...)
 	a.tracks.Layout(gtx, &a.mapView.View)
+	a.highlight.Layout(gtx, &a.mapView.View)
 	a.layoutLegend(gtx)
 	return dims
 }

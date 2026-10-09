@@ -145,6 +145,16 @@ func (c *chart) setRange(from, span float64) {
 	c.from, c.to = from, from+span
 }
 
+// zoomed reports whether the chart shows only a part of the item.
+func (c *chart) zoomed() bool {
+	return c.info != nil && c.to-c.from < c.total*(1-1e-9)
+}
+
+// zoomedOn reports whether the chart shows only a part of the given item.
+func (c *chart) zoomedOn(it *fileItem) bool {
+	return it != nil && it == c.item && c.zoomed()
+}
+
 // toDist converts a horizontal pointer position to a distance along the item.
 func (c *chart) toDist(x float32) float64 {
 	return c.from + float64(x-float32(c.plot.Min.X))/float64(c.plot.Dx())*(c.to-c.from)
@@ -214,8 +224,8 @@ func (a *App) layoutChart(gtx layout.Context) layout.Dimensions {
 		})
 		return layout.Dimensions{Size: gtx.Constraints.Max}
 	}
+	// Input is handled in [App.update], before the map is drawn.
 	c.plot = chartPlot(gtx, st)
-	c.update(gtx)
 	key := chartKey{version: c.version, size: gtx.Constraints.Max, pxPerDp: gtx.Metric.PxPerDp, from: c.from, to: c.to}
 	if key != c.key {
 		c.key = key

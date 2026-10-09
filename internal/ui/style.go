@@ -66,6 +66,9 @@ type Style struct {
 	DragBg color.NRGBA
 	// SelectedBg is the background of the side panel entry shown in the chart.
 	SelectedBg color.NRGBA
+	// MutedTrack is the color of the selected track or route on the map,
+	// outside of the part visible in the zoomed chart.
+	MutedTrack color.NRGBA
 	// ChartGrid is the color of the grid lines in the chart.
 	ChartGrid color.NRGBA
 	// ChartLine is the color of the line on top of the chart's filled area.
@@ -115,6 +118,7 @@ func DefaultStyle() *Style {
 		HintFg:       color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xff},
 		DragBg:       color.NRGBA{R: 0xe4, G: 0xe8, B: 0xf4, A: 0xff},
 		SelectedBg:   color.NRGBA{R: 0xcc, G: 0xda, B: 0xf4, A: 0xff},
+		MutedTrack:   color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xc0},
 		ChartGrid:    color.NRGBA{A: 0x20},
 		ChartLine:    color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xd0},
 
