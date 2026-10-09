@@ -2,14 +2,16 @@ package mapview
 
 import (
 	"image"
+	"image/color"
+	"math"
+	"slices"
 	"testing"
 
-	"gioui.org/op"
-	"gioui.org/op/clip"
+	"gioui.org/f32"
 	"github.com/mlange-42/tramp/internal/geo"
 )
 
-func TestAppendLine(t *testing.T) {
+func TestWalkLine(t *testing.T) {
 	v := View{Zoom: 10, Size: image.Pt(100, 100)}
 	res := v.Resolution()
 	area := screenRect{minX: 0, minY: 0, maxX: 100, maxY: 100}
@@ -36,13 +38,49 @@ func TestAppendLine(t *testing.T) {
 		// A segment crossing the area is kept even if both ends are outside.
 		{"crossing", px([2]float64{-100, 0}, [2]float64{100, 0}), 1},
 	} {
-		var ops op.Ops
-		var path clip.Path
-		path.Begin(&ops)
-		if n := appendLine(&path, &v, area, c.pts); n != c.want {
+		n := 0
+		walkLine(&v, area, c.pts, func(_, _ f32.Point, _ int) { n++ })
+		if n != c.want {
 			t.Errorf("%s: expected %d segments, got %d", c.name, c.want, n)
 		}
-		path.End()
+	}
+
+	// Merged segments report the last original segment they cover.
+	var segs []int
+	dense := px([2]float64{0, 0}, [2]float64{0.5, 0}, [2]float64{1, 0}, [2]float64{1.5, 0}, [2]float64{2, 0}, [2]float64{2.2, 0})
+	walkLine(&v, area, dense, func(_, _ f32.Point, seg int) { segs = append(segs, seg) })
+	if !slices.Equal(segs, []int{2, 4}) {
+		t.Errorf("unexpected segments %v", segs)
+	}
+}
+
+func TestStrokes(t *testing.T) {
+	var s strokes
+	s.add(f32.Pt(0, 0), f32.Pt(1, 0))
+	s.add(f32.Pt(1, 0), f32.Pt(2, 0))
+	s.add(f32.Pt(5, 0), f32.Pt(6, 0))
+	if !slices.Equal(s.starts, []int{0, 3}) || len(s.pts) != 5 {
+		t.Errorf("unexpected runs %v %v", s.starts, s.pts)
+	}
+	s.reset()
+	if len(s.pts) != 0 || len(s.starts) != 0 {
+		t.Errorf("expected empty strokes after reset")
+	}
+}
+
+func TestColoringIndex(t *testing.T) {
+	c := Coloring{Min: 10, Max: 20, Colors: make([]color.NRGBA, 4)}
+	for _, tc := range []struct {
+		v    float64
+		want int
+	}{{5, 0}, {10, 0}, {12.4, 0}, {12.6, 1}, {17.6, 3}, {20, 3}, {30, 3}, {math.NaN(), 0}} {
+		if got := c.index(tc.v); got != tc.want {
+			t.Errorf("index(%v) = %d, want %d", tc.v, got, tc.want)
+		}
+	}
+	same := Coloring{Min: 1, Max: 1, Colors: make([]color.NRGBA, 4)}
+	if got := same.index(1); got != 0 {
+		t.Errorf("expected 0 for empty range, got %d", got)
 	}
 }
 

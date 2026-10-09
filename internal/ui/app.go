@@ -82,6 +82,13 @@ type App struct {
 	mapLayers []mapview.Layer
 	tracks    mapview.Lines
 
+	// colorBy selects the metric to color tracks by, gradientSel the gradient.
+	colorBy     Select
+	gradientSel Select
+	// metricGradients are the selected gradients per metric, as indices in gradients.
+	metricGradients []int
+	legend          *legend
+
 	openBtn   widget.Clickable
 	fileList  widget.List
 	files     []*openFile
@@ -147,6 +154,7 @@ func newApp(invalidate func(), opts Options) *App {
 	} else {
 		a.mapView.Fit(worldBounds)
 	}
+	a.initColoring(opts.State.ColorBy, opts.State.Gradients)
 	a.openFiles(slices.Clone(opts.State.Files), false)
 	files := make([]settings.File, len(opts.Files))
 	for i, p := range opts.Files {
@@ -167,6 +175,7 @@ func (a *App) State() settings.Settings {
 		Window:     new(a.win),
 		Files:      a.fileState(),
 	}
+	s.ColorBy, s.Gradients = a.coloringState()
 	for i, name := range a.overlayNames {
 		if a.overlaySel.Checked(i) {
 			s.Overlays = append(s.Overlays, name)
@@ -276,6 +285,7 @@ func (a *App) update(gtx layout.Context) {
 
 	a.addLoaded()
 	a.applyColors()
+	a.updateColoring(gtx)
 	a.updateFiles(gtx)
 	if a.tracksChanged {
 		a.tracksChanged = false
@@ -306,6 +316,7 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	}
 	dims := a.mapView.Layout(gtx, a.mapLayers...)
 	a.tracks.Layout(gtx, &a.mapView.View)
+	a.layoutLegend(gtx)
 	return dims
 }
 
@@ -326,6 +337,8 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.overlaySel.Layout(gtx, st, a.overlayNames)
 			}),
+			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
+			layout.Rigid(a.layoutColoring),
 		)
 	})
 }
