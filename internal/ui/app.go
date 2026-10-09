@@ -40,6 +40,8 @@ var worldBounds = geo.Rect{
 type Options struct {
 	Layers   []wms.Layer
 	Overlays []Overlay
+	// Gradients are the color gradients for coloring tracks. If empty, the built-in ones are used.
+	Gradients []Gradient
 	// State is the initial map, overlays and view, as returned by [App.State].
 	// Unknown map and overlay names are ignored.
 	// If State.View is nil, the map shows the whole world.
@@ -87,6 +89,9 @@ type App struct {
 	// colorBy selects the metric to color tracks by, gradientSel the gradient.
 	colorBy     Select
 	gradientSel Select
+	// gradients are the available gradients, gradientNames their names.
+	gradients     []Gradient
+	gradientNames []string
 	// metricGradients are the selected gradients per metric, as indices in gradients.
 	metricGradients []int
 	legend          *legend
@@ -163,7 +168,7 @@ func newApp(invalidate func(), opts Options) *App {
 	} else {
 		a.mapView.Fit(worldBounds)
 	}
-	a.initColoring(opts.State.Style.ColorBy, opts.State.Style.Gradients)
+	a.initColoring(opts.Gradients, opts.State.Style.ColorBy, opts.State.Style.Gradients)
 	a.openFiles(slices.Clone(opts.State.Files), false)
 	files := make([]settings.File, len(opts.Files))
 	for i, p := range opts.Files {

@@ -28,14 +28,16 @@ func main() {
 	}
 
 	wmsConfig := loadWMS()
+	gradients := loadGradients()
 
 	go func() {
 		w := new(app.Window)
 		w.Option(ui.WindowOptions(state.Window)...)
 		a := ui.New(w, ui.Options{
-			Layers:   wmsConfig.Maps,
-			Overlays: wmsConfig.Overlays,
-			State:    state,
+			Layers:    wmsConfig.Maps,
+			Overlays:  wmsConfig.Overlays,
+			Gradients: gradients,
+			State:     state,
 			// Track files to open, e.g. from "Open with" or dropping files on the executable.
 			Files: os.Args[1:],
 		})
@@ -78,6 +80,31 @@ func loadWMS() ui.WMSConfig {
 		cfg.Maps = ui.DefaultLayers()
 	}
 	return cfg
+}
+
+// loadGradients reads the gradients configuration file, or creates it with the built-in gradients if it doesn't exist.
+// Invalid gradients are skipped. If there are no valid ones, the built-in gradients are used.
+func loadGradients() []ui.Gradient {
+	var cfg ui.GradientConfig
+	exists, err := settings.LoadFile(ui.GradientsFile, &cfg)
+	if err != nil {
+		log.Printf("using default gradients: %v", err)
+		return nil
+	}
+	if !exists {
+		cfg = ui.DefaultGradients()
+		if err := settings.SaveFile(ui.GradientsFile, &cfg); err != nil {
+			log.Printf("saving %s: %v", ui.GradientsFile, err)
+		}
+	}
+	grads, err := cfg.Parse()
+	if err != nil {
+		log.Printf("invalid gradients in %s: %v", ui.GradientsFile, err)
+	}
+	if len(grads) == 0 {
+		log.Printf("no valid gradients in %s, using default gradients", ui.GradientsFile)
+	}
+	return grads
 }
 
 // setupLog writes the log and crash reports to [logFile] in the settings directory, in addition to stderr.
