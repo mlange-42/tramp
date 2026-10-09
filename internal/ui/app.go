@@ -79,10 +79,11 @@ type App struct {
 	overlayNames []string
 	overlaySel   *MultiSelect
 
-	split     Split
-	mapView   *mapview.Map
-	mapLayers []mapview.Layer
-	tracks    mapview.Lines
+	split      Split
+	chartSplit Split
+	mapView    *mapview.Map
+	mapLayers  []mapview.Layer
+	tracks     mapview.Lines
 	// Sizes of tracks, routes and waypoints on the map.
 	trackWidth, routeWidth, waypointSize unit.Dp
 
@@ -142,7 +143,8 @@ func newApp(invalidate func(), opts Options) *App {
 	} else {
 		a.win = defaultWindow
 	}
-	a.split.Width = dpOr(a.win.PanelWidth, settings.DefaultPanelWidth)
+	a.split.Size = dpOr(a.win.PanelWidth, settings.DefaultPanelWidth)
+	a.chartSplit = Split{Axis: layout.Vertical, End: true, Size: dpOr(a.win.ChartHeight, settings.DefaultChartHeight)}
 	var mapName string
 	var overlays []string
 	if v := opts.State.View; v != nil {
@@ -205,7 +207,8 @@ func (a *App) State() settings.Settings {
 		Window: new(a.win),
 		Files:  a.fileState(),
 	}
-	s.Window.PanelWidth = float32(a.split.Width)
+	s.Window.PanelWidth = float32(a.split.Size)
+	s.Window.ChartHeight = float32(a.chartSplit.Size)
 	s.Style.ColorBy, s.Style.Gradients = a.coloringState()
 	for i, name := range a.overlayNames {
 		if a.overlaySel.Checked(i) {
@@ -331,7 +334,9 @@ func (a *App) layout(gtx layout.Context) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(a.layoutToolbar),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			return a.split.Layout(gtx, a.style, a.layoutPanel, a.layoutMap)
+			return a.split.Layout(gtx, a.style, a.layoutPanel, func(gtx layout.Context) layout.Dimensions {
+				return a.chartSplit.Layout(gtx, a.style, a.layoutChart, a.layoutMap)
+			})
 		}),
 		layout.Rigid(a.layoutStatus),
 	)

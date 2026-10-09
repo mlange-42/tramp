@@ -43,18 +43,18 @@ type Style struct {
 	PanelInset unit.Dp
 	// SideInset is the padding inside the side panel.
 	SideInset layout.Inset
-	// DividerWidth is the visible width of the divider between side panel and map.
+	// DividerWidth is the visible width of the dividers between side panel, map and chart.
 	DividerWidth unit.Dp
 	// DividerGrip is the width of the area for dragging the divider.
 	DividerGrip unit.Dp
-	// MinPaneWidth is the minimum width of the side panel and the map.
-	MinPaneWidth unit.Dp
+	// MinPaneSize is the minimum width or height of the side panel, map and chart.
+	MinPaneSize unit.Dp
 
 	// PanelBg is the background of drop-down panels.
 	PanelBg color.NRGBA
 	// PanelBorder is the border color of drop-down panels.
 	PanelBorder color.NRGBA
-	// DividerColor is the color of the divider between side panel and map.
+	// DividerColor is the color of the dividers between side panel, map and chart.
 	DividerColor color.NRGBA
 	// StatusBg is the background of the status bar.
 	StatusBg color.NRGBA
@@ -95,7 +95,7 @@ func DefaultStyle() *Style {
 		SideInset:    layout.UniformInset(6),
 		DividerWidth: 4,
 		DividerGrip:  7,
-		MinPaneWidth: 120,
+		MinPaneSize:  120,
 
 		PanelBg:      color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
 		PanelBorder:  color.NRGBA{R: 0xa0, G: 0xa0, B: 0xa0, A: 0xff},
