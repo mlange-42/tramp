@@ -433,8 +433,13 @@ func segmentRect(path *clip.Path, a, b f32.Point, hw float32) {
 	path.Close()
 }
 
-// columnMeans returns the mean value for n equal-width columns over the distance from from to to,
-// weighted by the length of the line segments in each column. Columns without values are NaN.
+// columnMeans returns the mean value for n equal-width columns over the distance from from to to.
+// Columns without values are NaN.
+//
+// The values are per line segment, but are drawn as a line through the points:
+// each point gets the mean of its adjacent segments, and values are interpolated linearly in between.
+// Otherwise, segments spanning several columns when zoomed in would show up as steps.
+// The mean of each column is weighted by the length of the segment parts in it.
 func columnMeans(dist, vals [][]float64, from, to float64, n int) []float64 {
 	sum := make([]float64, n)
 	weight := make([]float64, n)
@@ -447,14 +452,17 @@ func columnMeans(dist, vals [][]float64, from, to float64, n int) []float64 {
 		// Start at the last segment that begins before the range.
 		start := max(0, sort.SearchFloat64s(d, from)-1)
 		for j := start; j < len(line) && d[j] <= to; j++ {
-			v := line[j]
-			if math.IsNaN(v) {
+			if math.IsNaN(line[j]) {
 				continue
 			}
+			v0, v1 := pointValue(line, j), pointValue(line, j+1)
 			x0, x1 := (d[j]-from)*scale, (d[j+1]-from)*scale
 			for col := max(0, int(x0)); col < n && float64(col) < x1; col++ {
-				if w := math.Min(x1, float64(col+1)) - math.Max(x0, float64(col)); w > 0 {
-					sum[col] += v * w
+				a, b := math.Max(x0, float64(col)), math.Min(x1, float64(col+1))
+				if w := b - a; w > 0 {
+					// The mean of a linear function is its value at the middle.
+					t := ((a+b)/2 - x0) / (x1 - x0)
+					sum[col] += (v0 + (v1-v0)*t) * w
 					weight[col] += w
 				}
 			}
@@ -468,6 +476,23 @@ func columnMeans(dist, vals [][]float64, from, to float64, n int) []float64 {
 		}
 	}
 	return sum
+}
+
+// pointValue returns the value at point k of a line with the given segment values:
+// the mean of the adjacent segments that have a value.
+func pointValue(segs []float64, k int) float64 {
+	var sum float64
+	var n int
+	for _, j := range [2]int{k - 1, k} {
+		if j >= 0 && j < len(segs) && !math.IsNaN(segs[j]) {
+			sum += segs[j]
+			n++
+		}
+	}
+	if n == 0 {
+		return math.NaN()
+	}
+	return sum / float64(n)
 }
 
 // chartYRange is the value range of the whole item for a plot width.

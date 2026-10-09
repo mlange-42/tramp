@@ -8,20 +8,22 @@ import (
 
 func TestColumnMeans(t *testing.T) {
 	// Two lines over 0-40 m: values 1 and 3 on the first, a gap, and 5 on the second.
+	// Point values are 1, 2, 3 on the first line, and 5, 5 at the ends of the second segment.
 	dist := [][]float64{{0, 10, 20}, {20, 30, 40}}
 	vals := [][]float64{{1, 3}, {math.NaN(), 5}}
 	got := columnMeans(dist, vals, 0, 40, 4)
-	want := []float64{1, 3, math.NaN(), 5}
+	want := []float64{1.5, 2.5, math.NaN(), 5}
 	for i := range want {
 		if got[i] != want[i] && !(math.IsNaN(got[i]) && math.IsNaN(want[i])) {
 			t.Errorf("column %d: got %v, want %v", i, got[i], want[i])
 		}
 	}
 
-	// Segments within a column are weighted by length.
+	// Segments within a column are weighted by length: point values 2, 4, 6,
+	// so segment means 3 over 1 m and 5 over 3 m.
 	got = columnMeans([][]float64{{0, 1, 4}}, [][]float64{{2, 6}}, 0, 4, 1)
-	if got[0] != 5 {
-		t.Errorf("weighted mean: got %v, want 5", got[0])
+	if got[0] != 4.5 {
+		t.Errorf("weighted mean: got %v, want 4.5", got[0])
 	}
 }
 
@@ -60,10 +62,21 @@ func TestFormatTick(t *testing.T) {
 
 func TestColumnMeansRange(t *testing.T) {
 	// Values 1, 2, 3, 4 over 0-40 m, shown from 15 to 35 m in two columns.
+	// Point values are 1, 1.5, 2.5, 3.5, 4, so the line is 0.5 + x/10 from 10 to 30 m,
+	// and rises from 3.5 to 4 between 30 and 40 m.
 	dist := [][]float64{{0, 10, 20, 30, 40}}
 	vals := [][]float64{{1, 2, 3, 4}}
 	got := columnMeans(dist, vals, 15, 35, 2)
-	if want := []float64{2.5, 3.5}; !slices.Equal(got, want) {
+	want := []float64{2.5, (3.25 + 3.625) / 2}
+	for i := range want {
+		if math.Abs(got[i]-want[i]) > 1e-9 {
+			t.Errorf("column %d: got %v, want %v", i, got[i], want[i])
+		}
+	}
+
+	// Zoomed into a single segment, the value rises linearly instead of showing a step.
+	got = columnMeans(dist, vals, 10, 20, 2)
+	if want := []float64{1.75, 2.25}; math.Abs(got[0]-want[0]) > 1e-9 || math.Abs(got[1]-want[1]) > 1e-9 {
 		t.Errorf("got %v, want %v", got, want)
 	}
 }
