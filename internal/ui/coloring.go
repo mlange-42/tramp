@@ -129,33 +129,39 @@ func (l *legend) label(v float64) string {
 	return fmt.Sprintf(l.info.format, v*l.info.scale)
 }
 
-// layoutLegend draws the color bar with the value range in the bottom left corner of the map.
+// layoutLegend draws the scale bar, and the color bar with the value range if tracks are colored,
+// in the bottom left corner of the map.
 func (a *App) layoutLegend(gtx layout.Context) {
 	l := a.legend
-	if l == nil {
-		return
-	}
 	st := a.style
 	layout.SW.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(st.Spacing).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			macro := op.Record(gtx.Ops)
 			dims := layout.UniformInset(st.Spacing).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					layout.Rigid(st.SmallLabel(fmt.Sprintf("%s (%s)", l.info.name, l.info.unit)).Layout),
-					layout.Rigid(layout.Spacer{Height: st.Spacing / 2}.Layout),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						return layoutGradientBar(gtx, l.gradient, image.Pt(gtx.Dp(st.LegendWidth), gtx.Dp(10)))
-					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						gtx.Constraints.Min.X = gtx.Dp(st.LegendWidth)
-						gtx.Constraints.Max.X = gtx.Constraints.Min.X
-						return layout.Flex{}.Layout(gtx,
-							layout.Rigid(st.SmallLabel(l.label(l.min)).Layout),
-							layout.Flexed(1, layout.Spacer{}.Layout),
-							layout.Rigid(st.SmallLabel(l.label(l.max)).Layout),
-						)
-					}),
-				)
+				var rows []layout.FlexChild
+				if l != nil {
+					rows = append(rows,
+						layout.Rigid(st.SmallLabel(fmt.Sprintf("%s (%s)", l.info.name, l.info.unit)).Layout),
+						layout.Rigid(layout.Spacer{Height: st.Spacing / 2}.Layout),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							return layoutGradientBar(gtx, l.gradient, image.Pt(gtx.Dp(st.LegendWidth), gtx.Dp(10)))
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							gtx.Constraints.Min.X = gtx.Dp(st.LegendWidth)
+							gtx.Constraints.Max.X = gtx.Constraints.Min.X
+							return layout.Flex{}.Layout(gtx,
+								layout.Rigid(st.SmallLabel(l.label(l.min)).Layout),
+								layout.Flexed(1, layout.Spacer{}.Layout),
+								layout.Rigid(st.SmallLabel(l.label(l.max)).Layout),
+							)
+						}),
+						layout.Rigid(layout.Spacer{Height: st.Spacing}.Layout),
+					)
+				}
+				rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return layoutScaleBar(gtx, st, &a.mapView.View, gtx.Dp(st.LegendWidth))
+				}))
+				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 			})
 			call := macro.Stop()
 			rr := gtx.Dp(st.CornerRadius)
