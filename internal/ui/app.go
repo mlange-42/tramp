@@ -150,7 +150,11 @@ func newApp(invalidate func(), opts Options) *App {
 		a.win = defaultWindow
 	}
 	a.split.Size = dpOr(a.win.PanelWidth, settings.DefaultPanelWidth)
-	a.chartSplit = Split{Axis: layout.Vertical, End: true, Size: dpOr(a.win.ChartHeight, settings.DefaultChartHeight)}
+	a.chartSplit = Split{
+		Axis: layout.Vertical, End: true, Collapsible: true, MinSize: a.style.MinChartHeight,
+		Size:      dpOr(a.win.ChartHeight, settings.DefaultChartHeight),
+		Collapsed: a.win.ChartClosed,
+	}
 	var mapName string
 	var overlays []string
 	if v := opts.State.View; v != nil {
@@ -215,6 +219,7 @@ func (a *App) State() settings.Settings {
 	}
 	s.Window.PanelWidth = float32(a.split.Size)
 	s.Window.ChartHeight = float32(a.chartSplit.Size)
+	s.Window.ChartClosed = a.chartSplit.Collapsed
 	s.Style.ColorBy, s.Style.Gradients = a.coloringState()
 	for i, name := range a.overlayNames {
 		if a.overlaySel.Checked(i) {
@@ -330,6 +335,10 @@ func (a *App) update(gtx layout.Context) {
 	// The selected item is muted on the map while the chart is zoomed in.
 	zoomed := a.chart.zoomed()
 	a.chart.update(gtx)
+	if a.chartSplit.Collapsed {
+		// A closed chart shows the whole item when opened again, and doesn't affect the map.
+		a.chart.setRange(0, a.chart.total)
+	}
 	if a.chart.zoomed() != zoomed {
 		a.tracksChanged = true
 	}

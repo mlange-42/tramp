@@ -47,7 +47,7 @@ type Style struct {
 	DividerWidth unit.Dp
 	// DividerGrip is the width of the area for dragging the divider.
 	DividerGrip unit.Dp
-	// MinPaneSize is the minimum width or height of the side panel, map and chart.
+	// MinPaneSize is the minimum width or height of the side panel and the map.
 	MinPaneSize unit.Dp
 
 	// PanelBg is the background of drop-down panels.
@@ -75,6 +75,8 @@ type Style struct {
 	ChartLine color.NRGBA
 	// ChartLineWidth is the width of the chart line.
 	ChartLineWidth unit.Dp
+	// MinChartHeight is the minimum height of the chart. Below 2/3 of it, the chart snaps closed.
+	MinChartHeight unit.Dp
 	// ChartTickSpacing is the minimum distance between axis ticks in the chart.
 	ChartTickSpacing unit.Dp
 	// LegendBg is the background of the legend with scale and color bar on the map.
@@ -124,6 +126,7 @@ func DefaultStyle() *Style {
 
 		ChartLineWidth:   1.5,
 		ChartTickSpacing: 32,
+		MinChartHeight:   50,
 		LegendBg:         color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xe0},
 		LegendWidth:      180,
 	}

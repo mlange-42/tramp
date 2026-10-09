@@ -34,7 +34,7 @@ func TestSaveLoad(t *testing.T) {
 			Map:      "OpenStreetMap",
 			Overlays: []string{"Hillshade (SRTM)", "Labels & roads"},
 		},
-		Window: &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true, PanelWidth: 300, ChartHeight: 150},
+		Window: &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true, PanelWidth: 300, ChartHeight: 150, ChartClosed: true},
 	}
 	if err := save(path, &s); err != nil {
 		t.Fatal(err)
