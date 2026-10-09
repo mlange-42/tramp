@@ -47,6 +47,49 @@ type Rect struct {
 	Min, Max Point
 }
 
+// EmptyRect returns a rectangle that contains nothing, as a start for [Rect.Extend] and [Rect.Union].
+func EmptyRect() Rect {
+	inf := math.Inf(1)
+	return Rect{Min: Point{inf, inf}, Max: Point{-inf, -inf}}
+}
+
+// Empty reports whether the rectangle contains no points.
+func (r Rect) Empty() bool {
+	return r.Min.X > r.Max.X || r.Min.Y > r.Max.Y
+}
+
+// Extend returns the smallest rectangle containing r and p.
+func (r Rect) Extend(p Point) Rect {
+	return Rect{
+		Min: Point{math.Min(r.Min.X, p.X), math.Min(r.Min.Y, p.Y)},
+		Max: Point{math.Max(r.Max.X, p.X), math.Max(r.Max.Y, p.Y)},
+	}
+}
+
+// Union returns the smallest rectangle containing r and o.
+func (r Rect) Union(o Rect) Rect {
+	if o.Empty() {
+		return r
+	}
+	return r.Extend(o.Min).Extend(o.Max)
+}
+
+// Intersects reports whether r and o overlap or touch.
+func (r Rect) Intersects(o Rect) bool {
+	return r.Min.X <= o.Max.X && o.Min.X <= r.Max.X && r.Min.Y <= o.Max.Y && o.Min.Y <= r.Max.Y
+}
+
+// Distance returns the great-circle distance between two positions in meters,
+// using the haversine formula on a sphere with the mean earth radius.
+func Distance(a, b LonLat) float64 {
+	const meanRadius = 6371008.8
+	lat1, lat2 := a.Lat*math.Pi/180, b.Lat*math.Pi/180
+	dLat := lat2 - lat1
+	dLon := (b.Lon - a.Lon) * math.Pi / 180
+	h := math.Sin(dLat/2)*math.Sin(dLat/2) + math.Cos(lat1)*math.Cos(lat2)*math.Sin(dLon/2)*math.Sin(dLon/2)
+	return 2 * meanRadius * math.Asin(math.Sqrt(math.Min(1, h)))
+}
+
 // ToMercator converts geographic coordinates to Web Mercator.
 func ToMercator(ll LonLat) Point {
 	lat := math.Max(-MaxLat, math.Min(MaxLat, ll.Lat))

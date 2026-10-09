@@ -36,13 +36,25 @@ Binaries for Windows, Linux and macOS will be available on the GitHub [releases 
 ## Usage
 
 Run `tramp` to open the map. Drag to pan, scroll to zoom.
-The background map and overlays like hillshading can be selected in the toolbar.
 
+The background map and overlays like hillshading can be selected in the toolbar.
 Further maps can be added in the [maps configuration](#maps).
+
+Open GPX files with the *Open* button or Ctrl+O, or pass them on the command line:
+
+```sh
+tramp morning.gpx evening.gpx
+```
+
+Opened files are listed in the side panel, with length, duration and sampling interval.
+Click a file to zoom to it, use the checkbox to show or hide it, and × to close it.
+Files with several tracks, routes or waypoint sets can be expanded to show or hide them individually.
+
+On Linux, the file dialog requires `zenity`, `kdialog` or a similar tool, which most desktops have installed.
 
 ### Settings
 
-TRAMP remembers the selected map, overlays, map position and window size in a YAML file `settings.yaml` in the user's config directory.
+TRAMP remembers the opened files, the selected map, overlays, map position and window size in a YAML file `settings.yaml` in the user's config directory.
 The file also contains `tile_cache`, the number of map tiles kept in memory (default 2048, about 512 MB).
 
 The file is located in:
@@ -90,4 +102,3 @@ Delete the file to restore the built-in maps.
 ## License
 
 TRAMP and all its sources and documentation are distributed under the [MIT license](https://github.com/mlange-42/tramp/blob/main/LICENSE).
-

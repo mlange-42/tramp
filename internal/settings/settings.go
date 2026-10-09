@@ -38,6 +38,16 @@ type Settings struct {
 	View *View `yaml:"view,omitempty"`
 	// Window is the last main window size, position and state. Nil if not known yet.
 	Window *Window `yaml:"window,omitempty"`
+	// Files are the opened track files, in panel order.
+	Files []File `yaml:"files,omitempty"`
+}
+
+// File is an opened track file.
+type File struct {
+	// Path is the absolute path of the file.
+	Path string `yaml:"path"`
+	// Hidden is whether the file is hidden on the map.
+	Hidden bool `yaml:"hidden,omitempty"`
 }
 
 // Window is the size, position and state of the main window.
