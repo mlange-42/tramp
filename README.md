@@ -113,6 +113,23 @@ overlays:
 
 Delete the file to restore the built-in maps.
 
+### Gradients
+
+The color gradients for coloring tracks by speed, elevation or slope are configured in `gradients.yaml` in the same directory.
+It is created with the built-in gradients on the first start.
+Each gradient has a unique name and at least two equally spaced colors, from low to high values:
+
+```yaml
+gradients:
+  - name: Viridis
+    colors: ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725']
+  - name: Cold–Hot
+    colors: ['#0000ff', '#ffffff', '#ff0000']
+```
+
+Invalid gradients are skipped and reported in the log file.
+Delete the file to restore the built-in gradients.
+
 ## License
 
 TRAMP and all its sources and documentation are distributed under the [MIT license](https://github.com/mlange-42/tramp/blob/main/LICENSE).

@@ -52,62 +52,6 @@ var metrics = []metricInfo{
 	{metric: track.SlopeMetric, key: "slope", name: "Slope", unit: "%", scale: 1, format: "%+.0f", gradient: "Blue–Red", symmetric: true},
 }
 
-// Gradient is a color gradient, given by equally spaced color stops.
-type Gradient struct {
-	Name  string
-	Stops []color.NRGBA
-}
-
-// At returns the color at position t in [0, 1], interpolated linearly between stops.
-func (g *Gradient) At(t float64) color.NRGBA {
-	t = math.Max(0, math.Min(1, t))
-	n := len(g.Stops) - 1
-	if n <= 0 {
-		return g.Stops[0]
-	}
-	i := min(int(t*float64(n)), n-1)
-	f := t*float64(n) - float64(i)
-	a, b := g.Stops[i], g.Stops[i+1]
-	mix := func(x, y uint8) uint8 { return uint8(math.Round(float64(x) + (float64(y)-float64(x))*f)) }
-	return color.NRGBA{R: mix(a.R, b.R), G: mix(a.G, b.G), B: mix(a.B, b.B), A: mix(a.A, b.A)}
-}
-
-// Bins returns n colors at the centers of n equal parts of the gradient.
-func (g *Gradient) Bins(n int) []color.NRGBA {
-	cols := make([]color.NRGBA, n)
-	for i := range cols {
-		cols[i] = g.At((float64(i) + 0.5) / float64(n))
-	}
-	return cols
-}
-
-func hexStops(hex ...string) []color.NRGBA {
-	cols := make([]color.NRGBA, len(hex))
-	for i, h := range hex {
-		c, err := parseColor(h)
-		if err != nil {
-			panic(err)
-		}
-		cols[i] = c
-	}
-	return cols
-}
-
-// gradients are the available gradients.
-var gradients = []Gradient{
-	{Name: "Turbo", Stops: hexStops("#30123b", "#4145ab", "#4675ed", "#39a2fc", "#1bcfd4", "#24eca6", "#61fc6c",
-		"#a4fc3b", "#d1e834", "#f3c63a", "#fe9b2d", "#f36315", "#d93806", "#b11901", "#7a0403")},
-	{Name: "Viridis", Stops: hexStops("#440154", "#472d7b", "#3b528b", "#2c728e", "#21918c", "#28ae80", "#5ec962", "#addc30", "#fde725")},
-	{Name: "Plasma", Stops: hexStops("#0d0887", "#46039f", "#7201a8", "#9c179e", "#bd3786", "#d8576b", "#ed7953", "#fb9f3a", "#fdca26", "#f0f921")},
-	{Name: "Green–Red", Stops: hexStops("#1a9850", "#91cf60", "#d9ef8b", "#fee08b", "#fc8d59", "#d73027")},
-	// Diverging, with a gray instead of a white center, which would vanish on bright maps.
-	{Name: "Blue–Red", Stops: hexStops("#2166ac", "#4393c3", "#92c5de", "#bdbdbd", "#f4a582", "#d6604d", "#b2182b")},
-}
-
-func gradientIndex(name string) int {
-	return max(0, slices.IndexFunc(gradients, func(g Gradient) bool { return g.Name == name }))
-}
-
 // colorMetric returns the selected metric to color tracks by.
 func (a *App) colorMetric() track.Metric {
 	return metrics[a.colorBy.Selected()].metric
@@ -154,7 +98,7 @@ func (a *App) newLegend(groups []mapview.LineGroup) *legend {
 	if !ok {
 		return nil
 	}
-	return &legend{info: info, gradient: &gradients[a.gradientSel.Selected()], min: lo, max: hi}
+	return &legend{info: info, gradient: &a.gradients[a.gradientSel.Selected()], min: lo, max: hi}
 }
 
 // valueRange returns the range of the values without the outer [rangeQuantile] at each end.
@@ -242,11 +186,8 @@ func layoutGradientBar(gtx layout.Context, g *Gradient, size image.Point) layout
 	return layout.Dimensions{Size: size}
 }
 
-// metricNames and gradientNames are the options of the coloring drop-downs.
-var (
-	metricNames   = func() []string { return names(metrics, func(m metricInfo) string { return m.name }) }()
-	gradientNames = func() []string { return names(gradients, func(g Gradient) string { return g.Name }) }()
-)
+// metricNames are the options of the color-by drop-down.
+var metricNames = names(metrics, func(m metricInfo) string { return m.name })
 
 func names[T any](items []T, name func(T) string) []string {
 	out := make([]string, len(items))
@@ -270,21 +211,26 @@ func (a *App) layoutColoring(gtx layout.Context) layout.Dimensions {
 				return layout.Dimensions{}
 			}
 			return layout.Inset{Left: st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return a.gradientSel.Layout(gtx, st, gradientNames)
+				return a.gradientSel.Layout(gtx, st, a.gradientNames)
 			})
 		}),
 	)
 }
 
-// initColoring sets the coloring from the settings.
-func (a *App) initColoring(colorBy string, saved map[string]string) {
+// initColoring sets the available gradients and the coloring from the settings.
+// Without gradients, the built-in ones are used.
+// Gradient names that don't exist fall back to the metric's default, or the first gradient.
+func (a *App) initColoring(grads []Gradient, colorBy string, saved map[string]string) {
+	if len(grads) == 0 {
+		grads = builtinGradients
+	}
+	a.gradients = grads
+	a.gradientNames = names(grads, func(g Gradient) string { return g.Name })
 	a.metricGradients = make([]int, len(metrics))
 	for i, m := range metrics {
-		a.metricGradients[i] = gradientIndex(m.gradient)
-		if name, ok := saved[m.key]; ok {
-			if j := slices.IndexFunc(gradients, func(g Gradient) bool { return g.Name == name }); j >= 0 {
-				a.metricGradients[i] = j
-			}
+		a.metricGradients[i] = max(0, a.gradientIndex(m.gradient))
+		if j := a.gradientIndex(saved[m.key]); j >= 0 {
+			a.metricGradients[i] = j
 		}
 	}
 	a.colorBy.SetSelected(max(0, slices.IndexFunc(metrics, func(m metricInfo) bool { return m.key == colorBy })))
@@ -296,8 +242,13 @@ func (a *App) coloringState() (colorBy string, grads map[string]string) {
 	grads = map[string]string{}
 	for i, m := range metrics {
 		if m.metric != track.NoMetric {
-			grads[m.key] = gradients[a.metricGradients[i]].Name
+			grads[m.key] = a.gradients[a.metricGradients[i]].Name
 		}
 	}
 	return metrics[a.colorBy.Selected()].key, grads
+}
+
+// gradientIndex returns the index of the gradient with the given name, or -1.
+func (a *App) gradientIndex(name string) int {
+	return slices.IndexFunc(a.gradients, func(g Gradient) bool { return g.Name == name })
 }

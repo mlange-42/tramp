@@ -3,6 +3,7 @@ package ui
 import (
 	"image/color"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/mlange-42/tramp/internal/mapview"
@@ -22,8 +23,10 @@ func TestGradient(t *testing.T) {
 	if b := g.Bins(2); b[0].R != 50 || b[1].R != 150 {
 		t.Errorf("unexpected bins %v", b)
 	}
+	a := &App{}
+	a.initColoring(nil, "", nil)
 	for _, m := range metrics {
-		if m.metric != track.NoMetric && gradients[gradientIndex(m.gradient)].Name != m.gradient {
+		if m.metric != track.NoMetric && a.gradientIndex(m.gradient) < 0 {
 			t.Errorf("unknown default gradient %q for %s", m.gradient, m.name)
 		}
 	}
@@ -52,8 +55,8 @@ func TestValueRange(t *testing.T) {
 
 func TestColoringState(t *testing.T) {
 	a := &App{}
-	a.initColoring("slope", map[string]string{"speed": "Plasma", "elevation": "unknown"})
-	if a.colorMetric() != track.SlopeMetric || gradients[a.gradientSel.Selected()].Name != "Blue–Red" {
+	a.initColoring(nil, "slope", map[string]string{"speed": "Plasma", "elevation": "unknown"})
+	if a.colorMetric() != track.SlopeMetric || a.gradients[a.gradientSel.Selected()].Name != "Blue–Red" {
 		t.Errorf("unexpected coloring %v %d", a.colorMetric(), a.gradientSel.Selected())
 	}
 	colorBy, grads := a.coloringState()
@@ -67,7 +70,7 @@ func TestColoringState(t *testing.T) {
 		}
 	}
 
-	a.initColoring("", nil)
+	a.initColoring(nil, "", nil)
 	if a.colorMetric() != track.NoMetric {
 		t.Errorf("expected no coloring by default")
 	}
@@ -78,7 +81,7 @@ func TestColoringState(t *testing.T) {
 
 func TestLegend(t *testing.T) {
 	a := &App{}
-	a.initColoring("speed", nil)
+	a.initColoring(nil, "speed", nil)
 	if l := a.newLegend([]mapview.LineGroup{{}}); l != nil {
 		t.Errorf("expected no legend without values")
 	}
@@ -118,5 +121,42 @@ func TestLineValues(t *testing.T) {
 	}
 	if v := trk.lineValues(track.NoMetric); v != nil {
 		t.Errorf("expected nil for no metric")
+	}
+}
+
+func TestGradientConfig(t *testing.T) {
+	def := DefaultGradients()
+	grads, err := def.Parse()
+	if err != nil || len(grads) != len(def.Gradients) {
+		t.Fatalf("built-in gradients: %d, %v", len(grads), err)
+	}
+
+	cfg := GradientConfig{Gradients: []GradientDef{
+		{Name: "Mine", Colors: []string{"#000000", "#ff0000"}},
+		{Name: "", Colors: []string{"#000000", "#ff0000"}},
+		{Name: "Short", Colors: []string{"#000000"}},
+		{Name: "Bad", Colors: []string{"#000000", "red"}},
+		{Name: "Mine", Colors: []string{"#000000", "#00ff00"}},
+	}}
+	grads, err = cfg.Parse()
+	if len(grads) != 1 || grads[0].Name != "Mine" || grads[0].Stops[1] != (color.NRGBA{R: 255, A: 255}) {
+		t.Errorf("unexpected gradients %+v", grads)
+	}
+	if err == nil || strings.Count(err.Error(), "gradient ") != 4 {
+		t.Errorf("expected 4 errors, got %v", err)
+	}
+}
+
+func TestCustomGradients(t *testing.T) {
+	a := &App{}
+	own := []Gradient{{Name: "A", Stops: []color.NRGBA{{A: 255}, {R: 255, A: 255}}}, {Name: "B", Stops: []color.NRGBA{{A: 255}, {B: 255, A: 255}}}}
+	// Missing default and saved gradients fall back to the first one.
+	a.initColoring(own, "speed", map[string]string{"slope": "B", "elevation": "Viridis"})
+	if a.gradientSel.Selected() != 0 || len(a.gradientNames) != 2 {
+		t.Errorf("unexpected selection %d %v", a.gradientSel.Selected(), a.gradientNames)
+	}
+	_, grads := a.coloringState()
+	if grads["slope"] != "B" || grads["elevation"] != "A" || grads["speed"] != "A" {
+		t.Errorf("unexpected gradients %v", grads)
 	}
 }
