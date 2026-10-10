@@ -27,9 +27,6 @@ const (
 // casingColor is drawn below colored lines.
 var casingColor = color.NRGBA{A: 0xcc}
 
-// noValueColor is the color of segments without value in colored lines, like gaps in the recording.
-var noValueColor = color.NRGBA{R: 0x90, G: 0x90, B: 0x90, A: 0xff}
-
 // metricInfo describes how a metric is shown.
 type metricInfo struct {
 	metric track.Metric
@@ -87,6 +84,8 @@ type legend struct {
 	gradient *Gradient
 	// min and max are the value range, in the metric's original unit.
 	min, max float64
+	// noValue is the color of segments without value, like gaps in the recording.
+	noValue color.NRGBA
 }
 
 // newLegend returns the coloring for the selected metric and the values of the groups,
@@ -110,7 +109,7 @@ func (a *App) newLegend(groups []mapview.LineGroup) *legend {
 	if !ok {
 		return nil
 	}
-	return &legend{info: info, gradient: &a.gradients[a.gradientSel.Selected()], min: lo, max: hi}
+	return &legend{info: info, gradient: &a.gradients[a.gradientSel.Selected()], min: lo, max: hi, noValue: a.style.MutedTrack}
 }
 
 // valueRange returns the range of the values without the outer [rangeQuantile] at each end.
@@ -133,7 +132,7 @@ func valueRange(vals []float64, symmetric bool) (lo, hi float64, ok bool) {
 }
 
 func (l *legend) coloring() *mapview.Coloring {
-	return &mapview.Coloring{Min: l.min, Max: l.max, Colors: l.gradient.Bins(colorBins), Casing: casingColor, NoValue: noValueColor}
+	return &mapview.Coloring{Min: l.min, Max: l.max, Colors: l.gradient.Bins(colorBins), Casing: casingColor, NoValue: l.noValue}
 }
 
 // label formats a value in the legend's unit.

@@ -67,7 +67,8 @@ type Style struct {
 	// SelectedBg is the background of the side panel entry shown in the chart.
 	SelectedBg color.NRGBA
 	// MutedTrack is the color of the selected track or route on the map,
-	// outside of the part visible in the zoomed chart.
+	// outside of the part visible in the zoomed chart, and of segments without value in tracks colored by value.
+	// It can be set in the settings.
 	MutedTrack color.NRGBA
 	// ChartGrid is the color of the grid lines in the chart.
 	ChartGrid color.NRGBA

@@ -33,6 +33,9 @@ const (
 	DefaultWaypointSize = 8
 )
 
+// DefaultMutedColor is the default for [Style.MutedColor].
+const DefaultMutedColor = "#808080c0"
+
 // Settings are the persisted user preferences.
 type Settings struct {
 	// TileCache is the maximum number of map tiles kept in memory, shared by all visible layers.
@@ -60,6 +63,10 @@ type Style struct {
 	ColorBy string `yaml:"color_by,omitempty"`
 	// Gradients are the names of the color gradients per metric.
 	Gradients map[string]string `yaml:"gradients,omitempty"`
+	// MutedColor is the color of the selected track or route on the map outside the range shown
+	// in the zoomed chart, and of segments without value in tracks colored by value, like gaps in the recording.
+	// Like "#808080", or with opacity like "#808080c0".
+	MutedColor string `yaml:"muted_color"`
 }
 
 // File is an opened track file.
@@ -201,6 +208,9 @@ func (s *Settings) setDefaults() {
 	}
 	if s.Style.WaypointSize <= 0 {
 		s.Style.WaypointSize = DefaultWaypointSize
+	}
+	if s.Style.MutedColor == "" {
+		s.Style.MutedColor = DefaultMutedColor
 	}
 }
 

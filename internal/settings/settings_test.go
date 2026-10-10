@@ -16,7 +16,8 @@ func TestSaveLoad(t *testing.T) {
 	if def.TileCache != DefaultTileCache {
 		t.Errorf("tile cache default not set: %d", def.TileCache)
 	}
-	if st := def.Style; st.TrackWidth != DefaultTrackWidth || st.RouteWidth != DefaultRouteWidth || st.WaypointSize != DefaultWaypointSize {
+	if st := def.Style; st.TrackWidth != DefaultTrackWidth || st.RouteWidth != DefaultRouteWidth || st.WaypointSize != DefaultWaypointSize ||
+		st.MutedColor != DefaultMutedColor {
 		t.Errorf("style defaults not set: %+v", st)
 	}
 
@@ -28,13 +29,14 @@ func TestSaveLoad(t *testing.T) {
 			WaypointSize: 10,
 			ColorBy:      "slope",
 			Gradients:    map[string]string{"speed": "Turbo", "slope": "Blue–Red"},
+			MutedColor:   "#a0a0a0",
 		},
 		View: &View{
 			Lon: 12.5, Lat: -51.25, Zoom: 10.5,
 			Map:      "OpenStreetMap",
 			Overlays: []string{"Hillshade (SRTM)", "Labels & roads"},
 		},
-		Window: &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true, PanelWidth: 300, ChartHeight: 150, ChartClosed: true},
+		Window: &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true, PanelWidth: 300, ChartHeight: 150, ChartClosed: true, ChartAxis: "clock_time"},
 	}
 	if err := save(path, &s); err != nil {
 		t.Fatal(err)
