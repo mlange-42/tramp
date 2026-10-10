@@ -41,13 +41,13 @@ func TestHitTest(t *testing.T) {
 	view := &a.mapView.View
 	route := f.data.Routes[0].Points
 	p := screenPos(view, route[1].Pos).Add(f32.Pt(3, 0))
-	if v, ok := hitVertex(f.data, view, p, 5); !ok || v != (vertex{0, 1}) {
+	if v, ok := hitVertex(f.data, view, p, 5, -1); !ok || v != (vertex{0, 1}) {
 		t.Errorf("expected route point 1, got %v %v", v, ok)
 	}
-	if v, ok := hitVertex(f.data, view, screenPos(view, f.data.Waypoints[1].Pos), 5); !ok || v != (vertex{-1, 1}) {
+	if v, ok := hitVertex(f.data, view, screenPos(view, f.data.Waypoints[1].Pos), 5, -1); !ok || v != (vertex{-1, 1}) {
 		t.Errorf("expected waypoint 1, got %v %v", v, ok)
 	}
-	if _, ok := hitVertex(f.data, view, p.Add(f32.Pt(10, 0)), 5); ok {
+	if _, ok := hitVertex(f.data, view, p.Add(f32.Pt(10, 0)), 5, -1); ok {
 		t.Errorf("expected no hit")
 	}
 	mid := screenPos(view, route[0].Pos).Add(screenPos(view, route[1].Pos)).Mul(0.5)
@@ -170,5 +170,74 @@ func TestSelectTool(t *testing.T) {
 	}
 	if len(f.data.Routes) != 0 || a.selected != nil {
 		t.Errorf("expected route deleted")
+	}
+}
+
+// testLinkedGPX has a route built from waypoints, as written by devices that build routes from stored waypoints.
+// The route starts and ends at the same waypoint.
+const testLinkedGPX = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">
+  <wpt lat="51.0" lon="12.0"><name>A</name></wpt>
+  <wpt lat="51.1" lon="12.0"><name>B</name></wpt>
+  <rte>
+    <rtept lat="51.0" lon="12.0"><name>A</name></rtept>
+    <rtept lat="51.1" lon="12.0"><name>B</name></rtept>
+    <rtept lat="51.1" lon="12.1"><name>B</name></rtept>
+    <rtept lat="51.0" lon="12.0"><name>A</name></rtept>
+  </rte>
+</gpx>`
+
+func TestLinkedPoints(t *testing.T) {
+	a, f := editApp(t, testLinkedGPX)
+	a.style = DefaultStyle()
+	a.mapView = mapview.New(geo.LonLat{Lon: 12, Lat: 51}, 9)
+	a.mapView.View.Size = image.Pt(800, 600)
+	a.toggleEdit(f)
+	gtx := layout.Context{Metric: unit.Metric{PxPerDp: 1}}
+	d := f.data
+
+	if g := linkedGroup(d, vertex{0, 3}); len(g) != 3 || g[0] != (vertex{-1, 0}) {
+		t.Errorf("unexpected group of A: %v", g)
+	}
+	// A route point with the name of a waypoint at another position is not linked.
+	if g := linkedGroup(d, vertex{0, 2}); len(g) != 1 {
+		t.Errorf("expected no links, got %v", g)
+	}
+	if l := linkedRoutePoints(d); len(l) != 3 || l[vertex{0, 2}] {
+		t.Errorf("unexpected linked route points %v", l)
+	}
+
+	// Of linked points, the waypoint is hit, or the point of the route selected for the chart.
+	p := screenPos(&a.mapView.View, d.Waypoints[1].Pos)
+	if v, _ := hitVertex(d, &a.mapView.View, p, 5, -1); v != (vertex{-1, 1}) {
+		t.Errorf("expected waypoint, got %v", v)
+	}
+	if v, _ := hitVertex(d, &a.mapView.View, p, 5, 0); v != (vertex{0, 1}) {
+		t.Errorf("expected route point, got %v", v)
+	}
+	// The route tool continues routes at their ends only.
+	if _, ok := hitRouteEnd(d, &a.mapView.View, p, 5, -1); ok {
+		t.Errorf("expected no route end")
+	}
+
+	// Moving a waypoint moves the linked route points.
+	to := geo.LonLat{Lon: 12.05, Lat: 50.95}
+	a.editPress(gtx, at(a, pointer.Press, d.Waypoints[0].Pos))
+	a.editor.drag.pos, a.editor.drag.moved = geo.ToMercator(to), true
+	a.editRelease()
+	for _, v := range []vertex{{-1, 0}, {0, 0}, {0, 3}} {
+		if ll, _ := vertexPos(d, v); math.Abs(ll.Lon-to.Lon) > 1e-9 || math.Abs(ll.Lat-to.Lat) > 1e-9 {
+			t.Errorf("%v not moved: %v", v, ll)
+		}
+	}
+	if g := linkedGroup(d, vertex{-1, 0}); len(g) != 3 {
+		t.Errorf("expected points still linked, got %v", g)
+	}
+
+	// Deleting a linked route point keeps the waypoint.
+	a.selectVertex(vertex{0, 1})
+	a.deleteSelected()
+	if len(d.Waypoints) != 2 || len(d.Routes[0].Points) != 3 {
+		t.Errorf("expected only the route point deleted")
 	}
 }

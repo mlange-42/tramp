@@ -29,6 +29,8 @@ const (
 	doubleClickTime = 300 * time.Millisecond
 	// doubleClickSlop is the farthest distance between the clicks of a double click, in pixels.
 	doubleClickSlop = 6
+	// clickSlop is the farthest the pointer may move while pressed, in pixels, for a click instead of a drag.
+	clickSlop = 3
 )
 
 var background = color.NRGBA{R: 0xe0, G: 0xe0, B: 0xe0, A: 0xff}
@@ -56,7 +58,11 @@ type Map struct {
 	dragging bool
 	dragID   pointer.ID
 	last     f32.Point
-	wanted   []geo.TileKey
+	// pressPos is where the pan drag started, panned is set once it moved farther than clickSlop.
+	pressPos       f32.Point
+	panned         bool
+	secondaryClick bool
+	wanted         []geo.TileKey
 
 	clicks      DoubleClick
 	doubleClick bool
@@ -151,6 +157,7 @@ func (m *Map) Update(gtx layout.Context) {
 				m.dragging = true
 				m.dragID = e.PointerID
 				m.last = e.Position
+				m.pressPos, m.panned = e.Position, false
 				gtx.Execute(pointer.GrabCmd{Tag: m, ID: e.PointerID})
 			}
 			if !m.primary && e.Buttons.Contain(pointer.ButtonPrimary) {
@@ -164,14 +171,17 @@ func (m *Map) Update(gtx layout.Context) {
 				d := e.Position.Sub(m.last)
 				m.View.Pan(float64(d.X), float64(d.Y))
 				m.last = e.Position
+				d = e.Position.Sub(m.pressPos)
+				m.panned = m.panned || d.X*d.X+d.Y*d.Y > clickSlop*clickSlop
 			}
 			if m.primary && e.PointerID == m.primaryID {
 				m.addEvent(e, false)
 			}
 		case pointer.Release, pointer.Cancel:
 			// Releasing another button doesn't end the drag.
-			if e.PointerID == m.dragID && (e.Kind == pointer.Cancel || !e.Buttons.Contain(pointer.ButtonSecondary)) {
+			if m.dragging && e.PointerID == m.dragID && (e.Kind == pointer.Cancel || !e.Buttons.Contain(pointer.ButtonSecondary)) {
 				m.dragging = false
+				m.secondaryClick = m.secondaryClick || e.Kind == pointer.Release && !m.panned
 			}
 			if m.primary && e.PointerID == m.primaryID && (e.Kind == pointer.Cancel || !e.Buttons.Contain(pointer.ButtonPrimary)) {
 				m.primary = false
@@ -229,6 +239,14 @@ func (m *Map) DoubleClicked() bool {
 	d := m.doubleClick
 	m.doubleClick = false
 	return d
+}
+
+// SecondaryClicked reports whether the map was clicked with the secondary button,
+// without panning, since the last call.
+func (m *Map) SecondaryClicked() bool {
+	c := m.secondaryClick
+	m.secondaryClick = false
+	return c
 }
 
 // DoubleClick detects double clicks from press events.

@@ -5,13 +5,11 @@
     <desc>Planned bike route from Leipzig to Cospudener and Markkleeberger See, with waypoints.</desc>
     <time>2026-10-09T12:00:00Z</time>
   </metadata>
-  <wpt lat="51.3168" lon="12.3708">
-    <ele>116</ele>
+  <wpt lat="51.317339058443764" lon="12.352034097710813">
     <name>Connewitzer Kreuz</name>
     <sym>Crossing</sym>
   </wpt>
-  <wpt lat="51.2697" lon="12.3505">
-    <ele>113</ele>
+  <wpt lat="51.266581812716566" lon="12.343044614996858">
     <name>Cospudener See, north beach</name>
     <desc>Swimming and café</desc>
     <sym>Swimming Area</sym>
@@ -21,8 +19,7 @@
     <name>Kanupark</name>
     <sym>Scenic Area</sym>
   </wpt>
-  <wpt lat="51.2837" lon="12.3893">
-    <ele>121</ele>
+  <wpt lat="51.27766903214206" lon="12.389412891854604">
     <name>Markkleeberg station</name>
     <sym>Ground Transportation</sym>
     <type>end</type>
@@ -31,7 +28,7 @@
     <name>Lake loop</name>
     <desc>About 30 km, mostly flat</desc>
     <type>cycling</type>
-    <rtept lat="51.34719976138729" lon="12.405571553306746">
+    <rtept lat="51.3444818937507" lon="12.417056293781952">
       <name>Markt</name>
     </rtept>
     <rtept lat="51.34371210567639" lon="12.382508797801584"/>
@@ -39,24 +36,14 @@
     <rtept lat="51.3336" lon="12.3721">
       <ele>114</ele>
     </rtept>
-    <rtept lat="51.3262" lon="12.3695">
-      <ele>115</ele>
-    </rtept>
-    <rtept lat="51.3168" lon="12.3708">
-      <ele>116</ele>
+    <rtept lat="51.329172489070544" lon="12.358588775591226"/>
+    <rtept lat="51.317339058443764" lon="12.352034097710813">
       <name>Connewitzer Kreuz</name>
     </rtept>
-    <rtept lat="51.304" lon="12.364">
-      <ele>117</ele>
-    </rtept>
-    <rtept lat="51.2905" lon="12.356">
-      <ele>118</ele>
-    </rtept>
-    <rtept lat="51.2775" lon="12.35">
-      <ele>115</ele>
-    </rtept>
-    <rtept lat="51.2697" lon="12.3505">
-      <ele>113</ele>
+    <rtept lat="51.30292242277852" lon="12.350334736778855"/>
+    <rtept lat="51.29290398822806" lon="12.342566229661323"/>
+    <rtept lat="51.28116171143165" lon="12.346443336860776"/>
+    <rtept lat="51.26718940087022" lon="12.358338863384493">
       <name>Cospudener See</name>
     </rtept>
     <rtept lat="51.256" lon="12.348">

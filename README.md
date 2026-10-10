@@ -65,12 +65,19 @@ In edit mode, the toolbar shows the edit tools, also selected with the keys S, W
 
 - **Select**: click a point to select it, drag it to move it, and press Del to delete it.
   Drag or click the small circles between route points to insert a point.
+  Esc or a right click clears the selection.
 - **Waypoint**: click to add a waypoint.
 - **Route**: click to add points to a new route. Click the first or last point of a route,
   or select the route in the side panel, to continue it.
-  Esc, Enter or a double click finishes the route, Del removes the last point.
+  Esc, Enter, a right click or a double click finishes the route, Del removes the last point.
 
+Hover a tool for a short help.
 Moved and added points have no elevation.
+
+Many GPS devices build routes from stored waypoints, and write each route point
+with the same name and position as its waypoint.
+TRAMP treats such points as linked: they share one handle on the map and are moved together.
+Deleting a linked route point removes it from the route only.
 
 Save with Ctrl+S, undo with Ctrl+Z and redo with Ctrl+Y or Ctrl+Shift+Z.
 When leaving edit mode, closing the file or closing TRAMP with unsaved changes,

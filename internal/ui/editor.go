@@ -29,8 +29,27 @@ const (
 )
 
 var tools = [numTools]struct {
-	name, key string
-}{{"Select", "S"}, {"Waypoint", "W"}, {"Route", "R"}}
+	name, key, help string
+}{
+	{"Select", "S", `Select tool (S)
+
+Click a point to select it, drag it to move it.
+Del or Backspace deletes the selected point.
+Drag or click the small circles between route points to insert a point.
+Esc or a right click clears the selection.
+
+Route points with the same name and position as a waypoint are linked to it and move with it.`},
+	{"Waypoint", "W", `Waypoint tool (W)
+
+Click on the map to add a waypoint.`},
+	{"Route", "R", `Route tool (R)
+
+Click on the map to add points to a new route.
+Esc, Enter, a right click or a double click finishes the route.
+Del or Backspace removes the last point.
+
+Click the first or last point of a route, or select the route in the side panel, to continue it.`},
+}
 
 // dragSlop is how far the pointer must move, in pixels, before a press becomes a drag.
 const dragSlop = 3
@@ -44,6 +63,7 @@ type vertex struct {
 type editor struct {
 	tool     editTool
 	toolBtns [numTools]widget.Clickable
+	toolTips [numTools]tooltip
 
 	// sel is the selected vertex, if hasSel.
 	sel    vertex
@@ -62,9 +82,10 @@ type editor struct {
 type editDrag struct {
 	active bool
 	// insert is set for inserting a point between v.point and v.point+1 of route v.route,
-	// and otherwise v is moved.
+	// and otherwise v is moved, together with the points linked to it in group.
 	insert bool
 	v      vertex
+	group  []vertex
 	pos    geo.Point
 	start  f32.Point
 	moved  bool
@@ -101,26 +122,6 @@ func screenPos(view *mapview.View, p geo.LonLat) f32.Point {
 func dist2(a, b f32.Point) float32 {
 	d := a.Sub(b)
 	return d.X*d.X + d.Y*d.Y
-}
-
-// hitVertex returns the waypoint or route point nearest to the screen position p, within radius pixels.
-func hitVertex(d *track.File, view *mapview.View, p f32.Point, radius float32) (vertex, bool) {
-	best, found := radius*radius, false
-	var hit vertex
-	check := func(v vertex, pos geo.LonLat) {
-		if d2 := dist2(screenPos(view, pos), p); d2 <= best {
-			best, hit, found = d2, v, true
-		}
-	}
-	for i, w := range d.Waypoints {
-		check(vertex{route: -1, point: i}, w.Pos)
-	}
-	for r := range d.Routes {
-		for i, w := range d.Routes[r].Points {
-			check(vertex{route: r, point: i}, w.Pos)
-		}
-	}
-	return hit, found
 }
 
 // hitMidpoint returns the route segment whose midpoint on the screen is nearest to p, within radius pixels,
@@ -164,6 +165,7 @@ func (a *App) handleRadius(gtx layout.Context) float32 {
 func (a *App) updateEditor(gtx layout.Context) {
 	e := &a.editor
 	events := a.mapView.Primary()
+	secondary := a.mapView.SecondaryClicked()
 	for i := range e.toolBtns {
 		if e.toolBtns[i].Clicked(gtx) {
 			a.setTool(editTool(i))
@@ -186,6 +188,11 @@ func (a *App) updateEditor(gtx layout.Context) {
 	}
 
 	a.updateEditKeys(gtx)
+	// A right click without panning clears the selection.
+	if secondary {
+		e.drag = editDrag{}
+		e.drawing, e.hasSel = false, false
+	}
 	for _, ev := range events {
 		switch ev.Kind {
 		case pointer.Press:
@@ -221,6 +228,11 @@ func (a *App) validateEditor() {
 		}
 		if _, ok := vertexPos(d, v); !ok {
 			e.drag = editDrag{}
+		}
+		for _, g := range e.drag.group {
+			if _, ok := vertexPos(d, g); !ok {
+				e.drag = editDrag{}
+			}
 		}
 	}
 }
@@ -292,9 +304,9 @@ func (a *App) editPress(gtx layout.Context, ev mapview.PointerEvent) {
 	radius := a.handleRadius(gtx)
 	switch e.tool {
 	case selectTool:
-		if v, ok := hitVertex(f.data, view, ev.Screen, radius); ok {
+		if v, ok := hitVertex(f.data, view, ev.Screen, radius, a.preferredRoute()); ok {
 			a.selectVertex(v)
-			e.drag = editDrag{active: true, v: v, pos: ev.Pos, start: ev.Screen}
+			e.drag = editDrag{active: true, v: v, group: linkedGroup(f.data, v), pos: ev.Pos, start: ev.Screen}
 		} else if v, ok := hitMidpoint(f.data, view, ev.Screen, radius); ok {
 			e.drag = editDrag{active: true, insert: true, v: v, pos: ev.Pos, start: ev.Screen}
 		} else {
@@ -314,13 +326,11 @@ func (a *App) editPress(gtx layout.Context, ev mapview.PointerEvent) {
 		}
 		if !e.drawing {
 			// Clicking an end point of a route continues it.
-			if v, ok := hitVertex(f.data, view, ev.Screen, radius); ok && v.route >= 0 {
+			if v, ok := hitRouteEnd(f.data, view, ev.Screen, radius, a.preferredRoute()); ok {
 				n := len(f.data.Routes[v.route].Points)
-				if v.point == 0 || v.point == n-1 {
-					a.selectVertex(v)
-					e.drawing, e.drawRoute, e.drawStart = true, v.route, v.point == 0 && n > 1
-					return
-				}
+				a.selectVertex(v)
+				e.drawing, e.drawRoute, e.drawStart = true, v.route, v.point == 0 && n > 1
+				return
 			}
 			f.change(func(d *track.File) {
 				d.Routes = append(d.Routes, track.Route{Points: []track.Waypoint{newWaypoint(ev.Pos)}})
@@ -374,16 +384,26 @@ func (a *App) editRelease() {
 		a.selectVertex(vertex{route: v.route, point: v.point + 1})
 	case d.moved:
 		f.change(func(fd *track.File) {
-			w := &fd.Waypoints
-			if v.route >= 0 {
-				w = &fd.Routes[v.route].Points
+			for _, g := range d.group {
+				w := &fd.Waypoints
+				if g.route >= 0 {
+					w = &fd.Routes[g.route].Points
+				}
+				// The elevation of the old position doesn't apply to the new one.
+				(*w)[g.point].Pos = geo.ToLonLat(d.pos)
+				(*w)[g.point].Ele = math.NaN()
 			}
-			// The elevation of the old position doesn't apply to the new one.
-			(*w)[v.point].Pos = geo.ToLonLat(d.pos)
-			(*w)[v.point].Ele = math.NaN()
 		})
 		a.changed()
 	}
+}
+
+// preferredRoute returns the index of the route selected for the chart, if it is in the edited file, or -1.
+func (a *App) preferredRoute() int {
+	if it := a.selected; it != nil && it.kind == routeItem && a.editing != nil && a.editing.routeItem(it.nth) == it {
+		return it.nth
+	}
+	return -1
 }
 
 // selectVertex selects a vertex, and its route for the chart.
@@ -453,7 +473,7 @@ func (a *App) editCursor(gtx layout.Context) pointer.Cursor {
 	}
 	sx, sy := a.mapView.View.ToScreen(a.mapView.Hover)
 	p := f32.Pt(float32(sx), float32(sy))
-	if _, ok := hitVertex(a.editing.data, &a.mapView.View, p, a.handleRadius(gtx)); ok {
+	if _, ok := hitVertex(a.editing.data, &a.mapView.View, p, a.handleRadius(gtx), -1); ok {
 		return pointer.CursorGrab
 	}
 	if _, ok := hitMidpoint(a.editing.data, &a.mapView.View, p, a.handleRadius(gtx)); ok {
