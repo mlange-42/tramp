@@ -354,3 +354,20 @@ func TestRangeLines(t *testing.T) {
 		t.Errorf("values %v, want nil", gotVals)
 	}
 }
+
+func TestParseColorAlpha(t *testing.T) {
+	for _, c := range []color.NRGBA{{R: 0x80, G: 0x80, B: 0x80, A: 0xc0}, trackColors[0]} {
+		got, err := parseColorAlpha(formatColorAlpha(c))
+		if err != nil || got != c {
+			t.Errorf("round trip of %v gave %v, %v", c, got, err)
+		}
+	}
+	if s := formatColorAlpha(trackColors[0]); len(s) != 7 {
+		t.Errorf("opaque color formatted as %q, want #rrggbb", s)
+	}
+	for _, s := range []string{"", "#e0101", "#e01010f", "#e01010gg", "#e0101gff"} {
+		if _, err := parseColorAlpha(s); err == nil {
+			t.Errorf("expected error for %q", s)
+		}
+	}
+}

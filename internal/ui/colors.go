@@ -45,6 +45,32 @@ func parseColor(s string) (color.NRGBA, error) {
 	return color.NRGBA{R: uint8(v >> 16), G: uint8(v >> 8), B: uint8(v), A: 0xff}, nil
 }
 
+// formatColorAlpha formats a color like "#e01010", or with opacity like "#e01010c0" if it is not opaque.
+func formatColorAlpha(c color.NRGBA) string {
+	s := formatColor(c)
+	if c.A != 0xff {
+		s += fmt.Sprintf("%02x", c.A)
+	}
+	return s
+}
+
+// parseColorAlpha parses a color like "#e01010", or with opacity like "#e01010c0".
+func parseColorAlpha(s string) (color.NRGBA, error) {
+	c, err := parseColor(s)
+	if len(s) == 9 {
+		var a uint64
+		c, err = parseColor(s[:7])
+		if err == nil {
+			a, err = strconv.ParseUint(s[7:], 16, 8)
+		}
+		c.A = uint8(a)
+	}
+	if err != nil {
+		return color.NRGBA{}, fmt.Errorf("invalid color %q, expected #rrggbb or #rrggbbaa", s)
+	}
+	return c, nil
+}
+
 // colorChange is a color chosen in the dialog, for the given items.
 type colorChange struct {
 	items []*fileItem

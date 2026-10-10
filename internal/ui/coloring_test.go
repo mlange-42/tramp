@@ -80,7 +80,7 @@ func TestColoringState(t *testing.T) {
 }
 
 func TestLegend(t *testing.T) {
-	a := &App{}
+	a := &App{style: DefaultStyle()}
 	a.initColoring(nil, "speed", nil)
 	if l := a.newLegend([]mapview.LineGroup{{}}); l != nil {
 		t.Errorf("expected no legend without values")

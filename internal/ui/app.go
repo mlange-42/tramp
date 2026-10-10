@@ -4,6 +4,7 @@ package ui
 import (
 	"fmt"
 	"image"
+	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -158,6 +159,13 @@ func newApp(invalidate func(), opts Options) *App {
 		Collapsed: a.win.ChartClosed,
 	}
 	a.chart.axis = chartAxisByKey(a.win.ChartAxis)
+	if c := opts.State.Style.MutedColor; c != "" {
+		if col, err := parseColorAlpha(c); err == nil {
+			a.style.MutedTrack = col
+		} else {
+			log.Printf("muted_color: %v", err)
+		}
+	}
 	var mapName string
 	var overlays []string
 	if v := opts.State.View; v != nil {
@@ -210,6 +218,7 @@ func (a *App) State() settings.Settings {
 			TrackWidth:   float32(a.trackWidth),
 			RouteWidth:   float32(a.routeWidth),
 			WaypointSize: float32(a.waypointSize),
+			MutedColor:   formatColorAlpha(a.style.MutedTrack),
 		},
 		View: &settings.View{
 			Lon:  ll.Lon,
