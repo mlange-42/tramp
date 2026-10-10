@@ -186,6 +186,7 @@ func (a *App) setEditing(f *openFile) {
 		a.editing.edit.undo, a.editing.edit.redo = nil, nil
 	}
 	a.editing = f
+	a.editor.reset()
 	if f != nil {
 		f.startEdit()
 		f.visible.Value = true

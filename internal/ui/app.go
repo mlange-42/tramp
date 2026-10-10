@@ -117,6 +117,7 @@ type App struct {
 	dialogOpen    atomic.Bool
 	// editing is the file in edit mode, or nil.
 	editing *openFile
+	editor  editor
 	// closeOK is set when unsaved changes were saved or discarded on closing the window.
 	closeOK bool
 
@@ -369,6 +370,7 @@ func (a *App) update(gtx layout.Context) {
 	a.updateFiles(gtx)
 	// The map's hover position is needed before the map is drawn.
 	a.mapView.Update(gtx)
+	a.updateEditor(gtx)
 	// The selected item is muted on the map while the chart is zoomed in.
 	zoomed := a.chart.zoomed()
 	a.chart.update(gtx)
@@ -459,6 +461,7 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	dims := a.mapView.Layout(gtx, a.mapLayers...)
 	a.tracks.Layout(gtx, &a.mapView.View)
 	a.highlight.Layout(gtx, &a.mapView.View)
+	a.layoutEditMap(gtx)
 	a.layoutHoverMap(gtx)
 	a.layoutLegend(gtx)
 	return dims
@@ -487,6 +490,15 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 			}),
 			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
 			layout.Rigid(a.layoutColoring),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if a.editing == nil {
+					return layout.Dimensions{}
+				}
+				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
+					layout.Rigid(a.layoutTools),
+				)
+			}),
 		)
 	})
 }
@@ -514,6 +526,9 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	}
 	if loading > 0 {
 		status += fmt.Sprintf("   loading %d", loading)
+	}
+	if a.editing != nil {
+		status += "   " + a.editHint()
 	}
 
 	st := a.style

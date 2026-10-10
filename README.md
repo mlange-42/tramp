@@ -61,6 +61,17 @@ A file can contain several routes, as well as waypoints.
 Create a new file with *New* or Ctrl+N, or click the pencil of an opened file to edit it.
 One file at a time is in edit mode. Unsaved changes are marked with `*` after the file name.
 
+In edit mode, the toolbar shows the edit tools, also selected with the keys S, W and R:
+
+- **Select**: click a point to select it, drag it to move it, and press Del to delete it.
+  Drag or click the small circles between route points to insert a point.
+- **Waypoint**: click to add a waypoint.
+- **Route**: click to add points to a new route. Click the first or last point of a route,
+  or select the route in the side panel, to continue it.
+  Esc, Enter or a double click finishes the route, Del removes the last point.
+
+Moved and added points have no elevation.
+
 Save with Ctrl+S, undo with Ctrl+Z and redo with Ctrl+Y or Ctrl+Shift+Z.
 When leaving edit mode, closing the file or closing TRAMP with unsaved changes,
 TRAMP asks whether to save or discard them.

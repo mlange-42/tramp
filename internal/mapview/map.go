@@ -46,6 +46,8 @@ type Map struct {
 	// Hover is the map position under the pointer, if HoverValid.
 	Hover      geo.Point
 	HoverValid bool
+	// Cursor is the pointer cursor over the map, except while panning.
+	Cursor pointer.Cursor
 
 	// scroll is the accumulated scroll distance not yet applied as a zoom step, in zoom levels.
 	scroll float64
@@ -58,6 +60,11 @@ type Map struct {
 
 	clicks      DoubleClick
 	doubleClick bool
+	// primary is set while the primary button is pressed, primaryID is the pointer.
+	primary   bool
+	primaryID pointer.ID
+	// events are the primary button events not yet taken by [Map.Primary].
+	events []PointerEvent
 }
 
 // New creates a map centered on the given position.
@@ -115,6 +122,8 @@ func (m *Map) Layout(gtx layout.Context, layers ...Layer) layout.Dimensions {
 	event.Op(gtx.Ops, m)
 	if m.dragging {
 		pointer.CursorGrabbing.Add(gtx.Ops)
+	} else {
+		m.Cursor.Add(gtx.Ops)
 	}
 	return layout.Dimensions{Size: size}
 }
@@ -144,8 +153,11 @@ func (m *Map) Update(gtx layout.Context) {
 				m.last = e.Position
 				gtx.Execute(pointer.GrabCmd{Tag: m, ID: e.PointerID})
 			}
-			if e.Buttons.Contain(pointer.ButtonPrimary) {
-				m.doubleClick = m.clicks.Click(e) || m.doubleClick
+			if !m.primary && e.Buttons.Contain(pointer.ButtonPrimary) {
+				double := m.clicks.Click(e)
+				m.doubleClick = double || m.doubleClick
+				m.primary, m.primaryID = true, e.PointerID
+				m.addEvent(e, double)
 			}
 		case pointer.Drag:
 			if m.dragging && e.PointerID == m.dragID {
@@ -153,10 +165,17 @@ func (m *Map) Update(gtx layout.Context) {
 				m.View.Pan(float64(d.X), float64(d.Y))
 				m.last = e.Position
 			}
+			if m.primary && e.PointerID == m.primaryID {
+				m.addEvent(e, false)
+			}
 		case pointer.Release, pointer.Cancel:
 			// Releasing another button doesn't end the drag.
 			if e.PointerID == m.dragID && (e.Kind == pointer.Cancel || !e.Buttons.Contain(pointer.ButtonSecondary)) {
 				m.dragging = false
+			}
+			if m.primary && e.PointerID == m.primaryID && (e.Kind == pointer.Cancel || !e.Buttons.Contain(pointer.ButtonPrimary)) {
+				m.primary = false
+				m.addEvent(e, false)
 			}
 		case pointer.Scroll:
 			// Touchpads scroll in small amounts, so zoom once a full step has accumulated.
@@ -172,6 +191,36 @@ func (m *Map) Update(gtx layout.Context) {
 		m.Hover = m.View.ToMap(float64(e.Position.X), float64(e.Position.Y))
 		m.HoverValid = true
 	}
+}
+
+// PointerEvent is an event of the primary pointer button on the map.
+type PointerEvent struct {
+	// Kind is [pointer.Press], [pointer.Drag], [pointer.Release] or [pointer.Cancel].
+	Kind pointer.Kind
+	// Pos is the map position.
+	Pos geo.Point
+	// Screen is the position in pixels.
+	Screen f32.Point
+	// Double is set for a press that completes a double click.
+	Double bool
+}
+
+func (m *Map) addEvent(e pointer.Event, double bool) {
+	m.events = append(m.events, PointerEvent{
+		Kind:   e.Kind,
+		Pos:    m.View.ToMap(float64(e.Position.X), float64(e.Position.Y)),
+		Screen: e.Position,
+		Double: double,
+	})
+}
+
+// Primary returns the events of the primary pointer button since the last call:
+// a press, the drags while the button is held, and the release or cancel.
+// Dragging with the primary button doesn't pan the map.
+func (m *Map) Primary() []PointerEvent {
+	evs := m.events
+	m.events = nil
+	return evs
 }
 
 // DoubleClicked reports whether the map was double-clicked with the primary button since the last call.

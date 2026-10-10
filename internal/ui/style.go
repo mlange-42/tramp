@@ -66,8 +66,16 @@ type Style struct {
 	DragBg color.NRGBA
 	// SelectedBg is the background of the side panel entry shown in the chart.
 	SelectedBg color.NRGBA
-	// EditActive is the color of the edit button of the file in edit mode.
+	// EditActive is the color of the edit button of the file in edit mode, and of the selected point.
 	EditActive color.NRGBA
+	// EditHandleFill and EditHandleRing are the colors of the points of the edited file on the map.
+	EditHandleFill, EditHandleRing color.NRGBA
+	// EditMidFill is the color of the segment midpoints for inserting points.
+	EditMidFill color.NRGBA
+	// EditBand is the color of the lines to a point being moved or added.
+	EditBand color.NRGBA
+	// EditHandleSize is the diameter of the points of the edited file, EditMidSize that of segment midpoints.
+	EditHandleSize, EditMidSize unit.Dp
 	// MutedTrack is the color of the selected track or route on the map,
 	// outside of the part visible in the zoomed chart, and of segments without value in tracks colored by value.
 	// It can be set in the settings.
@@ -146,6 +154,13 @@ func DefaultStyle() *Style {
 		HoverRadius:      12,
 		LegendBg:         color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xe0},
 		LegendWidth:      180,
+
+		EditHandleFill: color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
+		EditHandleRing: color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xff},
+		EditMidFill:    color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xa0},
+		EditBand:       color.NRGBA{R: 0xd0, G: 0x40, B: 0x20, A: 0xc0},
+		EditHandleSize: 9,
+		EditMidSize:    7,
 	}
 }
 
