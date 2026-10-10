@@ -157,6 +157,7 @@ func newApp(invalidate func(), opts Options) *App {
 		Size:      dpOr(a.win.ChartHeight, settings.DefaultChartHeight),
 		Collapsed: a.win.ChartClosed,
 	}
+	a.chart.axis = chartAxisByKey(a.win.ChartAxis)
 	var mapName string
 	var overlays []string
 	if v := opts.State.View; v != nil {
@@ -222,6 +223,7 @@ func (a *App) State() settings.Settings {
 	s.Window.PanelWidth = float32(a.split.Size)
 	s.Window.ChartHeight = float32(a.chartSplit.Size)
 	s.Window.ChartClosed = a.chartSplit.Collapsed
+	s.Window.ChartAxis = chartAxes[a.chart.axis].key
 	s.Style.ColorBy, s.Style.Gradients = a.coloringState()
 	for i, name := range a.overlayNames {
 		if a.overlaySel.Checked(i) {
@@ -347,6 +349,9 @@ func (a *App) update(gtx layout.Context) {
 	// The selected item is muted on the map while the chart is zoomed in.
 	zoomed := a.chart.zoomed()
 	a.chart.update(gtx)
+	if a.chart.updateAxis(gtx) {
+		a.updateChart()
+	}
 	if a.chartSplit.Collapsed {
 		// A closed chart shows the whole item when opened again, and doesn't affect the map.
 		a.chart.setRange(0, a.chart.total)

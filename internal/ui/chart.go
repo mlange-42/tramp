@@ -7,6 +7,7 @@ import (
 	"math"
 	"slices"
 	"sort"
+	"time"
 
 	"gioui.org/f32"
 	"gioui.org/io/event"
@@ -15,6 +16,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/mapview"
 	"github.com/mlange-42/tramp/internal/track"
 )
@@ -30,22 +32,30 @@ const (
 	chartScrollPerDouble = 240
 	// chartMinSpan is the shortest distance the chart can be zoomed to, in meters.
 	chartMinSpan = 20
+	// chartMinDuration is the shortest time the chart can be zoomed to, in seconds.
+	chartMinDuration = 30
 )
 
-// chart shows a metric of a track or route over the distance along it.
+// chart shows a metric of a track or route over the distance along it, or over time.
 //
 // The values are averaged per pixel column, so that the drawing doesn't depend on the number of points.
 // The drawing is cached and only rebuilt when the content, the size or the shown range changes.
 //
 // The chart is zoomed with the scroll wheel and panned by dragging with the secondary (right) mouse button,
-// both only along the distance axis.
+// both only along the horizontal axis.
 type chart struct {
 	chartData
 	version int
 
-	// item is the shown item. The shown range is kept while the item stays the same.
+	// axis is the selected horizontal axis. The shown axis falls back to distance for items without times.
+	axis     chartAxis
+	axisBtns [3]widget.Clickable
+
+	// item is the shown item. The shown range is kept while the item and the kind of axis stay the same.
 	item *fileItem
-	// from and to are the shown distance range, in meters.
+	// rangeTimed reports whether from and to are a time range.
+	rangeTimed bool
+	// from and to are the shown range of the horizontal axis, in meters or seconds.
 	from, to float64
 	// plot is the plot area at the last layout, for converting pointer positions.
 	plot     image.Rectangle
@@ -72,11 +82,19 @@ type chart struct {
 type chartData struct {
 	// info is the shown metric, nil if there is nothing to show.
 	info *metricInfo
-	// dist is the distance along the item for each point, continuing over all lines, in meters.
-	dist [][]float64
+	// xAxis is the shown horizontal axis.
+	xAxis chartAxis
+	// xs is the position on the horizontal axis for each point, continuing over all lines:
+	// the distance along the item in meters, or the time since the first point in seconds.
+	// It never decreases.
+	xs [][]float64
+	// start is the time of the first point, for time axes.
+	start time.Time
+	// timeOK reports whether the item has times, so that the time axes can be selected.
+	timeOK bool
 	// vals are the values per line segment, see [fileItem.lineValues]. Nil if there are none.
 	vals [][]float64
-	// total is the length of the item, in meters.
+	// total is the length of the item along the horizontal axis.
 	total float64
 	// coloring colors the area by value. If nil, it is drawn in color.
 	coloring *mapview.Coloring
@@ -90,10 +108,12 @@ type chartKey struct {
 	size     image.Point
 	pxPerDp  float32
 	from, to float64
+	// reserve is the width at the right of the axis labels kept free for the axis toggle.
+	reserve int
 }
 
-// updateChart shows the selected item in the chart, with the metric tracks are colored by.
-// Without coloring, the chart shows the elevation.
+// updateChart shows the selected item in the chart, with the metric tracks are colored by,
+// over the selected horizontal axis. Without coloring, the chart shows the elevation.
 func (a *App) updateChart() {
 	c := &a.chart
 	c.version++
@@ -116,10 +136,15 @@ func (a *App) updateChart() {
 		return
 	}
 	c.info = info
-	c.dist = it.distances()
-	for _, d := range c.dist {
-		if len(d) > 0 {
-			c.total = d[len(d)-1]
+	c.xs = it.distances()
+	times, start := it.times()
+	c.timeOK = times != nil
+	if c.axis.timed() && c.timeOK {
+		c.xAxis, c.xs, c.start = c.axis, times, start
+	}
+	for _, x := range c.xs {
+		if len(x) > 0 {
+			c.total = x[len(x)-1]
 		}
 	}
 	c.color = it.color
@@ -128,19 +153,23 @@ func (a *App) updateChart() {
 		c.info = nil
 		c.hint = "Too short for a profile"
 	}
-	if it != c.item {
-		c.item = it
+	if it != c.item || c.xAxis.timed() != c.rangeTimed {
+		c.item, c.rangeTimed = it, c.xAxis.timed()
 		c.from, c.to = 0, c.total
 	}
 	c.setRange(c.from, c.to-c.from)
 }
 
-// clampSpan limits a span of the distance range to between [chartMinSpan] and the whole item.
+// clampSpan limits a span of the shown range to between [chartMinSpan] or [chartMinDuration] and the whole item.
 func (c *chart) clampSpan(span float64) float64 {
-	return math.Min(math.Max(span, math.Min(chartMinSpan, c.total)), c.total)
+	minSpan := float64(chartMinSpan)
+	if c.xAxis.timed() {
+		minSpan = chartMinDuration
+	}
+	return math.Min(math.Max(span, math.Min(minSpan, c.total)), c.total)
 }
 
-// setRange shows the given distance range, with the span limited by [chart.clampSpan]
+// setRange shows the given range, with the span limited by [chart.clampSpan]
 // and shifted to lie within the item.
 func (c *chart) setRange(from, span float64) {
 	span = c.clampSpan(span)
@@ -162,8 +191,8 @@ func (c *chart) zoomedOn(it *fileItem) bool {
 	return it != nil && it == c.item && c.zoomed()
 }
 
-// toDist converts a horizontal pointer position to a distance along the item.
-func (c *chart) toDist(x float32) float64 {
+// toX converts a horizontal pointer position to a position on the horizontal axis.
+func (c *chart) toX(x float32) float64 {
 	return c.from + float64(x-float32(c.plot.Min.X))/float64(c.plot.Dx())*(c.to-c.from)
 }
 
@@ -197,7 +226,7 @@ func (c *chart) update(gtx layout.Context) {
 			}
 		case pointer.Drag:
 			if c.dragging && e.PointerID == c.dragID {
-				c.setRange(c.from+c.toDist(c.lastX)-c.toDist(e.Position.X), c.to-c.from)
+				c.setRange(c.from+c.toX(c.lastX)-c.toX(e.Position.X), c.to-c.from)
 				c.lastX = e.Position.X
 			}
 		case pointer.Release, pointer.Cancel:
@@ -206,8 +235,8 @@ func (c *chart) update(gtx layout.Context) {
 				c.dragging = false
 			}
 		case pointer.Scroll:
-			// Zoom around the distance under the pointer.
-			d := c.toDist(e.Position.X)
+			// Zoom around the position under the pointer.
+			d := c.toX(e.Position.X)
 			span := c.to - c.from
 			ns := c.clampSpan(span * math.Pow(2, float64(e.Scroll.Y)/chartScrollPerDouble))
 			c.setRange(d-(d-c.from)/span*ns, ns)
@@ -240,14 +269,23 @@ func (a *App) layoutChart(gtx layout.Context) layout.Dimensions {
 	}
 	// Input is handled in [App.update], before the map is drawn.
 	c.plot = chartPlot(gtx, st)
-	key := chartKey{version: c.version, size: gtx.Constraints.Max, pxPerDp: gtx.Metric.PxPerDp, from: c.from, to: c.to}
+	// The axis toggle is at the right of the strip with the axis labels.
+	tgtx := gtx
+	tgtx.Constraints = layout.Constraints{Max: image.Pt(c.plot.Dx(), chartLabelHeight(gtx, st))}
+	macro := op.Record(gtx.Ops)
+	toggle := a.layoutAxisToggle(tgtx)
+	toggleCall := macro.Stop()
+	key := chartKey{
+		version: c.version, size: gtx.Constraints.Max, pxPerDp: gtx.Metric.PxPerDp, from: c.from, to: c.to,
+		reserve: toggle.Size.X + gtx.Dp(st.Spacing),
+	}
 	if key != c.key {
 		c.key = key
 		c.cache.Reset()
 		cgtx := gtx
 		cgtx.Ops = &c.cache
 		macro := op.Record(cgtx.Ops)
-		c.draw(cgtx, st)
+		c.draw(cgtx, st, key.reserve)
 		c.call = macro.Stop()
 	}
 	c.call.Add(gtx.Ops)
@@ -258,25 +296,29 @@ func (a *App) layoutChart(gtx layout.Context) layout.Dimensions {
 	if c.dragging {
 		pointer.CursorGrabbing.Add(gtx.Ops)
 	}
+	stack := op.Offset(image.Pt(c.plot.Max.X-toggle.Size.X, c.plot.Max.Y)).Push(gtx.Ops)
+	toggleCall.Add(gtx.Ops)
+	stack.Pop()
 	return layout.Dimensions{Size: gtx.Constraints.Max}
 }
 
 // chartPlot returns the plot area of the chart for the maximum constraints.
-// Below it is a narrow strip for the distance labels.
+// Below it is a narrow strip for the axis labels and the axis toggle.
 func chartPlot(gtx layout.Context, st *Style) image.Rectangle {
 	size := gtx.Constraints.Max
 	inset := gtx.Dp(st.Spacing / 2)
 	return image.Rect(inset, inset, size.X-inset, size.Y-chartLabelHeight(gtx, st))
 }
 
-// chartLabelHeight returns the height of the strip for the distance labels.
+// chartLabelHeight returns the height of the strip for the axis labels.
 func chartLabelHeight(gtx layout.Context, st *Style) int {
 	return int(math.Ceil(float64(gtx.Sp(st.SmallTextSize)) * 1.3))
 }
 
 // draw draws the chart into the maximum constraints.
-// Tick labels are drawn inside the plot for the y axis, and in a narrow strip below it for the x axis.
-func (c *chart) draw(gtx layout.Context, st *Style) {
+// Tick labels are drawn inside the plot for the y axis, and in a narrow strip below it for the x axis,
+// keeping the given width at the right of the strip free.
+func (c *chart) draw(gtx layout.Context, st *Style, reserve int) {
 	plot := chartPlot(gtx, st)
 	labelH := chartLabelHeight(gtx, st)
 	c.axisOK = false
@@ -287,7 +329,7 @@ func (c *chart) draw(gtx layout.Context, st *Style) {
 	if !ok {
 		return
 	}
-	cols := columnMeans(c.dist, c.vals, c.from, c.to, plot.Dx())
+	cols := columnMeans(c.xs, c.vals, c.from, c.to, plot.Dx())
 	scale := c.info.scale
 	tickPx := float64(gtx.Dp(st.ChartTickSpacing))
 
@@ -309,7 +351,7 @@ func (c *chart) draw(gtx layout.Context, st *Style) {
 		base = toY(0)
 	}
 
-	c.drawGrid(gtx, st, plot, labelH, yLo, yHi, yStep)
+	c.drawGrid(gtx, st, plot, labelH, reserve, yLo, yHi, yStep)
 	// Values cut off from the range are clipped.
 	stack := clip.Rect(plot).Push(gtx.Ops)
 	c.drawArea(gtx, plot, cols, toY, base)
@@ -327,23 +369,24 @@ func (c *chart) valueY(v float64) (float32, bool) {
 	return float32(c.plot.Max.Y) - float32((v*c.info.scale-c.yLo)/(c.yHi-c.yLo))*float32(c.plot.Dy()), true
 }
 
-// drawGrid draws the grid lines, and the distance labels below the plot.
-func (c *chart) drawGrid(gtx layout.Context, st *Style, plot image.Rectangle, labelH int, yLo, yHi, yStep float64) {
+// drawGrid draws the grid lines, and the labels of the horizontal axis below the plot,
+// except in the given width at the right.
+func (c *chart) drawGrid(gtx layout.Context, st *Style, plot image.Rectangle, labelH, reserve int, yLo, yHi, yStep float64) {
 	w := max(1, gtx.Dp(1))
 	for _, v := range ticks(yLo, yHi, yStep) {
 		y := plot.Max.Y - int(math.Round((v-yLo)/(yHi-yLo)*float64(plot.Dy())))
 		paint.FillShape(gtx.Ops, st.ChartGrid, clip.Rect(image.Rect(plot.Min.X, y, plot.Max.X, y+w)).Op())
 	}
 
-	// Distance labels are wider than value labels, so they need more space.
+	// Labels of the horizontal axis are wider than value labels, so they need more space.
 	span := c.to - c.from
-	xStep := niceStep(span / max(1, float64(plot.Dx())/float64(3*gtx.Dp(st.ChartTickSpacing))))
+	xs, labels := c.xTicks(span / max(1, float64(plot.Dx())/float64(3*gtx.Dp(st.ChartTickSpacing))))
 	right := math.MinInt
-	for _, d := range ticks(c.from, c.to, xStep) {
+	for i, d := range xs {
 		x := plot.Min.X + int(math.Round((d-c.from)/span*float64(plot.Dx())))
 		paint.FillShape(gtx.Ops, st.ChartGrid, clip.Rect(image.Rect(x, plot.Min.Y, x+w, plot.Max.Y)).Op())
 
-		l := st.SmallLabel(formatTick(d, xStep))
+		l := st.SmallLabel(labels[i])
 		l.Color = st.HintFg
 		macro := op.Record(gtx.Ops)
 		lgtx := gtx
@@ -351,7 +394,7 @@ func (c *chart) drawGrid(gtx layout.Context, st *Style, plot image.Rectangle, la
 		dims := l.Layout(lgtx)
 		call := macro.Stop()
 		lx := min(max(x-dims.Size.X/2, plot.Min.X), plot.Max.X-dims.Size.X)
-		if lx < right+gtx.Dp(st.Spacing) {
+		if lx < right+gtx.Dp(st.Spacing) || lx+dims.Size.X > plot.Max.X-reserve {
 			continue
 		}
 		right = lx + dims.Size.X
@@ -545,7 +588,7 @@ func (c *chart) valueRange(width int) (lo, hi float64, ok bool) {
 	r := &c.yRange
 	if r.version != c.version || r.width != width {
 		*r = chartYRange{version: c.version, width: width}
-		r.lo, r.hi, r.ok = columnRange(columnMeans(c.dist, c.vals, 0, c.total, width))
+		r.lo, r.hi, r.ok = columnRange(columnMeans(c.xs, c.vals, 0, c.total, width))
 	}
 	return r.lo, r.hi, r.ok
 }

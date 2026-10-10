@@ -48,7 +48,8 @@ type LineGroup struct {
 	DotSize unit.Dp
 	// Values are optional values for coloring the lines with the [Coloring] of [Lines].
 	// If not nil, there is one entry per line, which is nil or has one value per line segment.
-	// Lines and segments without values (NaN) are drawn in Color.
+	// Lines and segments without values (nil or NaN) are drawn in the NoValue color of the [Coloring].
+	// Without coloring, all lines are drawn in Color.
 	Values [][]float64
 }
 
@@ -61,6 +62,9 @@ type Coloring struct {
 	Colors []color.NRGBA
 	// Casing is drawn below colored lines, to set them off from the map.
 	Casing color.NRGBA
+	// NoValue is the color of lines and segments without values in groups with values.
+	// It is distinct from the group colors, which could be mistaken for values.
+	NoValue color.NRGBA
 }
 
 // Index returns the index of the color for value v.
@@ -88,10 +92,11 @@ type Lines struct {
 	// to be rebuilt for panning.
 	complete bool
 
-	// Reused buffers for collecting line segments: solid, casing, and one per color.
-	solid  strokes
-	casing strokes
-	bins   []strokes
+	// Reused buffers for collecting line segments: solid, casing, without value, and one per color.
+	solid   strokes
+	casing  strokes
+	noValue strokes
+	bins    []strokes
 
 	cache  op.Ops
 	call   op.CallOp
@@ -178,6 +183,7 @@ func (l *Lines) drawGroup(g *LineGroup, v *View, area screenRect, cull geo.Rect,
 	colored := c != nil && len(c.Colors) > 0 && g.Values != nil
 	l.solid.reset()
 	l.casing.reset()
+	l.noValue.reset()
 	if colored {
 		for len(l.bins) < len(c.Colors) {
 			l.bins = append(l.bins, strokes{})
@@ -196,11 +202,15 @@ func (l *Lines) drawGroup(g *LineGroup, v *View, area screenRect, cull geo.Rect,
 			vals = g.Values[i]
 		}
 		walkLine(v, area, g.Lines[i].Points, func(a, b f32.Point, seg int) {
-			if vals == nil || math.IsNaN(vals[seg]) {
+			if !colored {
 				l.solid.add(a, b)
 				return
 			}
 			l.casing.add(a, b)
+			if vals == nil || math.IsNaN(vals[seg]) {
+				l.noValue.add(a, b)
+				return
+			}
 			l.bins[c.Index(vals[seg])].add(a, b)
 		})
 	}
@@ -212,6 +222,7 @@ func (l *Lines) drawGroup(g *LineGroup, v *View, area screenRect, cull geo.Rect,
 	}
 	l.stroke(&l.solid, width, g.Color)
 	if colored {
+		l.stroke(&l.noValue, width, c.NoValue)
 		for i := range c.Colors {
 			l.stroke(&l.bins[i], width, c.Colors[i])
 		}

@@ -27,6 +27,9 @@ const (
 // casingColor is drawn below colored lines.
 var casingColor = color.NRGBA{A: 0xcc}
 
+// noValueColor is the color of segments without value in colored lines, like gaps in the recording.
+var noValueColor = color.NRGBA{R: 0x90, G: 0x90, B: 0x90, A: 0xff}
+
 // metricInfo describes how a metric is shown.
 type metricInfo struct {
 	metric track.Metric
@@ -130,7 +133,7 @@ func valueRange(vals []float64, symmetric bool) (lo, hi float64, ok bool) {
 }
 
 func (l *legend) coloring() *mapview.Coloring {
-	return &mapview.Coloring{Min: l.min, Max: l.max, Colors: l.gradient.Bins(colorBins), Casing: casingColor}
+	return &mapview.Coloring{Min: l.min, Max: l.max, Colors: l.gradient.Bins(colorBins), Casing: casingColor, NoValue: noValueColor}
 }
 
 // label formats a value in the legend's unit.
