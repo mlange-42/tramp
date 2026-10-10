@@ -15,9 +15,20 @@ func TestWMSConfigYAML(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Overlay layers are inlined, and options only written where set.
+	sections := 0
+	for _, m := range cfg.Maps {
+		if m.Section != "" {
+			sections++
+		}
+	}
+	for _, o := range cfg.Overlays {
+		if o.Section != "" {
+			sections++
+		}
+	}
+	// Overlay layers are inlined, options only written where set, and sections without layer fields.
 	if strings.Contains(string(data), "layer:") || strings.Contains(string(data), "transparent") ||
-		strings.Count(string(data), "section:") != 5 || strings.Contains(string(data), `name: ""`) {
+		strings.Count(string(data), "section:") != sections || strings.Contains(string(data), `name: ""`) {
 		t.Errorf("unexpected keys in:\n%s", data)
 	}
 

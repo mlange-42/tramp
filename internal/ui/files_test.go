@@ -299,7 +299,10 @@ func TestLineSizes(t *testing.T) {
 }
 
 func TestViewState(t *testing.T) {
-	view := &settings.View{Lon: 12.4, Lat: 51.3, Zoom: 12, Map: "OpenStreetMap", Overlays: []string{"Hiking routes", "unknown"}}
+	// Not the first map, which is selected by default.
+	layers, _ := splitSections(DefaultMaps(), func(m Map) (string, string) { return m.Section, m.Layer.Name })
+	overlays, _ := splitSections(DefaultOverlays(), func(o Overlay) (string, string) { return o.Section, o.Layer.Name })
+	view := &settings.View{Lon: 12.4, Lat: 51.3, Zoom: 12, Map: layers[1], Overlays: []string{overlays[2], "unknown"}}
 	a := newApp(func() {}, Options{
 		Maps:     DefaultMaps(),
 		Overlays: DefaultOverlays(),
@@ -307,7 +310,7 @@ func TestViewState(t *testing.T) {
 	})
 	defer a.closeTiles()
 	s := a.State()
-	if s.View.Map != "OpenStreetMap" || !slices.Equal(s.View.Overlays, []string{"Hiking routes"}) || s.View.Zoom != 12 {
+	if s.View.Map != layers[1] || !slices.Equal(s.View.Overlays, []string{overlays[2]}) || s.View.Zoom != 12 {
 		t.Errorf("unexpected view %+v", s.View)
 	}
 	if s.Window.PanelWidth != 320 {
