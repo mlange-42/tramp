@@ -56,7 +56,8 @@ Tracks and routes without the required data, like routes without times for speed
 
 ### Editing
 
-Routes and waypoints in GPX files can be edited; recorded tracks are read-only.
+GPX files with routes and waypoints can be edited, files with recorded tracks are read-only.
+A file can contain several routes, as well as waypoints.
 Create a new file with *New* or Ctrl+N, or click the pencil of an opened file to edit it.
 One file at a time is in edit mode. Unsaved changes are marked with `*` after the file name.
 

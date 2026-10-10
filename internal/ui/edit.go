@@ -157,9 +157,10 @@ func (a *App) changed() {
 	a.tracksChanged = true
 }
 
-// editable reports whether the file can be edited.
+// editable reports whether the file can be edited: a GPX file without recorded tracks.
 func (f *openFile) editable() bool {
-	return f.data != nil && f.data.Format == track.FormatGPX && strings.EqualFold(filepath.Ext(f.path), ".gpx")
+	return f.data != nil && f.data.Format == track.FormatGPX && len(f.data.Tracks) == 0 &&
+		strings.EqualFold(filepath.Ext(f.path), ".gpx")
 }
 
 // toggleEdit starts or ends editing f. Unsaved changes of the edited file are saved or discarded first,
