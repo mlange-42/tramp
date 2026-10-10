@@ -34,9 +34,12 @@ It is created with the built-in maps on the first start.
 WMS services must support EPSG:3857.
 XYZ tile services (`type: xyz`) are given by a URL template with `{z}`, `{x}` and `{y}`.
 A map with `type: none` has no tiles and shows only the overlays.
+Entries like `- section: World` start a section with this heading in the list of maps or overlays.
+The first map is selected by default.
 
 ```yaml
 maps:
+  - section: World
   - name: OpenStreetMap
     url: https://tiles.maps.eox.at/wms
     layers: osm_3857
@@ -51,6 +54,7 @@ maps:
   - name: None
     type: none
 overlays:
+  - section: Hillshade
   - name: Hillshade (SRTM)
     url: https://ows.terrestris.de/osm/service
     layers: SRTM30-Hillshade

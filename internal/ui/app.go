@@ -41,7 +41,8 @@ var worldBounds = geo.Rect{
 
 // Options configure the application.
 type Options struct {
-	Layers   []wms.Layer
+	// Maps and Overlays are the background maps and overlays, with section headings.
+	Maps     []Map
 	Overlays []Overlay
 	// Gradients are the color gradients for coloring tracks. If empty, the built-in ones are used.
 	Gradients []Gradient
@@ -150,13 +151,15 @@ func New(w *app.Window, opts Options) *App {
 }
 
 func newApp(invalidate func(), opts Options) *App {
+	layers, layerSections := splitSections(opts.Maps, func(m Map) (string, wms.Layer) { return m.Section, m.Layer })
+	overlays, overlaySections := splitSections(opts.Overlays, func(o Overlay) (string, Overlay) { return o.Section, o })
 	a := &App{
 		invalidate:   invalidate,
 		style:        DefaultStyle(),
 		client:       &wms.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent},
 		tileCache:    opts.State.TileCache,
-		layers:       opts.Layers,
-		overlaySel:   NewMultiSelect("Overlays", len(opts.Overlays)),
+		layers:       layers,
+		overlaySel:   NewMultiSelect("Overlays", len(overlays)),
 		mapView:      mapview.New(geo.LonLat{}, 0),
 		trackWidth:   dpOr(opts.State.Style.TrackWidth, settings.DefaultTrackWidth),
 		routeWidth:   dpOr(opts.State.Style.RouteWidth, settings.DefaultRouteWidth),
@@ -184,25 +187,26 @@ func newApp(invalidate func(), opts Options) *App {
 		}
 	}
 	var mapName string
-	var overlays []string
+	var enabled []string
 	if v := opts.State.View; v != nil {
-		mapName, overlays = v.Map, v.Overlays
+		mapName, enabled = v.Map, v.Overlays
 	}
 	for _, l := range a.layers {
 		a.layerNames = append(a.layerNames, l.Name)
 	}
-	for _, o := range opts.Overlays {
+	for _, o := range overlays {
 		a.overlays = append(a.overlays, overlayState{Overlay: o})
 		a.overlayNames = append(a.overlayNames, o.Layer.Name)
 	}
 	a.layerSelect.help, a.layerSelect.icon = "Background map", iconMap
 	a.overlaySel.help = "Overlays on the background map, like hillshading"
 	a.overlaySel.icon = iconLayers
+	a.layerSelect.sections, a.overlaySel.sections = layerSections, overlaySections
 	a.colorBy.help, a.colorBy.icon = "Color tracks and routes by speed, elevation or slope", iconPalette
 	a.gradientSel.help, a.gradientSel.icon = "Color gradient", iconGradient
 	a.setLayer(max(0, slices.Index(a.layerNames, mapName)))
 	for i, name := range a.overlayNames {
-		if slices.Contains(overlays, name) {
+		if slices.Contains(enabled, name) {
 			a.overlaySel.SetChecked(i, true)
 			a.setOverlay(i, true)
 		}
