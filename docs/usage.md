@@ -25,6 +25,7 @@ Waypoints with a symbol are drawn as markers with an icon.
 GPX does not standardize symbol names; TRAMP knows the common outdoor symbols in the names used by Garmin devices,
 like `Summit`, `Campground` or `Flag, Blue`, and some aliases like `Peak` or `Hut`, ignoring case and punctuation.
 Unknown symbols are drawn with a generic pin icon, waypoints without symbol as plain dots.
+Route points are drawn only if they have a symbol.
 
 ## Coloring
 

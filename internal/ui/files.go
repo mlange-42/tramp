@@ -132,6 +132,10 @@ func buildItems(f *track.File) []*fileItem {
 		for k, p := range r.Points {
 			pts[k] = geo.ToMercator(p.Pos)
 			tps[k] = track.Point{Pos: p.Pos, Ele: p.Ele, Time: p.Time}
+			// Route points are drawn only with a symbol icon, not as plain dots.
+			if d := waypointDot(p); d.Icon != nil {
+				it.dots = append(it.dots, d)
+			}
 		}
 		it.lines = append(it.lines, mapview.NewPolyline(pts))
 		it.points = append(it.points, tps)

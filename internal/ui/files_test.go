@@ -413,3 +413,14 @@ func TestWaypointsFirst(t *testing.T) {
 		t.Errorf("unexpected items %v", f.items)
 	}
 }
+
+func TestRouteSymbols(t *testing.T) {
+	f := &track.File{Routes: []track.Route{{Points: []track.Waypoint{
+		{Symbol: "Summit"}, {}, {Symbol: "Waypoint"}, {Symbol: "Something Else"},
+	}}}}
+	items := buildItems(f)
+	// Points without symbol or with a symbol without icon are not drawn.
+	if len(items) != 1 || len(items[0].dots) != 2 || items[0].dots[1].Icon != symbols.Unknown.Icon {
+		t.Errorf("unexpected route dots %+v", items[0].dots)
+	}
+}
