@@ -50,6 +50,7 @@ type chart struct {
 	// axis is the selected horizontal axis. The shown axis falls back to distance for items without times.
 	axis     chartAxis
 	axisBtns [3]widget.Clickable
+	axisTips [3]tooltip
 
 	// item is the shown item. The shown range is kept while the item and the kind of axis stay the same.
 	item *fileItem

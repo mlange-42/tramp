@@ -3,10 +3,8 @@ package ui
 import (
 	"image"
 	"image/color"
-	"math"
 	"slices"
 
-	"gioui.org/f32"
 	"gioui.org/gesture"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
@@ -18,6 +16,11 @@ import (
 	"github.com/mlange-42/tramp/internal/geo"
 )
 
+// rowTips are the tooltips of the check box, color swatch and name of a side panel row.
+type rowTips struct {
+	visible, color, name tooltip
+}
+
 // panelRow is a row in the side panel: a file, or an item of an expanded file.
 type panelRow struct {
 	file *openFile
@@ -28,7 +31,9 @@ type panelRow struct {
 // While dragging, the entry swaps places with a neighbor once the pointer
 // has moved past the middle of the neighbor.
 type rowDrag struct {
-	drag gesture.Drag
+	drag  gesture.Drag
+	hover gesture.Hover
+	tip   tooltip
 	// grabY is the pointer position in the handle when the drag started.
 	grabY    float32
 	dragging bool
@@ -228,42 +233,36 @@ func (a *App) layoutFileList(gtx layout.Context) layout.Dimensions {
 func (a *App) layoutFileRow(gtx layout.Context, f *openFile) layout.Dimensions {
 	st := a.style
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-		layout.Rigid(a.checkBox(&f.visible)),
+		layout.Rigid(a.checkBox(&f.visible, &f.tips.visible, "Show or hide the file on the map")),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if len(f.items) == 0 {
 				return layout.Dimensions{}
 			}
-			return a.layoutSwatch(gtx, &f.colorBtn, f.colors())
+			return withTooltip(gtx, st, &f.tips.color, f.colorBtn.Hovered(), "Change the color of all tracks, routes and waypoints of the file",
+				func(gtx layout.Context) layout.Dimensions { return a.layoutSwatch(gtx, &f.colorBtn, f.colors()) })
 		}),
-		layout.Flexed(1, a.rowText(&f.click, a.fileTitle(f), f.summary, f.visible.Value)),
+		layout.Flexed(1, a.rowText(&f.click, &f.tips.name, a.fileTitle(f), f.summary, f.visible.Value)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if !f.editable() {
 				return layout.Dimensions{}
 			}
-			col := st.HintFg
+			col, tip := st.HintFg, "Edit the routes and waypoints of the file"
 			if a.editing == f {
-				col = st.EditActive
+				col, tip = st.EditActive, "Stop editing"
 			}
-			return material.Clickable(gtx, &f.editBtn, func(gtx layout.Context) layout.Dimensions {
-				return layout.UniformInset(st.Spacing/2).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layoutPencil(gtx, gtx.Dp(st.IconSize), col)
-				})
-			})
+			return f.editBtn.LayoutFlat(gtx, st, iconEdit, col, tip)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if !f.expandable() {
 				return layout.Dimensions{}
 			}
-			return material.Clickable(gtx, &f.expand, func(gtx layout.Context) layout.Dimensions {
-				return layout.UniformInset(st.Spacing).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-					return layoutArrow(gtx, float32(gtx.Sp(st.TextSize))*0.6, st.Theme.Fg, f.expanded)
-				})
-			})
+			if f.expanded {
+				return f.expand.LayoutFlat(gtx, st, iconCollapse, st.Theme.Fg, "Hide the tracks, routes and waypoints of the file")
+			}
+			return f.expand.LayoutFlat(gtx, st, iconExpand, st.Theme.Fg, "Show the tracks, routes and waypoints of the file")
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return material.Clickable(gtx, &f.close, func(gtx layout.Context) layout.Dimensions {
-				return layout.Inset{Left: st.Spacing / 2, Right: st.Spacing / 2}.Layout(gtx, st.Label("×").Layout)
-			})
+			return f.close.LayoutFlat(gtx, st, iconClose, st.Theme.Fg, "Close the file")
 		}),
 		layout.Rigid(a.dragHandle(&f.drag)),
 	)
@@ -273,11 +272,14 @@ func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem) layou
 	st := a.style
 	return layout.Inset{Left: st.IconSize + st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-			layout.Rigid(a.checkBox(&it.visible)),
+			layout.Rigid(a.checkBox(&it.visible, &it.tips.visible, "Show or hide on the map")),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return a.layoutSwatch(gtx, &it.colorBtn, []color.NRGBA{it.color})
+				return withTooltip(gtx, st, &it.tips.color, it.colorBtn.Hovered(), "Change the color",
+					func(gtx layout.Context) layout.Dimensions {
+						return a.layoutSwatch(gtx, &it.colorBtn, []color.NRGBA{it.color})
+					})
 			}),
-			layout.Flexed(1, a.rowText(&it.click, it.name, it.summary, f.visible.Value && it.visible.Value)),
+			layout.Flexed(1, a.rowText(&it.click, &it.tips.name, it.name, it.summary, f.visible.Value && it.visible.Value)),
 			layout.Rigid(a.dragHandle(&it.drag)),
 		)
 	})
@@ -291,30 +293,11 @@ func (a *App) fileTitle(f *openFile) string {
 	return f.name
 }
 
-// layoutPencil draws a pencil icon of the given size, pointing to the lower left.
-func layoutPencil(gtx layout.Context, size int, col color.NRGBA) layout.Dimensions {
-	s := float32(size)
-	l, w := s*1.15, s*0.28
-	tip := w * 1.1
-	var path clip.Path
-	path.Begin(gtx.Ops)
-	// Along the x axis, centered, with the tip at the left.
-	path.MoveTo(f32.Pt(-l/2, 0))
-	path.LineTo(f32.Pt(-l/2+tip, -w/2))
-	path.LineTo(f32.Pt(l/2, -w/2))
-	path.LineTo(f32.Pt(l/2, w/2))
-	path.LineTo(f32.Pt(-l/2+tip, w/2))
-	path.Close()
-	spec := path.End()
-	defer op.Affine(f32.AffineId().Rotate(f32.Pt(0, 0), -math.Pi/4).Offset(f32.Pt(s/2, s/2))).Push(gtx.Ops).Pop()
-	paint.FillShape(gtx.Ops, col, clip.Outline{Path: spec}.Op())
-	return layout.Dimensions{Size: image.Pt(size, size)}
-}
-
 // dragHandle returns a grip for dragging an entry, drawn as three horizontal lines.
 func (a *App) dragHandle(d *rowDrag) layout.Widget {
 	st := a.style
 	return func(gtx layout.Context) layout.Dimensions {
+		avail := gtx.Constraints.Max.X
 		dims := layout.UniformInset(st.Spacing/2).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			size := gtx.Dp(st.IconSize)
 			w := size * 3 / 4
@@ -327,51 +310,64 @@ func (a *App) dragHandle(d *rowDrag) layout.Widget {
 			}
 			return layout.Dimensions{Size: image.Pt(size, size)}
 		})
-		defer clip.Rect{Max: dims.Size}.Push(gtx.Ops).Pop()
+		area := clip.Rect{Max: dims.Size}.Push(gtx.Ops)
 		d.drag.Add(gtx.Ops)
+		d.hover.Add(gtx.Ops)
 		if d.dragging {
 			pointer.CursorGrabbing.Add(gtx.Ops)
 		} else {
 			pointer.CursorGrab.Add(gtx.Ops)
 		}
+		area.Pop()
+		d.tip.Layout(gtx, st, d.hover.Update(gtx.Source) && !d.dragging, dims.Size, avail, "Drag to reorder")
 		return dims
 	}
 }
 
-// checkBox returns a check box without label.
-func (a *App) checkBox(b *widget.Bool) layout.Widget {
+// checkBox returns a check box without label, with a tooltip.
+func (a *App) checkBox(b *widget.Bool, tip *tooltip, text string) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
-		cb := material.CheckBox(a.style.Theme, b, "")
-		cb.Size = a.style.IconSize
-		return cb.Layout(gtx)
+		return withTooltip(gtx, a.style, tip, b.Hovered(), text, func(gtx layout.Context) layout.Dimensions {
+			cb := material.CheckBox(a.style.Theme, b, "")
+			cb.Size = a.style.IconSize
+			return cb.Layout(gtx)
+		})
 	}
 }
 
 // rowText returns a clickable name with a summary line below.
 // Hidden entries are drawn in the hint color.
-func (a *App) rowText(clk *widget.Clickable, name, summary string, visible bool) layout.Widget {
+func (a *App) rowText(clk *widget.Clickable, tip *tooltip, name, summary string, visible bool) layout.Widget {
 	st := a.style
 	return func(gtx layout.Context) layout.Dimensions {
-		return material.Clickable(gtx, clk, func(gtx layout.Context) layout.Dimensions {
-			gtx.Constraints.Min.X = gtx.Constraints.Max.X
-			return layout.Inset{Left: st.Spacing / 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						l := st.Label(name)
-						l.MaxLines = 1
-						if !visible {
-							l.Color = st.HintFg
-						}
-						return l.Layout(gtx)
-					}),
-					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						l := st.SmallLabel(summary)
-						l.MaxLines = 1
-						l.Color = st.HintFg
-						return l.Layout(gtx)
-					}),
-				)
-			})
+		return withTooltip(gtx, st, tip, clk.Hovered(), "Click to show the profile, double-click to zoom to it", func(gtx layout.Context) layout.Dimensions {
+			return a.rowName(gtx, clk, name, summary, visible)
 		})
 	}
+}
+
+// rowName draws a clickable name with a summary line below.
+func (a *App) rowName(gtx layout.Context, clk *widget.Clickable, name, summary string, visible bool) layout.Dimensions {
+	st := a.style
+	return material.Clickable(gtx, clk, func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Min.X = gtx.Constraints.Max.X
+		return layout.Inset{Left: st.Spacing / 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					l := st.Label(name)
+					l.MaxLines = 1
+					if !visible {
+						l.Color = st.HintFg
+					}
+					return l.Layout(gtx)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					l := st.SmallLabel(summary)
+					l.MaxLines = 1
+					l.Color = st.HintFg
+					return l.Layout(gtx)
+				}),
+			)
+		})
+	})
 }

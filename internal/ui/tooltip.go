@@ -7,7 +7,6 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
-	"gioui.org/widget"
 )
 
 const (
@@ -21,6 +20,8 @@ const (
 type tooltip struct {
 	hovered bool
 	since   time.Time
+	// above shows the tooltip above the widget, e.g. at the bottom of the window.
+	above bool
 }
 
 // Layout draws the tooltip for a widget of the given size, if it has been hovered long enough.
@@ -46,28 +47,13 @@ func (t *tooltip) Layout(gtx layout.Context, st *Style, hovered bool, size image
 	})
 	call := macro.Stop()
 
-	x := min(0, avail-dims.Size.X)
+	x, y := min(0, avail-dims.Size.X), size.Y+gtx.Dp(2)
+	if t.above {
+		y = -dims.Size.Y - gtx.Dp(2)
+	}
 	macro = op.Record(gtx.Ops)
-	stack := op.Offset(image.Pt(x, size.Y+gtx.Dp(2))).Push(gtx.Ops)
+	stack := op.Offset(image.Pt(x, y)).Push(gtx.Ops)
 	call.Add(gtx.Ops)
 	stack.Pop()
 	op.Defer(gtx.Ops, macro.Stop())
-}
-
-// tooltipButton is a button with a tooltip.
-type tooltipButton struct {
-	btn widget.Clickable
-	tip tooltip
-}
-
-// Layout draws the button, disabled if not enabled, and its tooltip.
-func (b *tooltipButton) Layout(gtx layout.Context, st *Style, label, tip string, enabled bool) layout.Dimensions {
-	avail := gtx.Constraints.Max.X
-	bgtx := gtx
-	if !enabled {
-		bgtx = gtx.Disabled()
-	}
-	dims := st.Button(&b.btn, label).Layout(bgtx)
-	b.tip.Layout(gtx, st, b.btn.Hovered(), dims.Size, avail, tip)
-	return dims
 }

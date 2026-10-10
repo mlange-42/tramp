@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"gioui.org/f32"
-	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -216,25 +215,7 @@ func (a *App) layoutTools(gtx layout.Context) layout.Dimensions {
 			children = append(children, layout.Rigid(layout.Spacer{Width: 1}.Layout))
 		}
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			avail := gtx.Constraints.Max.X
-			dims := e.toolBtns[i].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				macro := op.Record(gtx.Ops)
-				dims := st.ButtonInset.Layout(gtx, st.Label(tools[i].name).Layout)
-				call := macro.Stop()
-				bg := st.StatusBg
-				if editTool(i) == e.tool {
-					bg = st.SelectedBg
-				}
-				rr := gtx.Dp(st.CornerRadius)
-				paint.FillShape(gtx.Ops, bg, clip.UniformRRect(image.Rectangle{Max: dims.Size}, rr).Op(gtx.Ops))
-				call.Add(gtx.Ops)
-				if editTool(i) != e.tool {
-					pointer.CursorPointer.Add(gtx.Ops)
-				}
-				return dims
-			})
-			e.toolTips[i].Layout(gtx, st, e.toolBtns[i].Hovered(), dims.Size, avail, tools[i].help)
-			return dims
+			return e.toolBtns[i].Layout(gtx, st, toolIcons[i], tools[i].help, true, editTool(i) == e.tool)
 		}))
 	}
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
@@ -245,11 +226,11 @@ func (a *App) layoutUndoRedo(gtx layout.Context) layout.Dimensions {
 	st, e, f := a.style, &a.editor, a.editing
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return e.undoBtn.Layout(gtx, st, "Undo", "Undo the last change (Ctrl+Z)", len(f.edit.undo) > 0)
+			return e.undoBtn.Layout(gtx, st, iconUndo, "Undo the last change (Ctrl+Z)", len(f.edit.undo) > 0, false)
 		}),
-		layout.Rigid(layout.Spacer{Width: st.Spacing}.Layout),
+		layout.Rigid(layout.Spacer{Width: 1}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return e.redoBtn.Layout(gtx, st, "Redo", "Redo the last undone change (Ctrl+Y or Ctrl+Shift+Z)", len(f.edit.redo) > 0)
+			return e.redoBtn.Layout(gtx, st, iconRedo, "Redo the last undone change (Ctrl+Y or Ctrl+Shift+Z)", len(f.edit.redo) > 0, false)
 		}),
 	)
 }
