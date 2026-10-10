@@ -10,9 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"gioui.org/widget"
+
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/mapview"
 	"github.com/mlange-42/tramp/internal/settings"
+	"github.com/mlange-42/tramp/internal/symbols"
 	"github.com/mlange-42/tramp/internal/track"
 )
 
@@ -56,10 +59,11 @@ func TestNewOpenFile(t *testing.T) {
 	if f.name != "mixed.gpx" || f.summary != "1 track · 1 route · 2 waypoints" || !f.expandable() || !f.visible.Value {
 		t.Errorf("unexpected file %q %q", f.name, f.summary)
 	}
+	// Waypoints are always on top.
 	want := [][2]string{
+		{"Waypoints", "2 waypoints"},
 		{"Morning", "3.3 km · 1:30 h · 2 s"},
 		{"Route", "route · 11.1 km"},
-		{"Waypoints", "2 waypoints"},
 	}
 	if len(f.items) != len(want) {
 		t.Fatalf("expected %d items, got %d", len(want), len(f.items))
@@ -69,7 +73,7 @@ func TestNewOpenFile(t *testing.T) {
 			t.Errorf("item %d: got %q %q", i, it.name, it.summary)
 		}
 	}
-	if b := f.bounds; !b.Intersects(f.items[2].bounds) || b.Min.Y > geo.ToMercator(geo.LonLat{Lon: 12, Lat: 51}).Y {
+	if b := f.bounds; !b.Intersects(f.items[0].bounds) || b.Min.Y > geo.ToMercator(geo.LonLat{Lon: 12, Lat: 51}).Y {
 		t.Errorf("unexpected file bounds %v", b)
 	}
 }
@@ -120,7 +124,7 @@ func TestOpenFiles(t *testing.T) {
 	}
 	// Saved colors are restored, files without get the first default color.
 	want := []settings.File{
-		{Path: mixed, Colors: saved},
+		{Path: mixed, Colors: saved, Order: []int{2, 0, 1}},
 		{Path: plain, Hidden: true, Colors: []string{formatColor(trackColors[0])}},
 	}
 	if s := a.fileState(); !reflect.DeepEqual(s, want) {
@@ -183,7 +187,7 @@ func TestParseColor(t *testing.T) {
 }
 
 func TestSetColors(t *testing.T) {
-	f := &openFile{items: []*fileItem{{}, {}}}
+	f := &openFile{items: []*fileItem{{index: 0}, {index: 1}}}
 	def := color.NRGBA{R: 1, A: 0xff}
 	for _, c := range []struct {
 		saved []string
@@ -281,9 +285,9 @@ func TestLineSizes(t *testing.T) {
 	})
 	defer a.closeTiles()
 	a.files = []*openFile{newOpenFile("mixed.gpx", data)}
-	// Drawn bottom up: waypoints, route, track.
+	// Drawn bottom up: route, track, waypoints.
 	groups := a.trackGroups()
-	if len(groups) != 3 || groups[0].DotSize != 10 || groups[1].Width != 2 || groups[2].Width != 4 {
+	if len(groups) != 3 || groups[2].DotSize != 10 || groups[0].Width != 2 || groups[1].Width != 4 {
 		t.Errorf("unexpected sizes %+v", groups)
 	}
 	if st := a.State().Style; st.TrackWidth != 4 || st.RouteWidth != 2 || st.WaypointSize != 10 {
@@ -368,5 +372,44 @@ func TestParseColorAlpha(t *testing.T) {
 		if _, err := parseColorAlpha(s); err == nil {
 			t.Errorf("expected error for %q", s)
 		}
+	}
+}
+
+func TestWaypointDot(t *testing.T) {
+	summit, _ := symbols.Lookup("Summit")
+	flag, _ := symbols.Lookup("Flag, Red")
+	for _, c := range []struct {
+		sym  string
+		icon *widget.Icon
+		col  color.NRGBA
+	}{
+		{"", nil, color.NRGBA{}},
+		{"Waypoint", nil, color.NRGBA{}},
+		{"peak", summit.Icon, color.NRGBA{}},
+		{"Flag, Red", flag.Icon, flag.Color},
+		{"Something Else", symbols.Unknown.Icon, color.NRGBA{}},
+	} {
+		d := waypointDot(track.Waypoint{Symbol: c.sym})
+		if d.Icon != c.icon || d.Color != c.col {
+			t.Errorf("%q: unexpected dot %+v", c.sym, d)
+		}
+	}
+}
+
+func TestWaypointsFirst(t *testing.T) {
+	_, f := editApp(t, testGPX)
+	// A saved order with the waypoints elsewhere, from older versions, still puts them first.
+	f.setOrder([]int{1, 2, 0})
+	if o := f.order(); !slices.Equal(o, []int{2, 1, 0}) {
+		t.Errorf("unexpected order %v", o)
+	}
+	// Waypoints added to a file without are listed first, too.
+	f.change(func(d *track.File) { d.Waypoints = nil })
+	if len(f.items) != 2 || f.items[0].kind != routeItem {
+		t.Fatalf("unexpected items %v", f.items)
+	}
+	f.change(func(d *track.File) { d.Waypoints = append(d.Waypoints, newWaypoint(geo.Point{})) })
+	if len(f.items) != 3 || f.items[0].kind != waypointItem || f.items[1].kind != routeItem {
+		t.Errorf("unexpected items %v", f.items)
 	}
 }

@@ -143,6 +143,7 @@ func (a *App) selectedRow(r panelRow) bool {
 }
 
 // updateDrags moves dragged files, and dragged items within their file.
+// The waypoints of a file stay on top, see [openFile.waypointsFirst].
 func (a *App) updateDrags(gtx layout.Context) {
 	for i, f := range a.files {
 		prev, next := 0, 0
@@ -160,7 +161,7 @@ func (a *App) updateDrags(gtx layout.Context) {
 		}
 		for j, it := range f.items {
 			prev, next := 0, 0
-			if j > 0 {
+			if j > 0 && f.items[j-1].kind != waypointItem {
 				prev = f.items[j-1].drag.height
 			}
 			if j < len(f.items)-1 {
@@ -280,7 +281,14 @@ func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem) layou
 					})
 			}),
 			layout.Flexed(1, a.rowText(&it.click, &it.tips.name, it.name, it.summary, f.visible.Value && it.visible.Value)),
-			layout.Rigid(a.dragHandle(&it.drag)),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				// The waypoints stay on top, see [openFile.waypointsFirst].
+				if it.kind == waypointItem {
+					sz := gtx.Dp(st.IconSize + st.Spacing)
+					return layout.Dimensions{Size: image.Pt(sz, sz)}
+				}
+				return a.dragHandle(&it.drag)(gtx)
+			}),
 		)
 	})
 }

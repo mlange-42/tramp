@@ -10,7 +10,9 @@ import (
 	"gioui.org/f32"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/geo"
+	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
 func TestWalkLine(t *testing.T) {
@@ -124,5 +126,36 @@ func TestLinesRebuild(t *testing.T) {
 		if rebuilt := l.origin.X != 0; rebuilt != c.rebuild {
 			t.Errorf("%s: expected rebuild %v, got %v", c.name, c.rebuild, rebuilt)
 		}
+	}
+}
+
+func TestLinesMarkers(t *testing.T) {
+	ic, err := widget.NewIcon(icons.MapsPlace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v := View{Zoom: 10, Size: image.Pt(200, 100)}
+	res := v.Resolution()
+	var l Lines
+	l.Set([]LineGroup{{
+		Color:      color.NRGBA{R: 255, A: 255},
+		Dots:       []Dot{{Pos: geo.Point{}}, {Pos: geo.Point{X: 20 * res}, Icon: ic, Color: color.NRGBA{G: 255, A: 255}}},
+		DotSize:    8,
+		MarkerSize: 18,
+	}}, nil)
+	if l.bounds != (geo.Rect{Max: geo.Point{X: 20 * res}}) {
+		t.Errorf("unexpected bounds %v", l.bounds)
+	}
+	var ops op.Ops
+	l.Layout(layout.Context{Ops: &ops, Constraints: layout.Exact(v.Size)}, &v)
+}
+
+func TestIconColor(t *testing.T) {
+	white, black := color.NRGBA{R: 255, G: 255, B: 255, A: 255}, color.NRGBA{A: 255}
+	if iconColor(color.NRGBA{R: 0x1f, G: 0x6f, B: 0xd1, A: 255}) != white {
+		t.Error("expected white icon on blue")
+	}
+	if iconColor(color.NRGBA{R: 255, G: 230, B: 0, A: 255}) != black {
+		t.Error("expected black icon on yellow")
 	}
 }

@@ -57,3 +57,5 @@ tramp morning.gpx evening.gpx
 ## License
 
 TRAMP and all its sources and documentation are distributed under the [MIT license](https://github.com/mlange-42/tramp/blob/main/LICENSE).
+
+The waypoint symbol icons are from [Maki](https://github.com/mapbox/maki), released under [CC0](internal/symbols/maki/LICENSE.txt).

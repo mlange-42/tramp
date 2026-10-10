@@ -17,7 +17,7 @@ func TestSaveLoad(t *testing.T) {
 		t.Errorf("tile cache default not set: %d", def.TileCache)
 	}
 	if st := def.Style; st.TrackWidth != DefaultTrackWidth || st.RouteWidth != DefaultRouteWidth || st.WaypointSize != DefaultWaypointSize ||
-		st.MutedColor != DefaultMutedColor {
+		st.SymbolSize != DefaultSymbolSize || st.MutedColor != DefaultMutedColor {
 		t.Errorf("style defaults not set: %+v", st)
 	}
 
@@ -27,6 +27,7 @@ func TestSaveLoad(t *testing.T) {
 			TrackWidth:   4,
 			RouteWidth:   2.5,
 			WaypointSize: 10,
+			SymbolSize:   20,
 			ColorBy:      "slope",
 			Gradients:    map[string]string{"speed": "Turbo", "slope": "Blue–Red"},
 			MutedColor:   "#a0a0a0",

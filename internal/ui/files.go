@@ -17,6 +17,7 @@ import (
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/mapview"
 	"github.com/mlange-42/tramp/internal/settings"
+	"github.com/mlange-42/tramp/internal/symbols"
 	"github.com/mlange-42/tramp/internal/track"
 	"github.com/ncruces/zenity"
 )
@@ -78,7 +79,7 @@ type fileItem struct {
 	// gapCache caches the result of [fileItem.gaps], if gapsDone.
 	gapCache [][]bool
 	gapsDone bool
-	dots     []geo.Point
+	dots     []mapview.Dot
 	bounds   geo.Rect
 	color    color.NRGBA
 	// index is the position of the item in the file, independent of the panel order.
@@ -103,6 +104,7 @@ func newOpenFile(path string, f *track.File) *openFile {
 		it.visible.Value = true
 	}
 	of.update()
+	of.waypointsFirst()
 	return of
 }
 
@@ -138,7 +140,7 @@ func buildItems(f *track.File) []*fileItem {
 	if len(f.Waypoints) > 0 {
 		it := &fileItem{kind: waypointItem, name: "Waypoints", summary: count(len(f.Waypoints), "waypoint")}
 		for _, w := range f.Waypoints {
-			it.dots = append(it.dots, geo.ToMercator(w.Pos))
+			it.dots = append(it.dots, waypointDot(w))
 		}
 		items = append(items, it)
 	}
@@ -147,11 +149,26 @@ func buildItems(f *track.File) []*fileItem {
 		for _, l := range it.lines {
 			it.bounds = it.bounds.Union(l.Bounds)
 		}
-		for _, p := range it.dots {
-			it.bounds = it.bounds.Extend(p)
+		for _, d := range it.dots {
+			it.bounds = it.bounds.Extend(d.Pos)
 		}
 	}
 	return items
+}
+
+// waypointDot returns the map drawing of a waypoint: a marker with the icon of its symbol,
+// a generic icon for unknown symbols, or a plain dot without symbol.
+func waypointDot(w track.Waypoint) mapview.Dot {
+	d := mapview.Dot{Pos: geo.ToMercator(w.Pos)}
+	if w.Symbol == "" {
+		return d
+	}
+	s, ok := symbols.Lookup(w.Symbol)
+	if !ok {
+		s = symbols.Unknown
+	}
+	d.Icon, d.Color = s.Icon, s.Color
+	return d
 }
 
 // update sets the file indices of the items, which are in file order, and the bounds and summary of the file.
@@ -183,7 +200,8 @@ func (f *openFile) update() {
 
 // rebuild updates the items after the file data changed.
 // An item that still exists, by kind and position among the items of its kind, keeps its color,
-// visibility and place in the panel. New items are visible, in the file's first color, and listed last.
+// visibility and place in the panel. New items are visible, in the file's first color, and listed last,
+// except for waypoints, see [openFile.waypointsFirst].
 func (f *openFile) rebuild() {
 	old := f.items
 	built := buildItems(f.data)
@@ -214,6 +232,17 @@ func (f *openFile) rebuild() {
 		}
 	}
 	f.items = append(order, added...)
+	f.waypointsFirst()
+}
+
+// waypointsFirst moves the waypoints to the top of the items in the panel,
+// so that they are drawn above the tracks and routes of the file.
+func (f *openFile) waypointsFirst() {
+	if i := slices.IndexFunc(f.items, func(it *fileItem) bool { return it.kind == waypointItem }); i > 0 {
+		it := f.items[i]
+		copy(f.items[1:i+1], f.items[:i])
+		f.items[0] = it
+	}
 }
 
 // setContent replaces the content of the item with that of n, and clears the caches.
@@ -239,20 +268,25 @@ func (f *openFile) order() []int {
 	return order
 }
 
-// setOrder puts the items in the given order of file indices.
+// setOrder puts the items in the given order of file indices, with the waypoints first.
 // It is ignored unless it is a permutation of all items, e.g. if the file changed.
 func (f *openFile) setOrder(order []int) {
 	if len(order) != len(f.items) {
 		return
 	}
+	byIndex := make([]*fileItem, len(f.items))
+	for _, it := range f.items {
+		byIndex[it.index] = it
+	}
 	items := make([]*fileItem, len(order))
 	for i, idx := range order {
-		if idx < 0 || idx >= len(items) || slices.Contains(items, f.items[idx]) {
+		if idx < 0 || idx >= len(items) || slices.Contains(items, byIndex[idx]) {
 			return
 		}
-		items[i] = f.items[idx]
+		items[i] = byIndex[idx]
 	}
 	f.items = items
+	f.waypointsFirst()
 }
 
 // blockHeight returns the height of the file row and its item rows, if expanded, at the last layout.
@@ -402,9 +436,9 @@ func (f *openFile) setColors(saved []string, def color.NRGBA) {
 		}
 		cols[i] = c
 	}
-	for i, it := range f.items {
+	for _, it := range f.items {
 		if ok {
-			it.color = cols[i]
+			it.color = cols[it.index]
 		} else {
 			it.color = def
 		}
@@ -755,12 +789,13 @@ func (a *App) lineGroups(items []*fileItem) []mapview.LineGroup {
 	groups := make([]mapview.LineGroup, len(items))
 	for i, it := range items {
 		groups[i] = mapview.LineGroup{
-			Color:   it.color,
-			Lines:   it.lines,
-			Dots:    it.dots,
-			Width:   a.lineWidth(it),
-			DotSize: a.waypointSize,
-			Values:  it.lineValues(a.colorMetric()),
+			Color:      it.color,
+			Lines:      it.lines,
+			Dots:       it.dots,
+			Width:      a.lineWidth(it),
+			DotSize:    a.waypointSize,
+			MarkerSize: a.symbolSize,
+			Values:     it.lineValues(a.colorMetric()),
 		}
 	}
 	return groups

@@ -1,6 +1,7 @@
 package mapview
 
 import (
+	"image"
 	"image/color"
 	"math"
 
@@ -10,11 +11,20 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
+	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/geo"
 )
 
 // casingWidth is how much wider the casing below colored lines is than the lines.
 const casingWidth unit.Dp = 3
+
+// markerRing is the width of the ring around markers, in the color markerRingColor.
+const markerRing unit.Dp = 1.5
+
+var markerRingColor = color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
+
+// markerIcon is the size of icons relative to the diameter of their marker.
+const markerIcon = 0.72
 
 // minStep is the minimum screen distance in pixels between drawn line vertices.
 // Closer points are skipped, which keeps long, dense tracks fast at low zoom.
@@ -36,16 +46,27 @@ func NewPolyline(pts []geo.Point) Polyline {
 	return Polyline{Points: pts, Bounds: b}
 }
 
+// Dot is a point drawn as a dot, or as a round marker with an icon.
+type Dot struct {
+	Pos geo.Point
+	// Icon is drawn in a marker, if not nil.
+	Icon *widget.Icon
+	// Color is the color of the marker, or zero for the group color.
+	Color color.NRGBA
+}
+
 // LineGroup is a set of polylines and dots drawn in one color,
 // or with a color gradient by value.
 type LineGroup struct {
 	Color color.NRGBA
 	Lines []Polyline
-	Dots  []geo.Point
+	Dots  []Dot
 	// Width of the lines.
 	Width unit.Dp
-	// DotSize is the diameter of dots.
+	// DotSize is the diameter of dots without icon.
 	DotSize unit.Dp
+	// MarkerSize is the diameter of the markers of dots with icon.
+	MarkerSize unit.Dp
 	// Values are optional values for coloring the lines with the [Coloring] of [Lines].
 	// If not nil, there is one entry per line, which is nil or has one value per line segment.
 	// Lines and segments without values (nil or NaN) are drawn in the NoValue color of the [Coloring].
@@ -123,8 +144,8 @@ func (l *Lines) Set(groups []LineGroup, coloring *Coloring) {
 		for _, line := range g.Lines {
 			l.bounds = l.bounds.Union(line.Bounds)
 		}
-		for _, p := range g.Dots {
-			l.bounds = l.bounds.Extend(p)
+		for _, d := range g.Dots {
+			l.bounds = l.bounds.Extend(d.Pos)
 		}
 	}
 }
@@ -229,15 +250,50 @@ func (l *Lines) drawGroup(g *LineGroup, v *View, area screenRect, cull geo.Rect,
 	}
 
 	r := float32(m.Dp(g.DotSize)) / 2
-	for _, p := range g.Dots {
-		x, y := v.ToScreen(p)
+	for _, d := range g.Dots {
+		x, y := v.ToScreen(d.Pos)
 		if !area.contains(x, y) {
 			continue
 		}
 		c := f32.Pt(float32(x), float32(y))
-		ell := clip.Ellipse{Min: c.Sub(f32.Pt(r, r)).Round(), Max: c.Add(f32.Pt(r, r)).Round()}
-		paint.FillShape(&l.cache, g.Color, ell.Op(&l.cache))
+		if d.Icon != nil {
+			l.drawMarker(&d, g, c, m)
+			continue
+		}
+		fillCircle(&l.cache, c, r, g.Color)
 	}
+}
+
+// drawMarker draws a dot as a marker with its icon, centered at c.
+func (l *Lines) drawMarker(d *Dot, g *LineGroup, c f32.Point, m unit.Metric) {
+	col := d.Color
+	if col == (color.NRGBA{}) {
+		col = g.Color
+	}
+	r := float32(m.Dp(g.MarkerSize)) / 2
+	fillCircle(&l.cache, c, r+float32(m.Dp(markerRing)), markerRingColor)
+	fillCircle(&l.cache, c, r, col)
+
+	size := int(2 * r * markerIcon)
+	off := c.Sub(f32.Pt(float32(size)/2, float32(size)/2)).Round()
+	defer op.Offset(off).Push(&l.cache).Pop()
+	gtx := layout.Context{Ops: &l.cache, Metric: m, Constraints: layout.Exact(image.Pt(size, size))}
+	d.Icon.Layout(gtx, iconColor(col))
+}
+
+// iconColor returns the color for icons on a marker of color c: white, or black on light colors.
+func iconColor(c color.NRGBA) color.NRGBA {
+	lum := 0.299*float64(c.R) + 0.587*float64(c.G) + 0.114*float64(c.B)
+	if lum > 170 {
+		return color.NRGBA{A: 0xff}
+	}
+	return color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}
+}
+
+// fillCircle draws a filled circle of radius r at c.
+func fillCircle(ops *op.Ops, c f32.Point, r float32, col color.NRGBA) {
+	ell := clip.Ellipse{Min: c.Sub(f32.Pt(r, r)).Round(), Max: c.Add(f32.Pt(r, r)).Round()}
+	paint.FillShape(ops, col, ell.Op(ops))
 }
 
 // stroke draws the collected line segments with the given width.
