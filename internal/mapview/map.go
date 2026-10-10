@@ -94,7 +94,7 @@ func (m *Map) Layout(gtx layout.Context, layers ...Layer) layout.Dimensions {
 		m.View.Fit(*m.fit, m.MinZoom, m.MaxZoom)
 		m.fit = nil
 	}
-	m.update(gtx)
+	m.Update(gtx)
 
 	defer clip.Rect{Max: size}.Push(gtx.Ops).Pop()
 	paint.ColorOp{Color: background}.Add(gtx.Ops)
@@ -111,7 +111,9 @@ func (m *Map) Layout(gtx layout.Context, layers ...Layer) layout.Dimensions {
 	return layout.Dimensions{Size: size}
 }
 
-func (m *Map) update(gtx layout.Context) {
+// Update handles input. It is called by [Map.Layout],
+// but can be called earlier in the frame to have [Map.Hover] up to date before.
+func (m *Map) Update(gtx layout.Context) {
 	for {
 		ev, ok := gtx.Event(pointer.Filter{
 			Target:  m,

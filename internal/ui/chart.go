@@ -52,6 +52,13 @@ type chart struct {
 	dragging bool
 	dragID   pointer.ID
 	lastX    float32
+	// hovering reports whether the pointer is over the plot, at hoverX.
+	hovering bool
+	hoverX   float32
+
+	// yLo and yHi are the value axis range in the shown unit at the last drawing, if axisOK.
+	yLo, yHi float64
+	axisOK   bool
 
 	// yRange caches the value range of the whole item, see [chart.valueRange].
 	yRange chartYRange
@@ -160,12 +167,12 @@ func (c *chart) toDist(x float32) float64 {
 	return c.from + float64(x-float32(c.plot.Min.X))/float64(c.plot.Dx())*(c.to-c.from)
 }
 
-// update applies zooming and panning.
+// update applies zooming and panning, and tracks the hovered position.
 func (c *chart) update(gtx layout.Context) {
 	for {
 		ev, ok := gtx.Event(pointer.Filter{
 			Target:  c,
-			Kinds:   pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel | pointer.Scroll,
+			Kinds:   pointer.Press | pointer.Drag | pointer.Release | pointer.Cancel | pointer.Scroll | pointer.Move | pointer.Enter | pointer.Leave,
 			ScrollY: pointer.ScrollRange{Min: math.MinInt32, Max: math.MaxInt32},
 		})
 		if !ok {
@@ -174,6 +181,13 @@ func (c *chart) update(gtx layout.Context) {
 		e, ok := ev.(pointer.Event)
 		if !ok || c.info == nil || c.plot.Dx() <= 0 {
 			continue
+		}
+		if e.Kind == pointer.Leave || e.Kind == pointer.Cancel {
+			c.hovering = false
+		} else {
+			x := e.Position.X
+			c.hovering = x >= float32(c.plot.Min.X) && x <= float32(c.plot.Max.X)
+			c.hoverX = x
 		}
 		switch e.Kind {
 		case pointer.Press:
@@ -237,6 +251,7 @@ func (a *App) layoutChart(gtx layout.Context) layout.Dimensions {
 		c.call = macro.Stop()
 	}
 	c.call.Add(gtx.Ops)
+	a.layoutHoverChart(gtx)
 
 	defer clip.Rect{Max: gtx.Constraints.Max}.Push(gtx.Ops).Pop()
 	event.Op(gtx.Ops, c)
@@ -264,6 +279,7 @@ func chartLabelHeight(gtx layout.Context, st *Style) int {
 func (c *chart) draw(gtx layout.Context, st *Style) {
 	plot := chartPlot(gtx, st)
 	labelH := chartLabelHeight(gtx, st)
+	c.axisOK = false
 	if plot.Dx() < 2 || plot.Dy() < 2 {
 		return
 	}
@@ -282,8 +298,10 @@ func (c *chart) draw(gtx layout.Context, st *Style) {
 	if yHi <= yLo {
 		yHi = yLo + yStep
 	}
+	c.yLo, c.yHi, c.axisOK = yLo, yHi, true
 	toY := func(v float64) float32 {
-		return float32(plot.Max.Y) - float32((v*scale-yLo)/(yHi-yLo))*float32(plot.Dy())
+		y, _ := c.valueY(v)
+		return y
 	}
 	// The area is filled from zero if it is in the range, otherwise from the bottom.
 	base := float32(plot.Max.Y)
@@ -298,6 +316,15 @@ func (c *chart) draw(gtx layout.Context, st *Style) {
 	c.drawLine(gtx, st, plot, cols, toY)
 	stack.Pop()
 	c.drawYLabels(gtx, st, plot, yLo, yHi, yStep)
+}
+
+// valueY returns the vertical position of a value in the plot at the last drawing.
+// It reports false if the chart was not drawn or the value is NaN.
+func (c *chart) valueY(v float64) (float32, bool) {
+	if !c.axisOK || math.IsNaN(v) {
+		return 0, false
+	}
+	return float32(c.plot.Max.Y) - float32((v*c.info.scale-c.yLo)/(c.yHi-c.yLo))*float32(c.plot.Dy()), true
 }
 
 // drawGrid draws the grid lines, and the distance labels below the plot.
