@@ -38,6 +38,8 @@ Click a point to select it, drag it to move it.
 Del or Backspace deletes the selected point.
 Drag or click the small circles between route points to insert a point.
 Route points dropped on a waypoint snap to it and are linked to it. Hold Shift to not snap.
+Hold Shift while dragging a linked route point to move it alone.
+Released with Shift held, it is unlinked from its waypoint, and loses the waypoint's name.
 Esc or a right click clears the selection.
 
 Route points with the same name and position as a waypoint are linked to it and move with it.`},
@@ -101,11 +103,17 @@ type editDrag struct {
 	// start is the screen position of the press, screen the current one.
 	start, screen f32.Point
 	moved         bool
+	// unlinked is set while a linked route point is moved alone, see [App.unlinkDrag].
+	// pressed is the vertex that was pressed, links the vertices linked to it.
+	unlinked bool
+	pressed  vertex
+	links    []vertex
 }
 
 // canSnap reports whether the dragged point can snap to a waypoint: a new point, or an unlinked route point.
+// Linked points don't snap, so a point being unlinked isn't linked to another waypoint right away.
 func (d *editDrag) canSnap() bool {
-	return d.insert || d.v.route >= 0 && len(d.group) == 1
+	return d.insert || d.v.route >= 0 && len(d.links) == 1
 }
 
 // reset clears all state except the tool.
@@ -231,6 +239,8 @@ func (a *App) updateEditor(gtx layout.Context) {
 				e.shift = ev.Modifiers.Contain(key.ModShift)
 			}
 		case pointer.Release:
+			e.shift = ev.Modifiers.Contain(key.ModShift)
+			a.unlinkDrag()
 			a.editRelease()
 		case pointer.Cancel:
 			e.drag = editDrag{}
@@ -351,7 +361,10 @@ func (a *App) editPress(gtx layout.Context, ev mapview.PointerEvent) {
 	case selectTool:
 		if v, ok := hitVertex(f.data, view, ev.Screen, radius, a.preferredRoute()); ok {
 			a.selectVertex(v)
-			e.drag = editDrag{active: true, v: v, group: linkedGroup(f.data, v), pos: ev.Pos, raw: ev.Pos, start: ev.Screen, screen: ev.Screen}
+			e.shift = ev.Modifiers.Contain(key.ModShift)
+			links := linkedGroup(f.data, v)
+			e.drag = editDrag{active: true, v: v, group: links, pressed: v, links: links, pos: ev.Pos, raw: ev.Pos, start: ev.Screen, screen: ev.Screen}
+			a.unlinkDrag()
 		} else if v, ok := hitMidpoint(f.data, view, ev.Screen, radius); ok {
 			e.drag = editDrag{active: true, insert: true, v: v, pos: ev.Pos, raw: ev.Pos, start: ev.Screen, screen: ev.Screen}
 		} else {
@@ -405,9 +418,42 @@ func (a *App) editPress(gtx layout.Context, ev mapview.PointerEvent) {
 	}
 }
 
+// unlinkDrag makes a drag of linked points move only one of the route points while Shift is held,
+// and all of them again when it is released. Released with Shift, the point is unlinked from its waypoint.
+func (a *App) unlinkDrag() {
+	e := &a.editor
+	d := &e.drag
+	if !d.active || d.insert || len(d.links) < 2 || e.shift == d.unlinked {
+		return
+	}
+	d.unlinked = e.shift
+	if d.unlinked {
+		d.v = unlinkTarget(d.links, d.pressed, a.preferredRoute())
+		d.group = []vertex{d.v}
+	} else {
+		d.v, d.group = d.pressed, d.links
+	}
+	a.selectVertex(d.v)
+}
+
+// unlinkTarget returns the route point of a linked group to move alone:
+// v if it is a route point, otherwise a point of route prefer, or the first route point of the group.
+func unlinkTarget(group []vertex, v vertex, prefer int) vertex {
+	if v.route >= 0 {
+		return v
+	}
+	for _, g := range group {
+		if g.route >= 0 && g.route == prefer {
+			return g
+		}
+	}
+	return group[1]
+}
+
 // updateDragSnap snaps a dragged route point to a waypoint near the pointer, unless Shift is held.
 func (a *App) updateDragSnap(gtx layout.Context) {
 	d := &a.editor.drag
+	a.unlinkDrag()
 	if !d.active || !d.moved {
 		return
 	}
@@ -524,6 +570,11 @@ func (a *App) editRelease() {
 				// The elevation of the old position doesn't apply to the new one.
 				(*w)[g.point].Pos = geo.ToLonLat(d.pos)
 				(*w)[g.point].Ele = math.NaN()
+			}
+			// An unlinked point doesn't keep the waypoint's name and other attributes.
+			if d.unlinked {
+				p := &fd.Routes[v.route].Points[v.point]
+				p.Name, p.Desc, p.Symbol, p.Type = "", "", "", ""
 			}
 		})
 		a.changed()

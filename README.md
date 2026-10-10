@@ -85,6 +85,8 @@ The box also has a button to delete the whole route.
 Many GPS devices build routes from stored waypoints, and write each route point
 with the same name and position as its waypoint.
 TRAMP treats such points as linked: they share one handle on the map and are moved together.
+Hold Shift while dragging a linked route point to move it alone.
+Released with Shift held, it is unlinked and loses the waypoint's name, description and symbol.
 Deleting a linked route point removes it from the route only.
 
 Save with Ctrl+S. Undo and redo with the toolbar buttons, or with Ctrl+Z and Ctrl+Y or Ctrl+Shift+Z.

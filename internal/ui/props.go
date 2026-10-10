@@ -28,7 +28,7 @@ type propTarget struct {
 func (t propTarget) isRoute() bool { return t.route >= 0 && t.point < 0 }
 
 // vertex returns the vertex of a point target.
-func (t propTarget) vertex() vertex { return vertex{route: t.route, point: t.point} }
+func (t propTarget) vertex() vertex { return vertex(t) }
 
 // Slots of the property fields.
 const (

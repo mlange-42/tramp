@@ -282,7 +282,9 @@ func TestRouteSnap(t *testing.T) {
 
 // dragTo simulates dragging from a press at from to a position, and releasing.
 func dragTo(a *App, gtx layout.Context, from, to geo.LonLat, mods key.Modifiers) {
-	a.editPress(gtx, at(a, pointer.Press, from))
+	press := at(a, pointer.Press, from)
+	press.Modifiers = mods
+	a.editPress(gtx, press)
 	ev := at(a, pointer.Drag, to)
 	d := &a.editor.drag
 	d.raw, d.screen, d.moved = ev.Pos, ev.Screen, true
@@ -318,5 +320,56 @@ func TestDragSnap(t *testing.T) {
 	dragTo(a, gtx, mid, hut, 0)
 	if p := d.Routes[0].Points[1]; len(d.Routes[0].Points) != 3 || p.Name != "Hut" || p.Pos != hut {
 		t.Errorf("expected inserted point snapped to Hut, got %v", d.Routes[0].Points)
+	}
+}
+
+func TestUnlinkDrag(t *testing.T) {
+	a, f := editApp(t, testLinkedGPX)
+	a.style = DefaultStyle()
+	a.mapView = mapview.New(geo.LonLat{Lon: 12, Lat: 51}, 9)
+	a.mapView.View.Size = image.Pt(800, 600)
+	a.toggleEdit(f)
+	gtx := layout.Context{Metric: unit.Metric{PxPerDp: 1}}
+	d := f.data
+	a.selected = nil
+
+	// Shift-dragging the shared handle of B moves only the route point, which is then unlinked.
+	b := d.Waypoints[1].Pos
+	to := geo.LonLat{Lon: 12.05, Lat: 51.15}
+	dragTo(a, gtx, b, to, key.ModShift)
+	if d.Waypoints[1].Pos != b || len(linkedGroup(d, vertex{-1, 1})) != 1 {
+		t.Errorf("expected waypoint B kept and unlinked")
+	}
+	if p := d.Routes[0].Points[1]; math.Abs(p.Pos.Lon-to.Lon) > 1e-9 || p.Name != "" {
+		t.Errorf("expected route point moved without name, got %v", p)
+	}
+
+	// Shift pressed during the drag unlinks while it is held, and the point doesn't snap.
+	a.undo()
+	a.editPress(gtx, at(a, pointer.Press, b))
+	ev := at(a, pointer.Drag, d.Waypoints[0].Pos)
+	dr := &a.editor.drag
+	dr.raw, dr.screen, dr.moved = ev.Pos, ev.Screen, true
+	a.editor.shift = true
+	a.updateDragSnap(gtx)
+	if dr.snapped || len(dr.group) != 1 || dr.v != (vertex{0, 1}) {
+		t.Errorf("expected unlinked drag without snapping, got %+v", *dr)
+	}
+	// Releasing Shift moves the linked points together again, still without snapping.
+	a.editor.shift = false
+	a.updateDragSnap(gtx)
+	if dr.snapped || len(dr.group) != 2 || dr.unlinked {
+		t.Errorf("expected linked drag again, got %+v", *dr)
+	}
+	a.editRelease()
+	if g := linkedGroup(d, vertex{-1, 1}); len(g) != 2 || d.Waypoints[1].Name != "B" {
+		t.Errorf("expected points still linked, got %v", g)
+	}
+
+	// Without Shift, the group moves together.
+	a.undo()
+	dragTo(a, gtx, b, to, 0)
+	if g := linkedGroup(d, vertex{-1, 1}); len(g) != 2 || math.Abs(d.Waypoints[1].Pos.Lon-to.Lon) > 1e-9 {
+		t.Errorf("expected group moved together, got %v", g)
 	}
 }
