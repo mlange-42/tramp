@@ -58,3 +58,18 @@ func TestIcons(t *testing.T) {
 		}
 	}
 }
+
+func TestMatches(t *testing.T) {
+	s, _ := Lookup("Lodging")
+	for _, q := range []string{"", "lodg", "HUT", "alpine-hut"} {
+		if !s.Matches(q) {
+			t.Errorf("expected %q to match", q)
+		}
+	}
+	if s.Matches("summit") {
+		t.Error("unexpected match")
+	}
+	if s.Category != "Outdoors" {
+		t.Errorf("unexpected category %q", s.Category)
+	}
+}

@@ -7,7 +7,6 @@
   </metadata>
   <wpt lat="51.30971154359341" lon="12.372974925963618">
     <name>Connewitzer Kreuz</name>
-    <sym>Crossing</sym>
   </wpt>
   <wpt lat="51.28304131326556" lon="12.346543159013137">
     <name>Cospudener See</name>
@@ -68,7 +67,6 @@
     <rtept lat="51.30890443032152" lon="12.366653800747283"/>
     <rtept lat="51.30971154359341" lon="12.372974925963618">
       <name>Connewitzer Kreuz</name>
-      <sym>Crossing</sym>
     </rtept>
     <rtept lat="51.33558392257072" lon="12.374367652717675"/>
     <rtept lat="51.33683014758472" lon="12.375154466522922"/>

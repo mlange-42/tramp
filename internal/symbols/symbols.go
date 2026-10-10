@@ -23,10 +23,29 @@ import (
 type Symbol struct {
 	// Name is the canonical name, as used by Garmin devices.
 	Name string
+	// Category is the group the symbol is listed in, like "Outdoors".
+	Category string
+	// Aliases are other names that refer to the symbol.
+	Aliases []string
 	// Icon is drawn in the marker of the point. Nil for symbols drawn as plain dots, like "Waypoint".
 	Icon *widget.Icon
 	// Color is the marker color of colored symbols like "Flag, Blue", or zero for the color of the item.
 	Color color.NRGBA
+}
+
+// Matches reports whether the name or an alias of the symbol contains the query,
+// ignoring case and everything but letters and digits.
+func (s *Symbol) Matches(query string) bool {
+	q := key(query)
+	if strings.Contains(key(s.Name), q) {
+		return true
+	}
+	for _, a := range s.Aliases {
+		if strings.Contains(key(a), q) {
+			return true
+		}
+	}
+	return false
 }
 
 // Unknown is drawn for symbol names that are not known.
@@ -38,7 +57,7 @@ func Lookup(name string) (*Symbol, bool) {
 	return s, ok
 }
 
-// All returns the known symbols, in catalog order.
+// All returns the known symbols, in catalog order, grouped by category.
 func All() []*Symbol {
 	return all
 }
@@ -71,81 +90,91 @@ func d(name, icon string, aliases ...string) def {
 	return def{name: name, icon: icon, aliases: aliases}
 }
 
-// catalog are the known symbols. Canonical names are Garmin's where Garmin has the symbol.
-var catalog = []def{
-	d("Waypoint", "", "Dot", "Default"),
-	d("Summit", "mountain", "Peak", "Mountain", "Top"),
-	d("Scenic Area", "viewpoint", "Viewpoint", "View", "Vista", "Lookout"),
-	d("Trail Head", "shoe", "Start"),
-	d("Campground", "campsite", "Camping", "Campsite", "Camp", "Tent"),
-	d("Lodging", "lodging", "Lodge", "Hotel", "Hut", "Alpine Hut", "Hostel", "Accommodation"),
-	d("Shelter", "shelter"),
-	d("Picnic Area", "picnic-site", "Picnic"),
-	d("Drinking Water", "drinking-water", "Water", "Water Source", "Spring", "Fountain"),
-	d("Restroom", "toilet", "Toilet", "Toilets", "WC"),
-	d("Restaurant", "restaurant", "Food", "Dining"),
-	d("Fast Food", "fast-food"),
-	d("Cafe", "cafe", "Coffee", "Coffee Shop"),
-	d("Bar", "bar", "Pub", "Beer"),
-	d("Danger Area", "danger", "Danger", "Warning", "Caution", "Hazard", "Skull and Crossbones"),
-	d("Medical Facility", "hospital", "Hospital", "First Aid", "Doctor"),
-	d("Information", "information", "Info"),
-	d("Parking Area", "parking", "Parking", "Car Park"),
-	d("Gas Station", "fuel", "Fuel", "Petrol"),
-	d("Car", "car"),
-	d("Car Rental", "car-rental"),
-	d("Car Repair", "car-repair", "Garage"),
-	d("Bike Trail", "bicycle", "Bicycle", "Bike"),
-	d("Ground Transportation", "bus", "Bus", "Bus Stop"),
-	d("Train", "rail", "Railway", "Train Station", "Station"),
-	d("Airport", "airport"),
-	d("Boat Ramp", "slipway", "Slipway"),
-	d("Marina", "harbor", "Harbor", "Harbour", "Anchor"),
-	d("Light", "lighthouse", "Lighthouse"),
-	d("Bridge", "bridge"),
-	d("Tunnel", "tunnel"),
-	d("Dam", "dam"),
-	d("Gate", "gate"),
-	d("Waterfall", "waterfall"),
-	d("Beach", "beach"),
-	d("Swimming Area", "swimming", "Swimming", "Swim"),
-	d("Ski Resort", "skiing", "Skiing", "Ski"),
-	d("Park", "park"),
-	d("Forest", "park-alt1", "Tree", "Woods"),
-	d("Tall Tower", "communications-tower", "Tower"),
-	d("Building", "building"),
-	d("Residence", "home", "Home", "House"),
-	d("City (Large)", "city", "City"),
-	d("City (Medium)", "town", "Town"),
-	d("City (Small)", "village", "Village"),
-	d("Church", "place-of-worship", "Place of Worship", "Chapel"),
-	d("Cemetery", "cemetery"),
-	d("Museum", "museum"),
-	d("School", "school"),
-	d("Police Station", "police", "Police"),
-	d("Post Office", "post", "Post"),
-	d("Bank", "bank", "ATM"),
-	d("Telephone", "telephone", "Phone"),
-	d("Shopping Center", "shop", "Shop", "Shopping"),
-	d("Convenience Store", "convenience"),
-	d("Golf Course", "golf", "Golf"),
-	d("Stadium", "stadium"),
-	d("Zoo", "zoo"),
-	d("Amusement Park", "amusement-park"),
-	d("Movie Theater", "cinema", "Cinema"),
-	d("Live Theater", "theatre", "Theater", "Theatre"),
-	d("Flag", "embassy"),
-	d("Pin", "marker"),
+// category is a group of catalog entries.
+type category struct {
+	name string
+	defs []def
 }
 
-var (
-	all   []*Symbol
-	byKey = map[string]*Symbol{}
-)
+// catalog are the known symbols. Canonical names are Garmin's where Garmin has the symbol.
+var catalog = []category{
+	{"", []def{
+		d("Waypoint", "", "Dot", "Default"),
+	}},
+	{"Outdoors", []def{
+		d("Summit", "mountain", "Peak", "Mountain", "Top"),
+		d("Scenic Area", "viewpoint", "Viewpoint", "View", "Vista", "Lookout"),
+		d("Trail Head", "shoe", "Start"),
+		d("Campground", "campsite", "Camping", "Campsite", "Camp", "Tent"),
+		d("Lodging", "lodging", "Lodge", "Hotel", "Hut", "Alpine Hut", "Hostel", "Accommodation"),
+		d("Shelter", "shelter"),
+		d("Picnic Area", "picnic-site", "Picnic"),
+		d("Drinking Water", "drinking-water", "Water", "Water Source", "Spring", "Fountain"),
+		d("Restroom", "toilet", "Toilet", "Toilets", "WC"),
+		d("Danger Area", "danger", "Danger", "Warning", "Caution", "Hazard", "Skull and Crossbones"),
+		d("Information", "information", "Info"),
+		d("Gate", "gate"),
+		d("Bridge", "bridge"),
+		d("Tunnel", "tunnel"),
+		d("Dam", "dam"),
+		d("Waterfall", "waterfall"),
+		d("Beach", "beach"),
+		d("Swimming Area", "swimming", "Swimming", "Swim"),
+		d("Ski Resort", "skiing", "Skiing", "Ski"),
+		d("Park", "park"),
+		d("Forest", "park-alt1", "Tree", "Woods"),
+	}},
+	{"Food and services", []def{
+		d("Restaurant", "restaurant", "Food", "Dining"),
+		d("Fast Food", "fast-food"),
+		d("Cafe", "cafe", "Coffee", "Coffee Shop"),
+		d("Bar", "bar", "Pub", "Beer"),
+		d("Shopping Center", "shop", "Shop", "Shopping"),
+		d("Convenience Store", "convenience"),
+		d("Medical Facility", "hospital", "Hospital", "First Aid", "Doctor"),
+		d("Police Station", "police", "Police"),
+		d("Post Office", "post", "Post"),
+		d("Bank", "bank", "ATM"),
+		d("Telephone", "telephone", "Phone"),
+	}},
+	{"Transport", []def{
+		d("Parking Area", "parking", "Parking", "Car Park"),
+		d("Gas Station", "fuel", "Fuel", "Petrol"),
+		d("Car", "car"),
+		d("Car Rental", "car-rental"),
+		d("Car Repair", "car-repair", "Garage"),
+		d("Bike Trail", "bicycle", "Bicycle", "Bike"),
+		d("Ground Transportation", "bus", "Bus", "Bus Stop"),
+		d("Train", "rail", "Railway", "Train Station", "Station"),
+		d("Airport", "airport"),
+		d("Boat Ramp", "slipway", "Slipway"),
+		d("Marina", "harbor", "Harbor", "Harbour", "Anchor"),
+	}},
+	{"Places", []def{
+		d("City (Large)", "city", "City"),
+		d("City (Medium)", "town", "Town"),
+		d("City (Small)", "village", "Village"),
+		d("Residence", "home", "Home", "House"),
+		d("Building", "building"),
+		d("Church", "place-of-worship", "Place of Worship", "Chapel"),
+		d("Cemetery", "cemetery"),
+		d("Museum", "museum"),
+		d("School", "school"),
+		d("Tall Tower", "communications-tower", "Tower"),
+		d("Light", "lighthouse", "Lighthouse"),
+		d("Golf Course", "golf", "Golf"),
+		d("Stadium", "stadium"),
+		d("Zoo", "zoo"),
+		d("Amusement Park", "amusement-park"),
+		d("Movie Theater", "cinema", "Cinema"),
+		d("Live Theater", "theatre", "Theater", "Theatre"),
+	}},
+	{"Markers", markers()},
+}
 
-func init() {
-	defs := catalog
-	// Garmin's colored shapes.
+// markers returns the flag and pin, and Garmin's colored shapes.
+func markers() []def {
+	defs := []def{d("Flag", "embassy"), d("Pin", "marker")}
 	for _, shape := range []struct{ name, icon string }{{"Flag", "embassy"}, {"Pin", "marker"}, {"Block", "square"}, {"Diamond", "diamond"}} {
 		for _, c := range []struct {
 			name string
@@ -154,18 +183,29 @@ func init() {
 			defs = append(defs, def{name: shape.name + ", " + c.name, icon: shape.icon, color: c.col})
 		}
 	}
-	for _, df := range defs {
-		s := &Symbol{Name: df.name, Color: df.color}
-		if df.icon != "" {
-			s.Icon = mustIcon(df.icon)
-		}
-		all = append(all, s)
-		for _, n := range append([]string{df.name}, df.aliases...) {
-			k := key(n)
-			if _, ok := byKey[k]; ok {
-				panic(fmt.Sprintf("duplicate symbol name %q", n))
+	return defs
+}
+
+var (
+	all   []*Symbol
+	byKey = map[string]*Symbol{}
+)
+
+func init() {
+	for _, c := range catalog {
+		for _, df := range c.defs {
+			s := &Symbol{Name: df.name, Category: c.name, Aliases: df.aliases, Color: df.color}
+			if df.icon != "" {
+				s.Icon = mustIcon(df.icon)
 			}
-			byKey[k] = s
+			all = append(all, s)
+			for _, n := range append([]string{df.name}, df.aliases...) {
+				k := key(n)
+				if _, ok := byKey[k]; ok {
+					panic(fmt.Sprintf("duplicate symbol name %q", n))
+				}
+				byKey[k] = s
+			}
 		}
 	}
 }

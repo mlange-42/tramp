@@ -54,6 +54,7 @@ type propField struct {
 // props is the properties box in the side panel for the selection of the edited file.
 type props struct {
 	fields      [numPropFields]propField
+	sym         symbolPicker
 	deleteRoute iconButton
 }
 
@@ -135,6 +136,7 @@ func (a *App) updateProps(gtx layout.Context) {
 	if f != nil {
 		route, point, hasRoute, hasPoint = a.propTargets()
 	}
+	a.updateSymbolPicker(gtx, point, hasPoint)
 	for i := range p.fields {
 		fl := &p.fields[i]
 		for {
@@ -214,8 +216,11 @@ func (a *App) commitProps() {
 	}
 }
 
-// propsFocused reports whether a property field has the keyboard focus.
+// propsFocused reports whether a property field or the symbol search has the keyboard focus.
 func (a *App) propsFocused(gtx layout.Context) bool {
+	if gtx.Focused(&a.props.sym.search) {
+		return true
+	}
 	for i := range a.props.fields {
 		if gtx.Focused(&a.props.fields[i].ed) {
 			return true
@@ -224,8 +229,9 @@ func (a *App) propsFocused(gtx layout.Context) bool {
 	return false
 }
 
-// revertProps discards the unapplied text of the property fields and gives up the focus.
+// revertProps discards the unapplied text of the property fields, closes the symbol picker and gives up the focus.
 func (a *App) revertProps(gtx layout.Context) {
+	a.props.sym.close(gtx)
 	for i := range a.props.fields {
 		if fl := &a.props.fields[i]; fl.bound {
 			fl.ed.SetText(fl.loaded)
@@ -306,6 +312,11 @@ func (a *App) layoutProps(gtx layout.Context) layout.Dimensions {
 		heading(title, none)
 		field("Name", pointNameField)
 		field("Desc", pointDescField)
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Bottom: st.Spacing / 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				return a.layoutSymbolField(gtx, point)
+			})
+		}))
 	}
 	macro := op.Record(gtx.Ops)
 	dims := layout.Inset{Top: st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -320,11 +331,22 @@ func (a *App) layoutProps(gtx layout.Context) layout.Dimensions {
 }
 
 // propLabelWidth is the width of the labels of the property fields.
-const propLabelWidth unit.Dp = 40
+const propLabelWidth unit.Dp = 52
 
 // layoutPropField draws a labeled text field.
 func (a *App) layoutPropField(gtx layout.Context, label string, fl *propField) layout.Dimensions {
 	st := a.style
+	return layoutPropRow(gtx, st, label, func(gtx layout.Context) layout.Dimensions {
+		return layoutFieldBox(gtx, st, gtx.Focused(&fl.ed), func(gtx layout.Context) layout.Dimensions {
+			ed := material.Editor(st.Theme, &fl.ed, "")
+			ed.TextSize = st.TextSize
+			return ed.Layout(gtx)
+		})
+	})
+}
+
+// layoutPropRow draws a label and a widget filling the rest of the row.
+func layoutPropRow(gtx layout.Context, st *Style, label string, w layout.Widget) layout.Dimensions {
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			gtx.Constraints.Min.X = gtx.Dp(propLabelWidth)
@@ -332,25 +354,26 @@ func (a *App) layoutPropField(gtx layout.Context, label string, fl *propField) l
 			l.Color = st.HintFg
 			return l.Layout(gtx)
 		}),
-		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-			border := max(1, gtx.Dp(1))
-			macro := op.Record(gtx.Ops)
-			dims := layout.UniformInset(3).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				gtx.Constraints.Min.X = gtx.Constraints.Max.X
-				ed := material.Editor(st.Theme, &fl.ed, "")
-				ed.TextSize = st.TextSize
-				return ed.Layout(gtx)
-			})
-			call := macro.Stop()
-			outer := image.Rectangle{Max: dims.Size}
-			col := st.PanelBorder
-			if gtx.Focused(&fl.ed) {
-				col = st.EditActive
-			}
-			paint.FillShape(gtx.Ops, col, clip.Rect(outer).Op())
-			paint.FillShape(gtx.Ops, st.PanelBg, clip.Rect(outer.Inset(border)).Op())
-			call.Add(gtx.Ops)
-			return dims
-		}),
+		layout.Flexed(1, w),
 	)
+}
+
+// layoutFieldBox draws content full width in a box with a border, highlighted if active.
+func layoutFieldBox(gtx layout.Context, st *Style, active bool, content layout.Widget) layout.Dimensions {
+	border := max(1, gtx.Dp(1))
+	macro := op.Record(gtx.Ops)
+	dims := layout.UniformInset(3).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Min.X = gtx.Constraints.Max.X
+		return content(gtx)
+	})
+	call := macro.Stop()
+	outer := image.Rectangle{Max: dims.Size}
+	col := st.PanelBorder
+	if active {
+		col = st.EditActive
+	}
+	paint.FillShape(gtx.Ops, col, clip.Rect(outer).Op())
+	paint.FillShape(gtx.Ops, st.PanelBg, clip.Rect(outer.Inset(border)).Op())
+	call.Add(gtx.Ops)
+	return dims
 }
