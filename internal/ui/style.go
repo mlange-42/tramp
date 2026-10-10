@@ -79,6 +79,15 @@ type Style struct {
 	MinChartHeight unit.Dp
 	// ChartTickSpacing is the minimum distance between axis ticks in the chart.
 	ChartTickSpacing unit.Dp
+	// HoverColor is the color of the line and the dot marking the hovered position on the selected item,
+	// in the chart and on the map.
+	HoverColor color.NRGBA
+	// HoverRing is the color of the ring around the hover dot.
+	HoverRing color.NRGBA
+	// HoverDotSize is the diameter of the hover dot, without the ring.
+	HoverDotSize unit.Dp
+	// HoverRadius is the distance from the selected item within which the pointer on the map hovers it.
+	HoverRadius unit.Dp
 	// LegendBg is the background of the legend with scale and color bar on the map.
 	LegendBg color.NRGBA
 	// LegendWidth is the width of the color bar, and the maximum width of the scale bar, in the legend.
@@ -127,6 +136,10 @@ func DefaultStyle() *Style {
 		ChartLineWidth:   1.5,
 		ChartTickSpacing: 32,
 		MinChartHeight:   50,
+		HoverColor:       color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xff},
+		HoverRing:        color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
+		HoverDotSize:     8,
+		HoverRadius:      12,
 		LegendBg:         color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xe0},
 		LegendWidth:      180,
 	}

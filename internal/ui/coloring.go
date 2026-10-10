@@ -52,6 +52,15 @@ var metrics = []metricInfo{
 	{metric: track.SlopeMetric, key: "slope", name: "Slope", unit: "%", scale: 1, format: "%+.0f", gradient: "Blue–Red", symmetric: true},
 }
 
+// formatValue formats a value of the metric in its shown unit, with the unit.
+func (m *metricInfo) formatValue(v float64) string {
+	s := fmt.Sprintf(m.format, v*m.scale)
+	if s == "+0" || s == "-0" {
+		s = "0"
+	}
+	return s + " " + m.unit
+}
+
 // colorMetric returns the selected metric to color tracks by.
 func (a *App) colorMetric() track.Metric {
 	return metrics[a.colorBy.Selected()].metric

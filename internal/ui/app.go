@@ -102,6 +102,8 @@ type App struct {
 	// highlight shows the part of the selected item that is visible in the zoomed chart.
 	highlight    mapview.Lines
 	highlightKey highlightKey
+	// hover is the position on the selected item under the pointer in the chart, or near it on the map.
+	hover trackHover
 
 	openBtn   widget.Clickable
 	fileList  widget.List
@@ -340,12 +342,15 @@ func (a *App) update(gtx layout.Context) {
 	a.applyColors()
 	a.updateColoring(gtx)
 	a.updateFiles(gtx)
+	// The map's hover position is needed before the map is drawn.
+	a.mapView.Update(gtx)
 	// The selected item is muted on the map while the chart is zoomed in.
 	zoomed := a.chart.zoomed()
 	a.chart.update(gtx)
 	if a.chartSplit.Collapsed {
 		// A closed chart shows the whole item when opened again, and doesn't affect the map.
 		a.chart.setRange(0, a.chart.total)
+		a.chart.hovering = false
 	}
 	if a.chart.zoomed() != zoomed {
 		a.tracksChanged = true
@@ -355,6 +360,7 @@ func (a *App) update(gtx layout.Context) {
 		a.updateTracks()
 	}
 	a.updateHighlight()
+	a.updateHover(gtx)
 }
 
 func (a *App) layout(gtx layout.Context) layout.Dimensions {
@@ -383,6 +389,7 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	dims := a.mapView.Layout(gtx, a.mapLayers...)
 	a.tracks.Layout(gtx, &a.mapView.View)
 	a.highlight.Layout(gtx, &a.mapView.View)
+	a.layoutHoverMap(gtx)
 	a.layoutLegend(gtx)
 	return dims
 }
