@@ -52,10 +52,10 @@ func TestNearestSegment(t *testing.T) {
 
 func TestHoverAt(t *testing.T) {
 	lines := []mapview.Polyline{mapview.NewPolyline([]geo.Point{{X: 0, Y: 0}, {X: 10, Y: 0}, {X: 10, Y: 10}})}
-	c := chart{chartData: chartData{dist: [][]float64{{0, 10, 20}}, vals: [][]float64{{1, 3}}}}
+	c := chart{chartData: chartData{xs: [][]float64{{0, 10, 20}}, vals: [][]float64{{1, 3}}}}
 	// Point values are 1, 2, 3.
 	h := c.hoverAt(lines, 0, 1, 0.5)
-	if !h.valid || h.dist != 15 || h.pos != (geo.Point{X: 10, Y: 5}) || h.value != 2.5 {
+	if !h.valid || h.x != 15 || h.pos != (geo.Point{X: 10, Y: 5}) || h.value != 2.5 {
 		t.Errorf("got %+v", h)
 	}
 	c.vals = [][]float64{nil}

@@ -62,10 +62,17 @@ type fileItem struct {
 	// values caches the values of the lines per metric, see [mapview.LineGroup.Values].
 	values map[track.Metric][][]float64
 	// dist caches the distance along the item for each point, continuing over all lines, in meters.
-	dist   [][]float64
-	dots   []geo.Point
-	bounds geo.Rect
-	color  color.NRGBA
+	dist [][]float64
+	// timeCache caches the result of [fileItem.times], if timesDone.
+	timeCache [][]float64
+	start     time.Time
+	timesDone bool
+	// gapCache caches the result of [fileItem.gaps], if gapsDone.
+	gapCache [][]bool
+	gapsDone bool
+	dots     []geo.Point
+	bounds   geo.Rect
+	color    color.NRGBA
 	// index is the position of the item in the file, independent of the panel order.
 	index int
 
@@ -192,7 +199,7 @@ func (f *openFile) blockHeight() int {
 }
 
 // lineValues returns the values of a metric for the lines of the item,
-// or nil if no line has values.
+// or nil if no line has values. Gaps in the recording have no values, see [track.Gaps].
 func (it *fileItem) lineValues(m track.Metric) [][]float64 {
 	if m == track.NoMetric {
 		return nil
@@ -201,10 +208,18 @@ func (it *fileItem) lineValues(m track.Metric) [][]float64 {
 		return vals
 	}
 	vals := make([][]float64, len(it.points))
+	gaps := it.gaps()
 	found := false
 	for i, pts := range it.points {
 		vals[i] = track.SegmentValues(pts, m)
 		found = found || vals[i] != nil
+		if vals[i] != nil && gaps != nil {
+			for j, gap := range gaps[i] {
+				if gap {
+					vals[i][j] = math.NaN()
+				}
+			}
+		}
 	}
 	if !found {
 		vals = nil
@@ -214,6 +229,15 @@ func (it *fileItem) lineValues(m track.Metric) [][]float64 {
 	}
 	it.values[m] = vals
 	return vals
+}
+
+// gaps returns the gaps in the recording, see [track.Gaps].
+func (it *fileItem) gaps() [][]bool {
+	if !it.gapsDone {
+		it.gapsDone = true
+		it.gapCache = track.Gaps(it.points)
+	}
+	return it.gapCache
 }
 
 // distances returns the distance along the item for each point, continuing over all lines, in meters.
@@ -234,6 +258,37 @@ func (it *fileItem) distances() [][]float64 {
 		it.dist[i] = d
 	}
 	return it.dist
+}
+
+// times returns the time since the first point for each point of the item, in seconds,
+// and the time of the first point. It returns nil if any point has no time.
+// Times are made non-decreasing, so that they can be searched like distances.
+func (it *fileItem) times() ([][]float64, time.Time) {
+	if it.timesDone {
+		return it.timeCache, it.start
+	}
+	it.timesDone = true
+	var start time.Time
+	var last float64
+	times := make([][]float64, len(it.points))
+	for i, pts := range it.points {
+		times[i] = make([]float64, len(pts))
+		for j, p := range pts {
+			if p.Time.IsZero() {
+				return nil, time.Time{}
+			}
+			if start.IsZero() {
+				start = p.Time
+			}
+			last = math.Max(last, p.Time.Sub(start).Seconds())
+			times[i][j] = last
+		}
+	}
+	if start.IsZero() {
+		return nil, time.Time{}
+	}
+	it.timeCache, it.start = times, start
+	return times, start
 }
 
 // chartable reports whether the item has lines to show in the chart.
@@ -557,7 +612,7 @@ func (a *App) updateHighlight() {
 	if a.legend != nil {
 		coloring = a.legend.coloring()
 	}
-	lines, vals := rangeLines(it.lines, it.distances(), it.lineValues(a.colorMetric()), key.from, key.to)
+	lines, vals := rangeLines(it.lines, c.xs, it.lineValues(a.colorMetric()), key.from, key.to)
 	a.highlight.Set([]mapview.LineGroup{{
 		Color:  it.color,
 		Lines:  lines,
@@ -566,7 +621,8 @@ func (a *App) updateHighlight() {
 	}}, coloring)
 }
 
-// rangeLines returns the parts of the lines within the distance range, given the distance of each point,
+// rangeLines returns the parts of the lines within a range of the chart's horizontal axis,
+// given the non-decreasing position of each point on it, see [chartData.xs],
 // and the values of their segments if vals is not nil. The parts start and end exactly at the range limits.
 func rangeLines(lines []mapview.Polyline, dist, vals [][]float64, from, to float64) ([]mapview.Polyline, [][]float64) {
 	var outLines []mapview.Polyline

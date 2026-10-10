@@ -17,9 +17,9 @@ import (
 // It is marked in both the chart and the map.
 type trackHover struct {
 	valid bool
-	// dist is the distance along the item, in meters.
-	dist float64
-	pos  geo.Point
+	// x is the position on the chart's horizontal axis, see [chartData.xs].
+	x   float64
+	pos geo.Point
 	// value is the value of the chart's metric at the position, NaN if there is none.
 	value float64
 }
@@ -35,7 +35,7 @@ func (a *App) updateHover(gtx layout.Context) {
 	}
 	switch {
 	case c.hovering:
-		if i, j, t, ok := locate(c.dist, c.toDist(c.hoverX)); ok {
+		if i, j, t, ok := locate(c.xs, c.toX(c.hoverX)); ok {
 			a.hover = c.hoverAt(it.lines, i, j, t)
 		}
 	case a.mapView.HoverValid && a.shown(it):
@@ -49,11 +49,11 @@ func (a *App) updateHover(gtx layout.Context) {
 // hoverAt returns the hovered position at fraction t of segment j of line i of the given lines,
 // which belong to the shown item.
 func (c *chart) hoverAt(lines []mapview.Polyline, i, j int, t float64) trackHover {
-	d := c.dist[i]
+	x := c.xs[i]
 	a, b := lines[i].Points[j], lines[i].Points[j+1]
 	h := trackHover{
 		valid: true,
-		dist:  d[j] + (d[j+1]-d[j])*t,
+		x:     x[j] + (x[j+1]-x[j])*t,
 		pos:   geo.Point{X: a.X + (b.X-a.X)*t, Y: a.Y + (b.Y-a.Y)*t},
 		value: math.NaN(),
 	}
@@ -65,10 +65,10 @@ func (c *chart) hoverAt(lines []mapview.Polyline, i, j int, t float64) trackHove
 	return h
 }
 
-// locate returns the line i and segment j at distance d along the item, given the distance of each point,
-// and the fraction t of the segment before d. It reports false if d is not on any line.
-func locate(dist [][]float64, d float64) (i, j int, t float64, ok bool) {
-	for i, line := range dist {
+// locate returns the line i and segment j at position d on the horizontal axis, given the non-decreasing
+// position of each point, and the fraction t of the segment before d. It reports false if d is not on any line.
+func locate(xs [][]float64, d float64) (i, j int, t float64, ok bool) {
+	for i, line := range xs {
 		if len(line) < 2 || d < line[0] || d > line[len(line)-1] {
 			continue
 		}
@@ -110,13 +110,13 @@ func nearestSegment(lines []mapview.Polyline, p geo.Point, radius float64) (i, j
 	return i, j, t, ok
 }
 
-// hoverText returns the label for the hovered position: the value, if any, and the distance along the item.
+// hoverText returns the label for the hovered position: the value, if any, and the position on the horizontal axis.
 func (a *App) hoverText() string {
-	dist := formatDistance(a.hover.dist)
+	x := a.chart.formatX(a.hover.x)
 	if math.IsNaN(a.hover.value) {
-		return dist
+		return x
 	}
-	return a.chart.info.formatValue(a.hover.value) + " · " + dist
+	return a.chart.info.formatValue(a.hover.value) + " · " + x
 }
 
 // recordHoverLabel records the label for the hovered position on its background, at the origin.
@@ -143,11 +143,11 @@ func (a *App) layoutHoverChart(gtx layout.Context) {
 	c := &a.chart
 	h := a.hover
 	plot := c.plot
-	if !h.valid || h.dist < c.from || h.dist > c.to || plot.Dx() <= 0 {
+	if !h.valid || h.x < c.from || h.x > c.to || plot.Dx() <= 0 {
 		return
 	}
 	st := a.style
-	x := plot.Min.X + int(math.Round((h.dist-c.from)/(c.to-c.from)*float64(plot.Dx())))
+	x := plot.Min.X + int(math.Round((h.x-c.from)/(c.to-c.from)*float64(plot.Dx())))
 	w := max(1, gtx.Dp(1))
 	paint.FillShape(gtx.Ops, st.HoverColor, clip.Rect(image.Rect(x-w/2, plot.Min.Y, x-w/2+w, plot.Max.Y)).Op())
 	if y, ok := c.valueY(h.value); ok && y >= float32(plot.Min.Y) && y <= float32(plot.Max.Y) {

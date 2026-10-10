@@ -93,6 +93,8 @@ type Window struct {
 	ChartHeight float32 `yaml:"chart_height"`
 	// ChartClosed is whether the chart below the map is closed.
 	ChartClosed bool `yaml:"chart_closed,omitempty"`
+	// ChartAxis is the horizontal axis of the chart: distance, trip_time or clock_time.
+	ChartAxis string `yaml:"chart_axis,omitempty"`
 }
 
 // Valid reports whether the window has a usable size.
