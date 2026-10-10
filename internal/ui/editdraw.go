@@ -11,9 +11,11 @@ import (
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"github.com/mlange-42/tramp/internal/geo"
+	"github.com/mlange-42/tramp/internal/mapview"
+	"github.com/mlange-42/tramp/internal/track"
 )
 
-// layoutEditMap draws the points of the edited file as handles on the map, the midpoints of route segments
+// layoutEditMap draws the points of the edited file as handles on the map, or as markers if they have a symbol, the midpoints of route segments
 // for inserting points with the select tool, and the lines to a point being moved, inserted or added.
 // Route points linked to a waypoint share its handle, see [linked].
 func (a *App) layoutEditMap(gtx layout.Context) {
@@ -57,70 +59,116 @@ func (a *App) layoutEditMap(gtx layout.Context) {
 		}
 	}
 
-	handle := func(p f32.Point, fill color.NRGBA, rr float32) {
-		if visible(p) {
-			fillCircle(gtx, p, rr+float32(gtx.Dp(1.5)), st.EditHandleRing)
-			fillCircle(gtx, p, rr, fill)
+	// Points with a symbol are drawn as their marker, with a ring that is highlighted for active points.
+	// Other points are drawn as handles, larger and highlighted for active points.
+	mr := float32(gtx.Dp(a.symbolSize)) / 2
+	handle := func(v vertex, p f32.Point, active bool) {
+		if !visible(p) {
+			return
 		}
+		// A route point being unlinked loses its symbol on release, see [App.unlinkDrag].
+		unlinking := e.drag.active && e.drag.moved && e.drag.unlinked && v == e.drag.v
+		if dot := waypointDot(*waypointRef(d, v)); dot.Icon != nil && !unlinking {
+			ring := st.EditHandleRing
+			if active {
+				// A white gap sets the highlight off from markers of a similar color.
+				fillCircle(gtx, p, mr+float32(gtx.Dp(4.5)), st.EditActive)
+				ring = st.EditHandleFill
+			}
+			col := dot.Color
+			if col == (color.NRGBA{}) {
+				col = f.itemColor(v)
+			}
+			mapview.DrawMarker(gtx.Ops, gtx.Metric, p, dot.Icon, col, a.symbolSize, ring, 1.5)
+			return
+		}
+		fill, rr := st.EditHandleFill, r
+		if active {
+			fill, rr = st.EditActive, r*1.3
+		}
+		fillCircle(gtx, p, rr+float32(gtx.Dp(1.5)), st.EditHandleRing)
+		fillCircle(gtx, p, rr, fill)
+	}
+	// radius returns the radius of the handle or marker of a point, for placing its label.
+	radius := func(w *track.Waypoint) float32 {
+		if waypointDot(*w).Icon != nil {
+			return mr
+		}
+		return r
 	}
 	linkedPts := linkedRoutePoints(d)
 	for ri := range d.Routes {
 		for i, w := range d.Routes[ri].Points {
 			if v := (vertex{ri, i}); !linkedPts[v] {
-				handle(pos(v, w.Pos), st.EditHandleFill, r)
+				handle(v, pos(v, w.Pos), false)
 			}
 		}
 	}
 	for i, w := range d.Waypoints {
 		v := vertex{-1, i}
-		handle(pos(v, w.Pos), st.EditHandleFill, r)
+		handle(v, pos(v, w.Pos), false)
 	}
 	// Names, of linked points once.
 	for ri := range d.Routes {
 		for i, w := range d.Routes[ri].Points {
 			if v := (vertex{ri, i}); w.Name != "" && !linkedPts[v] {
-				a.drawPointLabel(gtx, pos(v, w.Pos), r, w.Name, visible)
+				a.drawPointLabel(gtx, pos(v, w.Pos), radius(&w), w.Name, visible)
 			}
 		}
 	}
 	for i, w := range d.Waypoints {
 		if w.Name != "" {
-			a.drawPointLabel(gtx, pos(vertex{-1, i}, w.Pos), r, w.Name, visible)
+			a.drawPointLabel(gtx, pos(vertex{-1, i}, w.Pos), radius(&w), w.Name, visible)
 		}
 	}
 	// The selected point is drawn last, so that it is not covered by a linked point.
 	if ll, ok := vertexPos(d, e.sel); e.hasSel && ok {
-		handle(pos(e.sel, ll), st.EditActive, r*1.3)
+		handle(e.sel, pos(e.sel, ll), true)
 	}
 	// The point a click or drag would snap to or continue is highlighted like a selection.
-	if ll, ok := a.snapHighlight(gtx); ok {
-		handle(screenPos(view, ll), st.EditActive, r*1.3)
+	if v, ok := a.snapHighlight(gtx); ok {
+		ll, _ := vertexPos(d, v)
+		handle(v, screenPos(view, ll), true)
 	}
 }
 
-// snapHighlight returns the position of the point to highlight: the waypoint a dragged point snaps to,
+// itemColor returns the color of the item of a vertex: its route, or the waypoints.
+func (f *openFile) itemColor(v vertex) color.NRGBA {
+	kind, nth := waypointItem, 0
+	if v.route >= 0 {
+		kind, nth = routeItem, v.route
+	}
+	for _, it := range f.items {
+		if it.kind == kind && it.nth == nth {
+			return it.color
+		}
+	}
+	return f.defColor
+}
+
+// snapHighlight returns the point to highlight: the waypoint a dragged point snaps to,
 // or with the route tool, the route end a click would continue, or the waypoint it would snap to.
-func (a *App) snapHighlight(gtx layout.Context) (geo.LonLat, bool) {
+func (a *App) snapHighlight(gtx layout.Context) (vertex, bool) {
 	e, d := &a.editor, a.editing.data
 	if e.drag.active {
 		if e.drag.snapped {
-			return d.Waypoints[e.drag.snap].Pos, true
+			return vertex{-1, e.drag.snap}, true
 		}
-		return geo.LonLat{}, false
+		return vertex{}, false
 	}
 	if e.tool != routeTool || !a.mapView.HoverValid {
-		return geo.LonLat{}, false
+		return vertex{}, false
 	}
 	if !e.drawing {
 		x, y := a.mapView.View.ToScreen(a.mapView.Hover)
 		if v, ok := hitRouteEnd(d, &a.mapView.View, f32.Pt(float32(x), float32(y)), a.handleRadius(gtx), a.preferredRoute()); ok {
-			return d.Routes[v.route].Points[v.point].Pos, true
+			return v, true
 		}
 	}
 	if wi, ok := a.hoverSnap(gtx); ok {
-		return d.Waypoints[wi].Pos, true
+		return vertex{-1, wi}, true
 	}
-	return geo.LonLat{}, false
+	return vertex{}, false
 }
 
 // drawPointLabel draws the name of a point right of its handle of radius r at p.

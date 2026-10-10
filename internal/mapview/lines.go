@@ -257,28 +257,29 @@ func (l *Lines) drawGroup(g *LineGroup, v *View, area screenRect, cull geo.Rect,
 		}
 		c := f32.Pt(float32(x), float32(y))
 		if d.Icon != nil {
-			l.drawMarker(&d, g, c, m)
+			col := d.Color
+			if col == (color.NRGBA{}) {
+				col = g.Color
+			}
+			DrawMarker(&l.cache, m, c, d.Icon, col, g.MarkerSize, markerRingColor, markerRing)
 			continue
 		}
 		fillCircle(&l.cache, c, r, g.Color)
 	}
 }
 
-// drawMarker draws a dot as a marker with its icon, centered at c.
-func (l *Lines) drawMarker(d *Dot, g *LineGroup, c f32.Point, m unit.Metric) {
-	col := d.Color
-	if col == (color.NRGBA{}) {
-		col = g.Color
-	}
-	r := float32(m.Dp(g.MarkerSize)) / 2
-	fillCircle(&l.cache, c, r+float32(m.Dp(markerRing)), markerRingColor)
-	fillCircle(&l.cache, c, r, col)
+// DrawMarker draws a round marker of the given diameter and color with an icon, centered at c,
+// with a ring of the given width and color around it.
+func DrawMarker(ops *op.Ops, m unit.Metric, c f32.Point, icon *widget.Icon, col color.NRGBA, size unit.Dp, ring color.NRGBA, ringWidth unit.Dp) {
+	r := float32(m.Dp(size)) / 2
+	fillCircle(ops, c, r+float32(m.Dp(ringWidth)), ring)
+	fillCircle(ops, c, r, col)
 
-	size := int(2 * r * markerIcon)
-	off := c.Sub(f32.Pt(float32(size)/2, float32(size)/2)).Round()
-	defer op.Offset(off).Push(&l.cache).Pop()
-	gtx := layout.Context{Ops: &l.cache, Metric: m, Constraints: layout.Exact(image.Pt(size, size))}
-	d.Icon.Layout(gtx, iconColor(col))
+	sz := int(2 * r * markerIcon)
+	off := c.Sub(f32.Pt(float32(sz)/2, float32(sz)/2)).Round()
+	defer op.Offset(off).Push(ops).Pop()
+	gtx := layout.Context{Ops: ops, Metric: m, Constraints: layout.Exact(image.Pt(sz, sz))}
+	icon.Layout(gtx, iconColor(col))
 }
 
 // iconColor returns the color for icons on a marker of color c: white, or black on light colors.
