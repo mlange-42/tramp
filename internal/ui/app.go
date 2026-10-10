@@ -63,6 +63,10 @@ type overlayState struct {
 // App is the main application state.
 type App struct {
 	window *app.Window
+	// current is the window that invalidate redraws. It changes when the window is recreated, see [App.recreateWindow].
+	current *atomic.Pointer[app.Window]
+	// deviceLost is the time the GPU device was last lost, see [App.recreateWindow].
+	deviceLost time.Time
 	// win is the window size, position and state, for saving them.
 	win    settings.Window
 	metric unit.Metric
@@ -138,8 +142,10 @@ type App struct {
 
 // New creates the application for the given window.
 func New(w *app.Window, opts Options) *App {
-	a := newApp(w.Invalidate, opts)
-	a.window = w
+	current := new(atomic.Pointer[app.Window])
+	current.Store(w)
+	a := newApp(func() { current.Load().Invalidate() }, opts)
+	a.window, a.current = w, current
 	return a
 }
 
@@ -266,6 +272,9 @@ func (a *App) Run() error {
 	for {
 		switch e := a.window.Event().(type) {
 		case app.DestroyEvent:
+			if a.recreateWindow(e.Err) {
+				continue
+			}
 			return e.Err
 		case *app.ClosingEvent:
 			if !a.confirmClose() {
