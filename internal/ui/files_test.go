@@ -276,8 +276,8 @@ func TestLineSizes(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := newApp(func() {}, Options{
-		Layers: DefaultLayers(),
-		State:  settings.Settings{Style: settings.Style{TrackWidth: 4, RouteWidth: 2, WaypointSize: 10}},
+		Maps:  DefaultMaps(),
+		State: settings.Settings{Style: settings.Style{TrackWidth: 4, RouteWidth: 2, WaypointSize: 10}},
 	})
 	defer a.closeTiles()
 	a.files = []*openFile{newOpenFile("mixed.gpx", data)}
@@ -291,7 +291,7 @@ func TestLineSizes(t *testing.T) {
 	}
 
 	// Missing sizes fall back to the defaults.
-	b := newApp(func() {}, Options{Layers: DefaultLayers()})
+	b := newApp(func() {}, Options{Maps: DefaultMaps()})
 	defer b.closeTiles()
 	if b.trackWidth != settings.DefaultTrackWidth || b.routeWidth != settings.DefaultRouteWidth || b.waypointSize != settings.DefaultWaypointSize {
 		t.Errorf("unexpected default sizes %v %v %v", b.trackWidth, b.routeWidth, b.waypointSize)
@@ -299,17 +299,18 @@ func TestLineSizes(t *testing.T) {
 }
 
 func TestViewState(t *testing.T) {
-	layers := DefaultLayers()
-	overlays := DefaultOverlays()
-	view := &settings.View{Lon: 12.4, Lat: 51.3, Zoom: 12, Map: layers[1].Name, Overlays: []string{overlays[2].Layer.Name, "unknown"}}
+	// Not the first map, which is selected by default.
+	layers, _ := splitSections(DefaultMaps(), func(m Map) (string, string) { return m.Section, m.Layer.Name })
+	overlays, _ := splitSections(DefaultOverlays(), func(o Overlay) (string, string) { return o.Section, o.Layer.Name })
+	view := &settings.View{Lon: 12.4, Lat: 51.3, Zoom: 12, Map: layers[1], Overlays: []string{overlays[2], "unknown"}}
 	a := newApp(func() {}, Options{
-		Layers:   layers,
-		Overlays: overlays,
+		Maps:     DefaultMaps(),
+		Overlays: DefaultOverlays(),
 		State:    settings.Settings{View: view, Window: &settings.Window{Width: 800, Height: 600, PanelWidth: 320}},
 	})
 	defer a.closeTiles()
 	s := a.State()
-	if s.View.Map != layers[1].Name || !slices.Equal(s.View.Overlays, []string{overlays[2].Layer.Name}) || s.View.Zoom != 12 {
+	if s.View.Map != layers[1] || !slices.Equal(s.View.Overlays, []string{overlays[2]}) || s.View.Zoom != 12 {
 		t.Errorf("unexpected view %+v", s.View)
 	}
 	if s.Window.PanelWidth != 320 {

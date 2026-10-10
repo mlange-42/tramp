@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"gioui.org/f32"
+	"gioui.org/font"
 	"gioui.org/io/event"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
@@ -28,6 +29,8 @@ type popup struct {
 	help string
 	tip  tooltip
 	icon *widget.Icon
+	// sections are headings in the list of options, in order of their index.
+	sections []Section
 }
 
 func (p *popup) update(gtx layout.Context) {
@@ -154,6 +157,36 @@ func layoutPanel(gtx layout.Context, st *Style, tag event.Tag, content layout.Wi
 	return dims
 }
 
+// layoutOptions draws n options below each other, with the section headings before them.
+func (p *popup) layoutOptions(gtx layout.Context, st *Style, n int, option func(i int) layout.Widget) layout.Dimensions {
+	children := make([]layout.FlexChild, 0, n+len(p.sections))
+	s := 0
+	for i := range n {
+		for ; s < len(p.sections) && p.sections[s].Index <= i; s++ {
+			children = append(children, layout.Rigid(sectionHeading(st, p.sections[s].Name, len(children) == 0)))
+		}
+		children = append(children, layout.Rigid(option(i)))
+	}
+	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
+// sectionHeading returns a heading for a section in a drop-down list, with space above unless first.
+func sectionHeading(st *Style, name string, first bool) layout.Widget {
+	return func(gtx layout.Context) layout.Dimensions {
+		inset := layout.Inset{Bottom: st.Spacing / 2}
+		if !first {
+			inset.Top = st.Spacing
+		}
+		return inset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			l := st.Label(name)
+			l.Color = st.HintFg
+			l.TextSize = st.SmallTextSize
+			l.Font.Weight = font.Bold
+			return l.Layout(gtx)
+		})
+	}
+}
+
 // Select is a drop-down list for choosing one of several options.
 type Select struct {
 	popup
@@ -184,14 +217,12 @@ func (s *Select) Update(gtx layout.Context) bool {
 // Layout draws the drop-down, with the selected option as its label.
 func (s *Select) Layout(gtx layout.Context, st *Style, options []string) layout.Dimensions {
 	return s.layout(gtx, st, options[s.Selected()], options, func(gtx layout.Context) layout.Dimensions {
-		children := make([]layout.FlexChild, len(options))
-		for i, opt := range options {
-			rb := material.RadioButton(st.Theme, &s.enum, strconv.Itoa(i), opt)
+		return s.layoutOptions(gtx, st, len(options), func(i int) layout.Widget {
+			rb := material.RadioButton(st.Theme, &s.enum, strconv.Itoa(i), options[i])
 			rb.Size = st.IconSize
 			rb.TextSize = st.TextSize
-			children[i] = layout.Rigid(rb.Layout)
-		}
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+			return rb.Layout
+		})
 	})
 }
 
@@ -249,13 +280,11 @@ func (m *MultiSelect) Layout(gtx layout.Context, st *Style, options []string) la
 	// The label is widest with all options checked.
 	sizes := []string{m.label(0), m.label(len(m.checks))}
 	return m.layout(gtx, st, m.label(checked), sizes, func(gtx layout.Context) layout.Dimensions {
-		children := make([]layout.FlexChild, len(options))
-		for i, opt := range options {
-			cb := material.CheckBox(st.Theme, &m.checks[i], opt)
+		return m.layoutOptions(gtx, st, len(options), func(i int) layout.Widget {
+			cb := material.CheckBox(st.Theme, &m.checks[i], options[i])
 			cb.Size = st.IconSize
 			cb.TextSize = st.TextSize
-			children[i] = layout.Rigid(cb.Layout)
-		}
-		return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+			return cb.Layout
+		})
 	})
 }

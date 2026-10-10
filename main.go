@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"slices"
 
 	"gioui.org/app"
 	"github.com/mlange-42/tramp/internal/settings"
@@ -34,7 +35,7 @@ func main() {
 		w := new(app.Window)
 		w.Option(ui.WindowOptions(state.Window)...)
 		a := ui.New(w, ui.Options{
-			Layers:    wmsConfig.Maps,
+			Maps:      wmsConfig.Maps,
 			Overlays:  wmsConfig.Overlays,
 			Gradients: gradients,
 			State:     state,
@@ -72,9 +73,9 @@ func loadWMS() ui.WMSConfig {
 		}
 		return cfg
 	}
-	if len(cfg.Maps) == 0 {
+	if !slices.ContainsFunc(cfg.Maps, func(m ui.Map) bool { return m.Section == "" }) {
 		log.Printf("no maps in %s, using default maps", ui.WMSFile)
-		cfg.Maps = ui.DefaultLayers()
+		cfg.Maps = ui.DefaultMaps()
 	}
 	return cfg
 }
