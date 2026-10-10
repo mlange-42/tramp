@@ -194,10 +194,12 @@ func newApp(invalidate func(), opts Options) *App {
 	}
 	for _, l := range a.layers {
 		a.layerNames = append(a.layerNames, l.Name)
+		a.layerSelect.tips = append(a.layerSelect.tips, l.Description)
 	}
 	for _, o := range overlays {
 		a.overlays = append(a.overlays, overlayState{Overlay: o})
 		a.overlayNames = append(a.overlayNames, o.Layer.Name)
+		a.overlaySel.tips = append(a.overlaySel.tips, o.Layer.Description)
 	}
 	a.layerSelect.help, a.layerSelect.icon = "Background map", iconMap
 	a.overlaySel.help = "Overlays on the background map, like hillshading"

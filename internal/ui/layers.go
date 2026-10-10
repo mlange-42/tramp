@@ -143,6 +143,7 @@ func DefaultOverlays() []Overlay {
 			// The free terrestris service adds advertising watermarks to some tiles.
 			Layer: wms.Layer{
 				Name:        "Hillshade (SRTM)",
+				Description: "Relief shading from SRTM elevation data. Worldwide, coarse. Some tiles have watermarks of the terrestris service.",
 				URL:         "https://ows.terrestris.de/osm/service",
 				Layers:      "SRTM30-Hillshade",
 				Format:      "image/png",
@@ -156,6 +157,7 @@ func DefaultOverlays() []Overlay {
 			// Germany only, high resolution. White on flat terrain, unlike the plain "hillshade" layer.
 			Layer: wms.Layer{
 				Name:        "Hillshade Germany (basemap.de)",
+				Description: "High-resolution relief shading by the BKG. Germany only.",
 				Type:        wms.TypeXYZ,
 				URL:         bkgURL + "/wmts_basemapde_schummerung/tile/1.0.0/de_basemapde_web_raster_combshade/default/GLOBAL_WEBMERCATOR/{z}/{y}/{x}.png",
 				Attribution: basemapAttribution,
@@ -167,6 +169,7 @@ func DefaultOverlays() []Overlay {
 		{
 			Layer: wms.Layer{
 				Name:        "Hiking routes",
+				Description: "Marked hiking trails, from waymarkedtrails.org. Worldwide.",
 				Type:        wms.TypeXYZ,
 				URL:         waymarkedURL + "/hiking/{z}/{x}/{y}.png",
 				MaxZoom:     18,
@@ -176,6 +179,7 @@ func DefaultOverlays() []Overlay {
 		{
 			Layer: wms.Layer{
 				Name:        "Cycling routes",
+				Description: "Signed cycling routes, from waymarkedtrails.org. Worldwide.",
 				Type:        wms.TypeXYZ,
 				URL:         waymarkedURL + "/cycling/{z}/{x}/{y}.png",
 				MaxZoom:     18,
@@ -185,6 +189,7 @@ func DefaultOverlays() []Overlay {
 		{
 			Layer: wms.Layer{
 				Name:        "MTB routes",
+				Description: "Signed mountain bike routes, from waymarkedtrails.org. Worldwide.",
 				Type:        wms.TypeXYZ,
 				URL:         waymarkedURL + "/mtb/{z}/{x}/{y}.png",
 				MaxZoom:     18,
@@ -194,6 +199,7 @@ func DefaultOverlays() []Overlay {
 		{
 			Layer: wms.Layer{
 				Name:        "Cycle infrastructure",
+				Description: "Bike lanes, cycle paths and bike parking, from CyclOSM. Worldwide.",
 				Type:        wms.TypeXYZ,
 				URL:         cyclosmURL + "/cyclosm-lite/{z}/{x}/{y}.png",
 				MaxZoom:     20,
@@ -205,6 +211,7 @@ func DefaultOverlays() []Overlay {
 			// Dark labels, for bright maps.
 			Layer: wms.Layer{
 				Name:        "Labels & roads",
+				Description: "Place names and roads in dark text, for bright maps. Worldwide.",
 				URL:         eoxURL,
 				Layers:      "overlay_3857",
 				Format:      "image/png",
@@ -216,6 +223,7 @@ func DefaultOverlays() []Overlay {
 			// Bright labels, for the satellite map.
 			Layer: wms.Layer{
 				Name:        "Labels & roads (bright)",
+				Description: "Place names and roads in bright text, for the satellite map. Worldwide.",
 				URL:         eoxURL,
 				Layers:      "overlay_bright_3857",
 				Format:      "image/png",
@@ -235,6 +243,7 @@ func DefaultMaps() []Map {
 		{
 			Layer: wms.Layer{
 				Name:        "OSM Standard",
+				Description: "Standard OpenStreetMap style. Worldwide, detailed up to zoom 19.",
 				Type:        wms.TypeXYZ,
 				URL:         "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
 				MaxZoom:     19,
@@ -244,6 +253,7 @@ func DefaultMaps() []Map {
 		{
 			Layer: wms.Layer{
 				Name:        "CyclOSM",
+				Description: "OpenStreetMap style for cycling, with bike lanes, surfaces and bike shops. Worldwide.",
 				Type:        wms.TypeXYZ,
 				URL:         cyclosmURL + "/cyclosm/{z}/{x}/{y}.png",
 				MaxZoom:     20,
@@ -252,9 +262,10 @@ func DefaultMaps() []Map {
 		},
 		{
 			Layer: wms.Layer{
-				Name: "OpenTopoMap",
-				Type: wms.TypeXYZ,
-				URL:  "https://tile.opentopomap.org/{z}/{x}/{y}.png",
+				Name:        "OpenTopoMap",
+				Description: "Topographic map with contour lines and hillshading, from OpenStreetMap and SRTM data. Worldwide, up to zoom 17.",
+				Type:        wms.TypeXYZ,
+				URL:         "https://tile.opentopomap.org/{z}/{x}/{y}.png",
 				// Served up to level 17.
 				MaxZoom:     17,
 				Attribution: "Map data © OpenStreetMap contributors, SRTM | Map style © OpenTopoMap (CC-BY-SA)",
@@ -263,6 +274,7 @@ func DefaultMaps() []Map {
 		{
 			Layer: wms.Layer{
 				Name:        "Terrain Light",
+				Description: "Light terrain map from OpenStreetMap data with relief shading. Worldwide, works well under overlays.",
 				URL:         eoxURL,
 				Layers:      "terrain-light_3857",
 				Format:      "image/png",
@@ -273,6 +285,7 @@ func DefaultMaps() []Map {
 		{
 			Layer: wms.Layer{
 				Name:        "Satellite",
+				Description: "Cloud-free Sentinel-2 satellite imagery from 2025. Worldwide, at about 10 m resolution, so blurry when zoomed in close.",
 				URL:         eoxURL,
 				Layers:      "s2cloudless-2025_3857",
 				Format:      "image/jpeg",
@@ -284,6 +297,7 @@ func DefaultMaps() []Map {
 		{
 			Layer: wms.Layer{
 				Name:        "TopPlusOpen",
+				Description: "Official topographic map by the BKG. Worldwide at small scales, Europe at medium scales, full detail only in Germany.",
 				URL:         bkgURL + "/wms_topplus_open",
 				Layers:      "web",
 				Format:      "image/png",
@@ -294,6 +308,7 @@ func DefaultMaps() []Map {
 		{
 			Layer: wms.Layer{
 				Name:        "TopPlusOpen Grey",
+				Description: "Greyscale version of TopPlusOpen, so that tracks and overlays stand out. Same coverage.",
 				URL:         bkgURL + "/wms_topplus_open",
 				Layers:      "web_grau",
 				Format:      "image/png",
@@ -305,6 +320,7 @@ func DefaultMaps() []Map {
 		{
 			Layer: wms.Layer{
 				Name:        "basemap.de",
+				Description: "Official German topographic base map by the BKG. Germany only, very detailed.",
 				Type:        wms.TypeXYZ,
 				URL:         bkgURL + "/wmts_basemapde/tile/1.0.0/de_basemapde_web_raster_farbe/default/GLOBAL_WEBMERCATOR/{z}/{y}/{x}.png",
 				Attribution: basemapAttribution,
@@ -314,8 +330,9 @@ func DefaultMaps() []Map {
 		{
 			// No background map, for showing only the overlays.
 			Layer: wms.Layer{
-				Name: "None",
-				Type: wms.TypeNone,
+				Name:        "None",
+				Description: "No background map, shows only the overlays.",
+				Type:        wms.TypeNone,
 			},
 		},
 	}

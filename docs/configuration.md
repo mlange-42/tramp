@@ -42,6 +42,7 @@ The first map is selected by default.
 maps:
   - section: World
   - name: OpenStreetMap
+    description: OpenStreetMap rendered by EOX. Worldwide.  # tooltip, optional
     url: https://tiles.maps.eox.at/wms
     layers: osm_3857
     format: image/png
