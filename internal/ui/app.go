@@ -108,8 +108,8 @@ type App struct {
 	// hover is the position on the selected item under the pointer in the chart, or near it on the map.
 	hover trackHover
 
-	openBtn   widget.Clickable
-	newBtn    widget.Clickable
+	openBtn   iconButton
+	newBtn    iconButton
 	fileList  widget.List
 	files     []*openFile
 	panelRows []panelRow
@@ -189,6 +189,11 @@ func newApp(invalidate func(), opts Options) *App {
 		a.overlays = append(a.overlays, overlayState{Overlay: o})
 		a.overlayNames = append(a.overlayNames, o.Layer.Name)
 	}
+	a.layerSelect.help, a.layerSelect.icon = "Background map", iconMap
+	a.overlaySel.help = "Overlays on the background map, like hillshading"
+	a.overlaySel.icon = iconLayers
+	a.colorBy.help, a.colorBy.icon = "Color tracks and routes by speed, elevation or slope", iconPalette
+	a.gradientSel.help, a.gradientSel.icon = "Color gradient", iconGradient
 	a.setLayer(max(0, slices.Index(a.layerNames, mapName)))
 	for i, name := range a.overlayNames {
 		if slices.Contains(overlays, name) {
@@ -482,15 +487,13 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 	return st.BarInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return st.Button(&a.newBtn, "New").Layout(gtx)
+				return a.newBtn.Layout(gtx, st, iconNew, "New GPX file for routes and waypoints (Ctrl+N)", true, false)
 			}),
-			layout.Rigid(layout.Spacer{Width: st.Spacing}.Layout),
+			layout.Rigid(layout.Spacer{Width: 1}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return st.Button(&a.openBtn, "Open").Layout(gtx)
+				return a.openBtn.Layout(gtx, st, iconOpen, "Open GPX files (Ctrl+O)", true, false)
 			}),
 			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
-			layout.Rigid(st.Label("Map").Layout),
-			layout.Rigid(layout.Spacer{Width: st.Spacing}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.layerSelect.Layout(gtx, st, a.layerNames)
 			}),

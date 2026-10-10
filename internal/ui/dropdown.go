@@ -24,6 +24,10 @@ type popup struct {
 	open   bool
 	// panel is the event tag for the panel background.
 	panel int
+	// help is the tooltip of the header, if not empty, and icon an icon before the label, if not nil.
+	help string
+	tip  tooltip
+	icon *widget.Icon
 }
 
 func (p *popup) update(gtx layout.Context) {
@@ -42,7 +46,11 @@ func (p *popup) update(gtx layout.Context) {
 // layout draws the header with the given label, and the panel if open.
 // The header is as wide as the widest of the labels in sizes, so that it doesn't change size.
 func (p *popup) layout(gtx layout.Context, st *Style, label string, sizes []string, panel layout.Widget) layout.Dimensions {
+	avail := gtx.Constraints.Max.X
 	dims := p.layoutHeader(gtx, st, label, maxLabelWidth(gtx, st, sizes))
+	if p.help != "" {
+		p.tip.Layout(gtx, st, p.header.Hovered() && !p.open, dims.Size, avail, p.help)
+	}
 	if !p.open {
 		return dims
 	}
@@ -71,6 +79,14 @@ func (p *popup) layoutHeader(gtx layout.Context, st *Style, label string, labelW
 	return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return st.ButtonInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					if p.icon == nil {
+						return layout.Dimensions{}
+					}
+					size := gtx.Sp(st.TextSize) * 5 / 4
+					layoutIcon(gtx, p.icon, image.Point{}, size, th.ContrastFg)
+					return layout.Dimensions{Size: image.Pt(size+gtx.Dp(st.Spacing/2), size)}
+				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					gtx.Constraints.Min.X = labelWidth
 					l := st.Label(label)

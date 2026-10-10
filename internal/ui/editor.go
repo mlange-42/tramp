@@ -10,7 +10,6 @@ import (
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
-	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/mapview"
 	"github.com/mlange-42/tramp/internal/track"
@@ -68,10 +67,9 @@ type vertex struct {
 // editor is the state of editing on the map.
 type editor struct {
 	tool     editTool
-	toolBtns [numTools]widget.Clickable
-	toolTips [numTools]tooltip
-	// undoBtn and redoBtn undo and redo changes, with their tooltips.
-	undoBtn, redoBtn tooltipButton
+	toolBtns [numTools]iconButton
+	// undoBtn and redoBtn undo and redo changes.
+	undoBtn, redoBtn iconButton
 
 	// sel is the selected vertex, if hasSel.
 	sel    vertex
@@ -196,10 +194,10 @@ func (a *App) updateEditor(gtx layout.Context) {
 			a.setTool(editTool(i))
 		}
 	}
-	if e.undoBtn.btn.Clicked(gtx) {
+	if e.undoBtn.Clicked(gtx) {
 		a.undo()
 	}
-	if e.redoBtn.btn.Clicked(gtx) {
+	if e.redoBtn.Clicked(gtx) {
 		a.redo()
 	}
 	f := a.editing

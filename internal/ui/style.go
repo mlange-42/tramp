@@ -74,6 +74,8 @@ type Style struct {
 	EditMidFill color.NRGBA
 	// EditBand is the color of the lines to a point being moved or added.
 	EditBand color.NRGBA
+	// ToolIconSize is the size of icons in toolbar buttons, ToolIconPad the padding around them.
+	ToolIconSize, ToolIconPad unit.Dp
 	// EditHandleSize is the diameter of the points of the edited file, EditMidSize that of segment midpoints.
 	EditHandleSize, EditMidSize unit.Dp
 	// MutedTrack is the color of the selected track or route on the map,
@@ -159,6 +161,8 @@ func DefaultStyle() *Style {
 		EditHandleRing: color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xff},
 		EditMidFill:    color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xa0},
 		EditBand:       color.NRGBA{R: 0xd0, G: 0x40, B: 0x20, A: 0xc0},
+		ToolIconSize:   18,
+		ToolIconPad:    3,
 		EditHandleSize: 9,
 		EditMidSize:    7,
 	}

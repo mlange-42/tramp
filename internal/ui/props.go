@@ -54,7 +54,7 @@ type propField struct {
 // props is the properties box in the side panel for the selection of the edited file.
 type props struct {
 	fields      [numPropFields]propField
-	deleteRoute tooltipButton
+	deleteRoute iconButton
 }
 
 // propValue returns the name or description of a target, and false if it doesn't exist.
@@ -127,7 +127,7 @@ func (a *App) propTargets() (route, point propTarget, hasRoute, hasPoint bool) {
 // Changes are applied when the field loses the focus or Enter is pressed, or before the selection changes.
 func (a *App) updateProps(gtx layout.Context) {
 	p := &a.props
-	if p.deleteRoute.btn.Clicked(gtx) {
+	if p.deleteRoute.Clicked(gtx) {
 		a.deleteRoute()
 	}
 	f := a.editing
@@ -290,7 +290,7 @@ func (a *App) layoutProps(gtx layout.Context) layout.Dimensions {
 
 	if hasRoute {
 		heading("Route", func(gtx layout.Context) layout.Dimensions {
-			return p.deleteRoute.Layout(gtx, st, "Delete", "Delete the whole route", true)
+			return p.deleteRoute.Layout(gtx, st, iconDelete, "Delete the whole route", true, false)
 		})
 		field("Name", routeNameField)
 		field("Desc", routeDescField)

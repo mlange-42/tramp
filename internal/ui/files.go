@@ -37,10 +37,11 @@ type openFile struct {
 	visible widget.Bool
 	// click is the name of the file: a click selects its first track or route, a double click zooms to it.
 	click    widget.Clickable
-	close    widget.Clickable
-	expand   widget.Clickable
+	close    iconButton
+	expand   iconButton
 	colorBtn widget.Clickable
-	editBtn  widget.Clickable
+	editBtn  iconButton
+	tips     rowTips
 	expanded bool
 	drag     rowDrag
 	// defColor is the color for new items of a file without items.
@@ -89,6 +90,7 @@ type fileItem struct {
 	// click is the name of the item: a click selects it, a double click zooms to it.
 	click    widget.Clickable
 	colorBtn widget.Clickable
+	tips     rowTips
 	drag     rowDrag
 }
 

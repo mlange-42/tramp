@@ -26,10 +26,10 @@ const (
 )
 
 // chartAxes are the names of the axes in the toggle, and their keys in the settings file.
-var chartAxes = []struct{ name, key string }{
-	{"Dist", "distance"},
-	{"Time", "trip_time"},
-	{"Clock", "clock_time"},
+var chartAxes = []struct{ name, key, help string }{
+	{"Dist", "distance", "Show the profile over the distance"},
+	{"Time", "trip_time", "Show the profile over the time since the start"},
+	{"Clock", "clock_time", "Show the profile over the time of day"},
 }
 
 // timeSteps are the tick steps for the time axes up to a day, in seconds.
@@ -76,27 +76,31 @@ func (a *App) layoutAxisToggle(gtx layout.Context) layout.Dimensions {
 			if !enabled {
 				gtx = gtx.Disabled()
 			}
-			return c.axisBtns[i].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				l := st.SmallLabel(chartAxes[i].name)
-				if !enabled {
-					l.Color = st.HintFg
-				}
-				macro := op.Record(gtx.Ops)
-				dims := l.Layout(gtx)
-				call := macro.Stop()
-				size := image.Pt(dims.Size.X+2*pad, gtx.Constraints.Max.Y)
-				bg := st.StatusBg
-				if ax == c.xAxis {
-					bg = st.SelectedBg
-				}
-				paint.FillShape(gtx.Ops, bg, clip.Rect{Max: size}.Op())
-				stack := op.Offset(image.Pt(pad, (size.Y-dims.Size.Y)/2)).Push(gtx.Ops)
-				call.Add(gtx.Ops)
-				stack.Pop()
-				if enabled && ax != c.xAxis {
-					pointer.CursorPointer.Add(gtx.Ops)
-				}
-				return layout.Dimensions{Size: size}
+			// The toggle is at the bottom right of the window.
+			c.axisTips[i].above, c.axisTips[i].right = true, true
+			return withTooltip(gtx, st, &c.axisTips[i], c.axisBtns[i].Hovered(), chartAxes[i].help, func(gtx layout.Context) layout.Dimensions {
+				return c.axisBtns[i].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					l := st.SmallLabel(chartAxes[i].name)
+					if !enabled {
+						l.Color = st.HintFg
+					}
+					macro := op.Record(gtx.Ops)
+					dims := l.Layout(gtx)
+					call := macro.Stop()
+					size := image.Pt(dims.Size.X+2*pad, gtx.Constraints.Max.Y)
+					bg := st.StatusBg
+					if ax == c.xAxis {
+						bg = st.SelectedBg
+					}
+					paint.FillShape(gtx.Ops, bg, clip.Rect{Max: size}.Op())
+					stack := op.Offset(image.Pt(pad, (size.Y-dims.Size.Y)/2)).Push(gtx.Ops)
+					call.Add(gtx.Ops)
+					stack.Pop()
+					if enabled && ax != c.xAxis {
+						pointer.CursorPointer.Add(gtx.Ops)
+					}
+					return layout.Dimensions{Size: size}
+				})
 			})
 		})
 	}

@@ -218,8 +218,6 @@ func names[T any](items []T, name func(T) string) []string {
 func (a *App) layoutColoring(gtx layout.Context) layout.Dimensions {
 	st := a.style
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-		layout.Rigid(st.Label("Color by").Layout),
-		layout.Rigid(layout.Spacer{Width: st.Spacing}.Layout),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return a.colorBy.Layout(gtx, st, metricNames)
 		}),
