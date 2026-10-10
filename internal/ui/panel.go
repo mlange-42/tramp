@@ -3,8 +3,10 @@ package ui
 import (
 	"image"
 	"image/color"
+	"math"
 	"slices"
 
+	"gioui.org/f32"
 	"gioui.org/gesture"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
@@ -75,16 +77,13 @@ func dragMove(dy float32, prev, next int) int {
 // updateFiles processes input on the side panel.
 func (a *App) updateFiles(gtx layout.Context) {
 	a.updateDrags(gtx)
-	for i := 0; i < len(a.files); i++ {
-		f := a.files[i]
+	for _, f := range a.files {
 		if f.close.Clicked(gtx) {
-			if a.selected != nil && slices.Contains(f.items, a.selected) {
-				a.selected = nil
-			}
-			a.files = slices.Delete(a.files, i, i+1)
-			a.tracksChanged = true
-			i--
-			continue
+			// Not while iterating the files.
+			defer a.closeFile(f)
+		}
+		if f.editBtn.Clicked(gtx) {
+			a.toggleEdit(f)
 		}
 		if f.visible.Update(gtx) {
 			a.tracksChanged = true
@@ -227,7 +226,21 @@ func (a *App) layoutFileRow(gtx layout.Context, f *openFile) layout.Dimensions {
 			}
 			return a.layoutSwatch(gtx, &f.colorBtn, f.colors())
 		}),
-		layout.Flexed(1, a.rowText(&f.click, f.name, f.summary, f.visible.Value)),
+		layout.Flexed(1, a.rowText(&f.click, a.fileTitle(f), f.summary, f.visible.Value)),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if !f.editable() {
+				return layout.Dimensions{}
+			}
+			col := st.HintFg
+			if a.editing == f {
+				col = st.EditActive
+			}
+			return material.Clickable(gtx, &f.editBtn, func(gtx layout.Context) layout.Dimensions {
+				return layout.UniformInset(st.Spacing/2).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					return layoutPencil(gtx, gtx.Dp(st.IconSize), col)
+				})
+			})
+		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if !f.expandable() {
 				return layout.Dimensions{}
@@ -259,6 +272,34 @@ func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem) layou
 			layout.Rigid(a.dragHandle(&it.drag)),
 		)
 	})
+}
+
+// fileTitle returns the name of the file, marked if it has unsaved changes.
+func (a *App) fileTitle(f *openFile) string {
+	if a.editing == f && f.dirty() {
+		return f.name + " *"
+	}
+	return f.name
+}
+
+// layoutPencil draws a pencil icon of the given size, pointing to the lower left.
+func layoutPencil(gtx layout.Context, size int, col color.NRGBA) layout.Dimensions {
+	s := float32(size)
+	l, w := s*1.15, s*0.28
+	tip := w * 1.1
+	var path clip.Path
+	path.Begin(gtx.Ops)
+	// Along the x axis, centered, with the tip at the left.
+	path.MoveTo(f32.Pt(-l/2, 0))
+	path.LineTo(f32.Pt(-l/2+tip, -w/2))
+	path.LineTo(f32.Pt(l/2, -w/2))
+	path.LineTo(f32.Pt(l/2, w/2))
+	path.LineTo(f32.Pt(-l/2+tip, w/2))
+	path.Close()
+	spec := path.End()
+	defer op.Affine(f32.AffineId().Rotate(f32.Pt(0, 0), -math.Pi/4).Offset(f32.Pt(s/2, s/2))).Push(gtx.Ops).Pop()
+	paint.FillShape(gtx.Ops, col, clip.Outline{Path: spec}.Op())
+	return layout.Dimensions{Size: image.Pt(size, size)}
 }
 
 // dragHandle returns a grip for dragging an entry, drawn as three horizontal lines.

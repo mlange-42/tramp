@@ -54,6 +54,18 @@ Use *Color by* in the toolbar to color all tracks by speed, elevation or slope, 
 The color range covers the values of all visible tracks, ignoring the most extreme 2% at each end, and is shown in a legend on the map.
 Tracks and routes without the required data, like routes without times for speed, keep their own color.
 
+### Editing
+
+Routes and waypoints in GPX files can be edited; recorded tracks are read-only.
+Create a new file with *New* or Ctrl+N, or click the pencil of an opened file to edit it.
+One file at a time is in edit mode. Unsaved changes are marked with `*` after the file name.
+
+Save with Ctrl+S, undo with Ctrl+Z and redo with Ctrl+Y or Ctrl+Shift+Z.
+When leaving edit mode, closing the file or closing TRAMP with unsaved changes,
+TRAMP asks whether to save or discard them.
+Before overwriting a file written by other software for the first time, TRAMP asks for confirmation,
+as content it doesn't read, like vendor extensions, is lost.
+
 On Linux, the file dialog requires `zenity`, `kdialog` or a similar tool, which most desktops have installed.
 
 ### Settings

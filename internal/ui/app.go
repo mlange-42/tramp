@@ -14,6 +14,7 @@ import (
 
 	"gioui.org/app"
 	"gioui.org/io/key"
+	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -107,12 +108,17 @@ type App struct {
 	hover trackHover
 
 	openBtn   widget.Clickable
+	newBtn    widget.Clickable
 	fileList  widget.List
 	files     []*openFile
 	panelRows []panelRow
 	// tracksChanged requests updating the lines on the map.
 	tracksChanged bool
 	dialogOpen    atomic.Bool
+	// editing is the file in edit mode, or nil.
+	editing *openFile
+	// closeOK is set when unsaved changes were saved or discarded on closing the window.
+	closeOK bool
 
 	// nextColor is the index of the default color for the next opened file.
 	nextColor int
@@ -123,6 +129,8 @@ type App struct {
 	pending      map[int][]settings.File
 	loaded       []loadBatch
 	colorChanges []colorChange
+	// uiTasks are functions to run on the UI goroutine, see [App.runOnUI].
+	uiTasks []func()
 }
 
 // New creates the application for the given window.
@@ -251,6 +259,10 @@ func (a *App) Run() error {
 		switch e := a.window.Event().(type) {
 		case app.DestroyEvent:
 			return e.Err
+		case *app.ClosingEvent:
+			if !a.confirmClose() {
+				e.Abort()
+			}
 		case app.ConfigEvent:
 			a.trackConfig(e.Config)
 		case app.FrameEvent:
@@ -261,6 +273,13 @@ func (a *App) Run() error {
 		default:
 			a.plat.event(a, e)
 		}
+	}
+}
+
+// closeWindow closes the window.
+func (a *App) closeWindow() {
+	if a.window != nil {
+		a.window.Perform(system.ActionClose)
 	}
 }
 
@@ -335,19 +354,14 @@ func (a *App) update(gtx layout.Context) {
 		a.setOverlay(i, a.overlaySel.Checked(i))
 	}
 
-	open := a.openBtn.Clicked(gtx)
-	for {
-		ev, ok := gtx.Event(key.Filter{Name: "O", Required: key.ModShortcut})
-		if !ok {
-			break
-		}
-		if e, ok := ev.(key.Event); ok && e.State == key.Press {
-			open = true
-		}
-	}
-	if open {
+	a.runUITasks()
+	if a.openBtn.Clicked(gtx) {
 		a.showOpenDialog()
 	}
+	if a.newBtn.Clicked(gtx) {
+		a.newFile()
+	}
+	a.updateShortcuts(gtx)
 
 	a.addLoaded()
 	a.applyColors()
@@ -387,6 +401,38 @@ func (a *App) update(gtx layout.Context) {
 	a.updateHighlight()
 }
 
+// updateShortcuts handles the global keyboard shortcuts.
+func (a *App) updateShortcuts(gtx layout.Context) {
+	for {
+		ev, ok := gtx.Event(
+			key.Filter{Name: "O", Required: key.ModShortcut},
+			key.Filter{Name: "N", Required: key.ModShortcut},
+			key.Filter{Name: "S", Required: key.ModShortcut},
+			key.Filter{Name: "Z", Required: key.ModShortcut, Optional: key.ModShift},
+			key.Filter{Name: "Y", Required: key.ModShortcut},
+		)
+		if !ok {
+			break
+		}
+		e, ok := ev.(key.Event)
+		if !ok || e.State != key.Press {
+			continue
+		}
+		switch {
+		case e.Name == "O":
+			a.showOpenDialog()
+		case e.Name == "N":
+			a.newFile()
+		case e.Name == "S":
+			a.save()
+		case e.Name == "Y", e.Name == "Z" && e.Modifiers.Contain(key.ModShift):
+			a.redo()
+		case e.Name == "Z":
+			a.undo()
+		}
+	}
+}
+
 func (a *App) layout(gtx layout.Context) layout.Dimensions {
 	a.update(gtx)
 	paint.Fill(gtx.Ops, a.style.Theme.Bg)
@@ -422,6 +468,10 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 	st := a.style
 	return st.BarInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return st.Button(&a.newBtn, "New").Layout(gtx)
+			}),
+			layout.Rigid(layout.Spacer{Width: st.Spacing}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return st.Button(&a.openBtn, "Open").Layout(gtx)
 			}),

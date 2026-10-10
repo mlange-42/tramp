@@ -205,10 +205,8 @@ func TestSetColors(t *testing.T) {
 }
 
 func TestItemOrder(t *testing.T) {
-	f := &openFile{bounds: geo.EmptyRect()}
-	for range 3 {
-		f.add(&fileItem{})
-	}
+	f := &openFile{data: &track.File{}, items: []*fileItem{{}, {}, {}}}
+	f.update()
 	if o := f.order(); o != nil {
 		t.Errorf("expected nil for file order, got %v", o)
 	}
