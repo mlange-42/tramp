@@ -83,6 +83,10 @@ func locate(dist [][]float64, d float64) (i, j int, t float64, ok bool) {
 
 // nearestSegment returns the line i and segment j closest to p, and the fraction t of the segment
 // before the closest point. It reports false if no segment is within radius.
+//
+// It checks all segments of lines whose bounds are near p, on every frame while the pointer is on the map.
+// If this gets too slow for long tracks, we may have to add an acceleration structure,
+// like a k-d tree or a grid of segments, built once per item.
 func nearestSegment(lines []mapview.Polyline, p geo.Point, radius float64) (i, j int, t float64, ok bool) {
 	best := radius * radius
 	for li, l := range lines {
