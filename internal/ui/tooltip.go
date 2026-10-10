@@ -21,7 +21,8 @@ type tooltip struct {
 	hovered bool
 	since   time.Time
 	// above shows the tooltip above the widget, e.g. at the bottom of the window.
-	above bool
+	// right aligns it with the right edge of the widget, e.g. at the right of the window.
+	above, right bool
 }
 
 // Layout draws the tooltip for a widget of the given size, if it has been hovered long enough.
@@ -40,7 +41,12 @@ func (t *tooltip) Layout(gtx layout.Context, st *Style, hovered bool, size image
 		return
 	}
 
-	gtx.Constraints = layout.Constraints{Max: image.Pt(min(gtx.Dp(tooltipWidth), max(avail, size.X)), gtx.Constraints.Max.Y)}
+	maxW := gtx.Dp(tooltipWidth)
+	if !t.right {
+		maxW = min(maxW, max(avail, size.X))
+	}
+	// The widget's constraints may be too small for the tooltip, like in the chart's label strip.
+	gtx.Constraints = layout.Constraints{Max: image.Pt(maxW, gtx.Dp(400))}
 	macro := op.Record(gtx.Ops)
 	dims := layoutPanel(gtx, st, t, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(st.Spacing/2).Layout(gtx, st.SmallLabel(text).Layout)
@@ -48,6 +54,9 @@ func (t *tooltip) Layout(gtx layout.Context, st *Style, hovered bool, size image
 	call := macro.Stop()
 
 	x, y := min(0, avail-dims.Size.X), size.Y+gtx.Dp(2)
+	if t.right {
+		x = size.X - dims.Size.X
+	}
 	if t.above {
 		y = -dims.Size.Y - gtx.Dp(2)
 	}

@@ -76,8 +76,8 @@ func (a *App) layoutAxisToggle(gtx layout.Context) layout.Dimensions {
 			if !enabled {
 				gtx = gtx.Disabled()
 			}
-			// The toggle is at the bottom of the window.
-			c.axisTips[i].above = true
+			// The toggle is at the bottom right of the window.
+			c.axisTips[i].above, c.axisTips[i].right = true, true
 			return withTooltip(gtx, st, &c.axisTips[i], c.axisBtns[i].Hovered(), chartAxes[i].help, func(gtx layout.Context) layout.Dimensions {
 				return c.axisBtns[i].Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					l := st.SmallLabel(chartAxes[i].name)

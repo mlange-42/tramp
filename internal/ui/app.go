@@ -189,11 +189,11 @@ func newApp(invalidate func(), opts Options) *App {
 		a.overlays = append(a.overlays, overlayState{Overlay: o})
 		a.overlayNames = append(a.overlayNames, o.Layer.Name)
 	}
-	a.layerSelect.help = "Background map"
+	a.layerSelect.help, a.layerSelect.icon = "Background map", iconMap
 	a.overlaySel.help = "Overlays on the background map, like hillshading"
 	a.overlaySel.icon = iconLayers
-	a.colorBy.help = "Color tracks and routes by a value"
-	a.gradientSel.help = "Color gradient"
+	a.colorBy.help, a.colorBy.icon = "Color tracks and routes by speed, elevation or slope", iconPalette
+	a.gradientSel.help, a.gradientSel.icon = "Color gradient", iconGradient
 	a.setLayer(max(0, slices.Index(a.layerNames, mapName)))
 	for i, name := range a.overlayNames {
 		if slices.Contains(overlays, name) {
@@ -494,8 +494,6 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 				return a.openBtn.Layout(gtx, st, iconOpen, "Open GPX files (Ctrl+O)", true, false)
 			}),
 			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
-			layout.Rigid(st.Label("Map").Layout),
-			layout.Rigid(layout.Spacer{Width: st.Spacing}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.layerSelect.Layout(gtx, st, a.layerNames)
 			}),
