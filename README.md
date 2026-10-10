@@ -79,7 +79,7 @@ with the same name and position as its waypoint.
 TRAMP treats such points as linked: they share one handle on the map and are moved together.
 Deleting a linked route point removes it from the route only.
 
-Save with Ctrl+S, undo with Ctrl+Z and redo with Ctrl+Y or Ctrl+Shift+Z.
+Save with Ctrl+S. Undo and redo with the toolbar buttons, or with Ctrl+Z and Ctrl+Y or Ctrl+Shift+Z.
 When leaving edit mode, closing the file or closing TRAMP with unsaved changes,
 TRAMP asks whether to save or discard them.
 Before overwriting a file written by other software for the first time, TRAMP asks for confirmation,

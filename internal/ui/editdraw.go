@@ -172,6 +172,20 @@ func (a *App) layoutTools(gtx layout.Context) layout.Dimensions {
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
 }
 
+// layoutUndoRedo draws the undo and redo buttons, disabled if there is nothing to undo or redo.
+func (a *App) layoutUndoRedo(gtx layout.Context) layout.Dimensions {
+	st, e, f := a.style, &a.editor, a.editing
+	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return e.undoBtn.Layout(gtx, st, "Undo", "Undo the last change (Ctrl+Z)", len(f.edit.undo) > 0)
+		}),
+		layout.Rigid(layout.Spacer{Width: st.Spacing}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return e.redoBtn.Layout(gtx, st, "Redo", "Redo the last undone change (Ctrl+Y or Ctrl+Shift+Z)", len(f.edit.redo) > 0)
+		}),
+	)
+}
+
 // editHint returns a hint on using the current tool, for the status bar.
 func (a *App) editHint() string {
 	e := &a.editor

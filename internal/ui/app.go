@@ -497,6 +497,8 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 					layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
 					layout.Rigid(a.layoutTools),
+					layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
+					layout.Rigid(a.layoutUndoRedo),
 				)
 			}),
 		)

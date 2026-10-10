@@ -64,6 +64,8 @@ type editor struct {
 	tool     editTool
 	toolBtns [numTools]widget.Clickable
 	toolTips [numTools]tooltip
+	// undoBtn and redoBtn undo and redo changes, with their tooltips.
+	undoBtn, redoBtn tooltipButton
 
 	// sel is the selected vertex, if hasSel.
 	sel    vertex
@@ -170,6 +172,12 @@ func (a *App) updateEditor(gtx layout.Context) {
 		if e.toolBtns[i].Clicked(gtx) {
 			a.setTool(editTool(i))
 		}
+	}
+	if e.undoBtn.btn.Clicked(gtx) {
+		a.undo()
+	}
+	if e.redoBtn.btn.Clicked(gtx) {
+		a.redo()
 	}
 	f := a.editing
 	if f == nil {

@@ -7,6 +7,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
+	"gioui.org/widget"
 )
 
 const (
@@ -51,4 +52,22 @@ func (t *tooltip) Layout(gtx layout.Context, st *Style, hovered bool, size image
 	call.Add(gtx.Ops)
 	stack.Pop()
 	op.Defer(gtx.Ops, macro.Stop())
+}
+
+// tooltipButton is a button with a tooltip.
+type tooltipButton struct {
+	btn widget.Clickable
+	tip tooltip
+}
+
+// Layout draws the button, disabled if not enabled, and its tooltip.
+func (b *tooltipButton) Layout(gtx layout.Context, st *Style, label, tip string, enabled bool) layout.Dimensions {
+	avail := gtx.Constraints.Max.X
+	bgtx := gtx
+	if !enabled {
+		bgtx = gtx.Disabled()
+	}
+	dims := st.Button(&b.btn, label).Layout(bgtx)
+	b.tip.Layout(gtx, st, b.btn.Hovered(), dims.Size, avail, tip)
+	return dims
 }
