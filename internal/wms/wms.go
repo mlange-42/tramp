@@ -33,6 +33,8 @@ const (
 type Layer struct {
 	// Name is a human-readable name for the layer.
 	Name string `yaml:"name"`
+	// Description is shown as a tooltip in the list of layers. May be empty.
+	Description string `yaml:"description,omitempty"`
 	// Type is [TypeWMS] (the default if empty), [TypeXYZ] or [TypeNone].
 	Type string `yaml:"type,omitempty"`
 	// URL is the service endpoint, without request parameters.

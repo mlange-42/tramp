@@ -31,6 +31,11 @@ type popup struct {
 	icon *widget.Icon
 	// sections are headings in the list of options, in order of their index.
 	sections []Section
+	// tips are the tooltips of the options, if not empty, with their state in optTips.
+	tips    []string
+	optTips []tooltip
+	// avail is the width from the header to the right edge of the window, for the option tooltips.
+	avail int
 }
 
 func (p *popup) update(gtx layout.Context) {
@@ -49,10 +54,10 @@ func (p *popup) update(gtx layout.Context) {
 // layout draws the header with the given label, and the panel if open.
 // The header is as wide as the widest of the labels in sizes, so that it doesn't change size.
 func (p *popup) layout(gtx layout.Context, st *Style, label string, sizes []string, panel layout.Widget) layout.Dimensions {
-	avail := gtx.Constraints.Max.X
+	p.avail = gtx.Constraints.Max.X
 	dims := p.layoutHeader(gtx, st, label, maxLabelWidth(gtx, st, sizes))
 	if p.help != "" {
-		p.tip.Layout(gtx, st, p.header.Hovered() && !p.open, dims.Size, avail, p.help)
+		p.tip.Layout(gtx, st, p.header.Hovered() && !p.open, dims.Size, p.avail, p.help)
 	}
 	if !p.open {
 		return dims
@@ -158,14 +163,24 @@ func layoutPanel(gtx layout.Context, st *Style, tag event.Tag, content layout.Wi
 }
 
 // layoutOptions draws n options below each other, with the section headings before them.
-func (p *popup) layoutOptions(gtx layout.Context, st *Style, n int, option func(i int) layout.Widget) layout.Dimensions {
+// hovered reports whether option i is hovered, for showing its tooltip.
+func (p *popup) layoutOptions(gtx layout.Context, st *Style, n int, option func(i int) layout.Widget, hovered func(i int) bool) layout.Dimensions {
+	if len(p.optTips) != n {
+		p.optTips = make([]tooltip, n)
+	}
 	children := make([]layout.FlexChild, 0, n+len(p.sections))
 	s := 0
 	for i := range n {
 		for ; s < len(p.sections) && p.sections[s].Index <= i; s++ {
 			children = append(children, layout.Rigid(sectionHeading(st, p.sections[s].Name, len(children) == 0)))
 		}
-		children = append(children, layout.Rigid(option(i)))
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			dims := option(i)(gtx)
+			if i < len(p.tips) && p.tips[i] != "" {
+				p.optTips[i].Layout(gtx, st, hovered(i), dims.Size, p.avail, p.tips[i])
+			}
+			return dims
+		}))
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
@@ -222,6 +237,9 @@ func (s *Select) Layout(gtx layout.Context, st *Style, options []string) layout.
 			rb.Size = st.IconSize
 			rb.TextSize = st.TextSize
 			return rb.Layout
+		}, func(i int) bool {
+			k, ok := s.enum.Hovered()
+			return ok && k == strconv.Itoa(i)
 		})
 	})
 }
@@ -285,6 +303,6 @@ func (m *MultiSelect) Layout(gtx layout.Context, st *Style, options []string) la
 			cb.Size = st.IconSize
 			cb.TextSize = st.TextSize
 			return cb.Layout
-		})
+		}, func(i int) bool { return m.checks[i].Hovered() })
 	})
 }
