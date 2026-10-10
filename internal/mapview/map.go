@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"math"
 	"slices"
+	"time"
 
 	"gioui.org/f32"
 	"gioui.org/io/event"
@@ -24,6 +25,10 @@ const (
 	// maxFallbackLevels is how many levels up the map looks for a coarser tile
 	// to show while a tile is loading.
 	maxFallbackLevels = 6
+	// doubleClickTime is the longest time between the clicks of a double click.
+	doubleClickTime = 300 * time.Millisecond
+	// doubleClickSlop is the farthest distance between the clicks of a double click, in pixels.
+	doubleClickSlop = 6
 )
 
 var background = color.NRGBA{R: 0xe0, G: 0xe0, B: 0xe0, A: 0xff}
@@ -50,6 +55,12 @@ type Map struct {
 	dragID   pointer.ID
 	last     f32.Point
 	wanted   []geo.TileKey
+
+	// lastClick is the time and position of the last primary click, if hasClick, for detecting double clicks.
+	lastClick    time.Duration
+	lastClickPos f32.Point
+	hasClick     bool
+	doubleClick  bool
 }
 
 // New creates a map centered on the given position.
@@ -136,6 +147,9 @@ func (m *Map) Update(gtx layout.Context) {
 				m.last = e.Position
 				gtx.Execute(pointer.GrabCmd{Tag: m, ID: e.PointerID})
 			}
+			if e.Buttons.Contain(pointer.ButtonPrimary) {
+				m.click(e)
+			}
 		case pointer.Drag:
 			if m.dragging && e.PointerID == m.dragID {
 				d := e.Position.Sub(m.last)
@@ -161,6 +175,25 @@ func (m *Map) Update(gtx layout.Context) {
 		m.Hover = m.View.ToMap(float64(e.Position.X), float64(e.Position.Y))
 		m.HoverValid = true
 	}
+}
+
+// DoubleClicked reports whether the map was double-clicked with the primary button since the last call.
+// The position is [Map.Hover].
+func (m *Map) DoubleClicked() bool {
+	d := m.doubleClick
+	m.doubleClick = false
+	return d
+}
+
+// click registers a primary click, and detects double clicks. A third click starts a new double click.
+func (m *Map) click(e pointer.Event) {
+	d := e.Position.Sub(m.lastClickPos)
+	if m.hasClick && e.Time-m.lastClick <= doubleClickTime && d.X*d.X+d.Y*d.Y <= doubleClickSlop*doubleClickSlop {
+		m.doubleClick = true
+		m.hasClick = false
+		return
+	}
+	m.lastClick, m.lastClickPos, m.hasClick = e.Time, e.Position, true
 }
 
 // TileLevel returns the tile level used for the current zoom.

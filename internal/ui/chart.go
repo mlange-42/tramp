@@ -65,6 +65,8 @@ type chart struct {
 	// hovering reports whether the pointer is over the plot, at hoverX.
 	hovering bool
 	hoverX   float32
+	// clicked reports whether the plot was clicked with the primary button in this frame, at hoverX.
+	clicked bool
 
 	// yLo and yHi are the value axis range in the shown unit at the last drawing, if axisOK.
 	yLo, yHi float64
@@ -196,8 +198,9 @@ func (c *chart) toX(x float32) float64 {
 	return c.from + float64(x-float32(c.plot.Min.X))/float64(c.plot.Dx())*(c.to-c.from)
 }
 
-// update applies zooming and panning, and tracks the hovered position.
+// update applies zooming and panning, and tracks the hovered and clicked position.
 func (c *chart) update(gtx layout.Context) {
+	c.clicked = false
 	for {
 		ev, ok := gtx.Event(pointer.Filter{
 			Target:  c,
@@ -223,6 +226,10 @@ func (c *chart) update(gtx layout.Context) {
 			if !c.dragging && e.Buttons.Contain(pointer.ButtonSecondary) {
 				c.dragging, c.dragID, c.lastX = true, e.PointerID, e.Position.X
 				gtx.Execute(pointer.GrabCmd{Tag: c, ID: e.PointerID})
+			}
+			// Clicks on the axis toggle below the plot are not for the chart.
+			if e.Buttons.Contain(pointer.ButtonPrimary) && e.Position.Round().In(c.plot) {
+				c.clicked = true
 			}
 		case pointer.Drag:
 			if c.dragging && e.PointerID == c.dragID {
