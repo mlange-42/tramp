@@ -196,6 +196,10 @@ func (a *App) updateEditor(gtx layout.Context) {
 	}
 
 	a.updateEditKeys(gtx)
+	// Clicking the map ends typing in a property field, which applies it.
+	if len(events) > 0 && a.propsFocused(gtx) {
+		gtx.Execute(key.FocusCmd{})
+	}
 	// A right click without panning clears the selection.
 	if secondary {
 		e.drag = editDrag{}
@@ -257,6 +261,7 @@ func (a *App) updateEditKeys(gtx layout.Context) {
 		filters = append(filters, key.Filter{Name: key.Name(t.key)})
 	}
 	e := &a.editor
+	typing := a.propsFocused(gtx)
 	for {
 		ev, ok := gtx.Event(filters...)
 		if !ok {
@@ -264,6 +269,13 @@ func (a *App) updateEditKeys(gtx layout.Context) {
 		}
 		ke, ok := ev.(key.Event)
 		if !ok || ke.State != key.Press {
+			continue
+		}
+		// While typing in a property field, keys are for the field, and Esc reverts it.
+		if typing {
+			if ke.Name == key.NameEscape {
+				a.revertProps(gtx)
+			}
 			continue
 		}
 		switch ke.Name {

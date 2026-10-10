@@ -74,6 +74,11 @@ In edit mode, the toolbar shows the edit tools, also selected with the keys S, W
 Hover a tool for a short help.
 Moved and added points have no elevation.
 
+The names of the points of the edited file are shown on the map.
+Below the file list, the *Properties* box shows the name and description of the selected route,
+route point or waypoint. Changes apply on Enter, Tab or when clicking elsewhere, and Esc reverts them.
+The box also has a button to delete the whole route.
+
 Many GPS devices build routes from stored waypoints, and write each route point
 with the same name and position as its waypoint.
 TRAMP treats such points as linked: they share one handle on the map and are moved together.

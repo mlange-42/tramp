@@ -118,6 +118,7 @@ type App struct {
 	// editing is the file in edit mode, or nil.
 	editing *openFile
 	editor  editor
+	props   props
 	// closeOK is set when unsaved changes were saved or discarded on closing the window.
 	closeOK bool
 
@@ -371,6 +372,7 @@ func (a *App) update(gtx layout.Context) {
 	// The map's hover position is needed before the map is drawn.
 	a.mapView.Update(gtx)
 	a.updateEditor(gtx)
+	a.updateProps(gtx)
 	// The selected item is muted on the map while the chart is zoomed in.
 	zoomed := a.chart.zoomed()
 	a.chart.update(gtx)

@@ -212,6 +212,7 @@ func (a *App) closeFile(f *openFile) {
 // resolveUnsaved asks whether to save or discard the unsaved changes of f, if it has any, and then calls done.
 // done is not called if the user cancels, or saving fails.
 func (a *App) resolveUnsaved(f *openFile, done func()) {
+	a.commitProps()
 	if a.editing != f || !f.dirty() {
 		done()
 		return
@@ -278,6 +279,7 @@ func (a *App) newSaveJob(f *openFile) saveJob {
 
 // save saves the edited file, if it has unsaved changes.
 func (a *App) save() {
+	a.commitProps()
 	f := a.editing
 	if f == nil || !f.dirty() {
 		return

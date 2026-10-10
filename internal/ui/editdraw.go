@@ -76,10 +76,45 @@ func (a *App) layoutEditMap(gtx layout.Context) {
 		v := vertex{-1, i}
 		handle(pos(v, w.Pos), st.EditHandleFill, r)
 	}
+	// Names, of linked points once.
+	for ri := range d.Routes {
+		for i, w := range d.Routes[ri].Points {
+			if v := (vertex{ri, i}); w.Name != "" && !linkedPts[v] {
+				a.drawPointLabel(gtx, pos(v, w.Pos), r, w.Name, visible)
+			}
+		}
+	}
+	for i, w := range d.Waypoints {
+		if w.Name != "" {
+			a.drawPointLabel(gtx, pos(vertex{-1, i}, w.Pos), r, w.Name, visible)
+		}
+	}
 	// The selected point is drawn last, so that it is not covered by a linked point.
 	if ll, ok := vertexPos(d, e.sel); e.hasSel && ok {
 		handle(pos(e.sel, ll), st.EditActive, r*1.3)
 	}
+}
+
+// drawPointLabel draws the name of a point right of its handle of radius r at p.
+func (a *App) drawPointLabel(gtx layout.Context, p f32.Point, r float32, name string, visible func(f32.Point) bool) {
+	if !visible(p) {
+		return
+	}
+	st := a.style
+	gtx.Constraints = layout.Constraints{Max: image.Pt(gtx.Dp(200), gtx.Dp(50))}
+	pad := gtx.Dp(2)
+	macro := op.Record(gtx.Ops)
+	l := st.SmallLabel(name)
+	l.MaxLines = 1
+	dims := l.Layout(gtx)
+	call := macro.Stop()
+
+	x := int(p.X+r) + gtx.Dp(3)
+	y := int(p.Y) - dims.Size.Y/2
+	defer op.Offset(image.Pt(x, y)).Push(gtx.Ops).Pop()
+	bg := image.Rect(-pad, 0, dims.Size.X+pad, dims.Size.Y)
+	paint.FillShape(gtx.Ops, st.LegendBg, clip.UniformRRect(bg, pad).Op(gtx.Ops))
+	call.Add(gtx.Ops)
 }
 
 // drawRubberBand draws the lines to a point being moved or inserted, or from the end of the drawn route to the pointer.
