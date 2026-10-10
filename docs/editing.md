@@ -30,6 +30,12 @@ Below the file list, the *Properties* box shows the name and description of the 
 route point or waypoint. Changes apply on Enter, Tab or when clicking elsewhere, and Esc reverts them.
 The box also has a button to delete the whole route.
 
+For points, *Symbol* opens a grid of the known symbols, by category, with a search field.
+Click a symbol to apply it, or × to remove it. Enter in the search field applies the typed name:
+the standard name if it is a known symbol or alias, e.g. `Summit` for `peak`, otherwise as typed.
+Symbols are set for all linked points (see [below](#linked-route-points)).
+While editing, points with a symbol are shown as their marker instead of a handle; selected or snapped points get a highlighted ring.
+
 ## Linked route points
 
 Many GPS devices build routes from stored waypoints, and write each route point

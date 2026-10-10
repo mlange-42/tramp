@@ -31,6 +31,7 @@ const (
 	DefaultTrackWidth   = 3
 	DefaultRouteWidth   = 3
 	DefaultWaypointSize = 8
+	DefaultSymbolSize   = 18
 )
 
 // DefaultMutedColor is the default for [Style.MutedColor].
@@ -59,6 +60,8 @@ type Style struct {
 	RouteWidth float32 `yaml:"route_width"`
 	// WaypointSize is the diameter of waypoint dots, in device-independent pixels.
 	WaypointSize float32 `yaml:"waypoint_size"`
+	// SymbolSize is the diameter of the markers of waypoints with a symbol, in device-independent pixels.
+	SymbolSize float32 `yaml:"symbol_size"`
 	// ColorBy is the metric tracks are colored by: none, speed, elevation or slope.
 	ColorBy string `yaml:"color_by,omitempty"`
 	// Gradients are the names of the color gradients per metric.
@@ -208,6 +211,9 @@ func (s *Settings) setDefaults() {
 	}
 	if s.Style.WaypointSize <= 0 {
 		s.Style.WaypointSize = DefaultWaypointSize
+	}
+	if s.Style.SymbolSize <= 0 {
+		s.Style.SymbolSize = DefaultSymbolSize
 	}
 	if s.Style.MutedColor == "" {
 		s.Style.MutedColor = DefaultMutedColor

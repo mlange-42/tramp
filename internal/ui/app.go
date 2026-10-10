@@ -93,7 +93,7 @@ type App struct {
 	mapLayers  []mapview.Layer
 	tracks     mapview.Lines
 	// Sizes of tracks, routes and waypoints on the map.
-	trackWidth, routeWidth, waypointSize unit.Dp
+	trackWidth, routeWidth, waypointSize, symbolSize unit.Dp
 
 	// colorBy selects the metric to color tracks by, gradientSel the gradient.
 	colorBy     Select
@@ -164,6 +164,7 @@ func newApp(invalidate func(), opts Options) *App {
 		trackWidth:   dpOr(opts.State.Style.TrackWidth, settings.DefaultTrackWidth),
 		routeWidth:   dpOr(opts.State.Style.RouteWidth, settings.DefaultRouteWidth),
 		waypointSize: dpOr(opts.State.Style.WaypointSize, settings.DefaultWaypointSize),
+		symbolSize:   dpOr(opts.State.Style.SymbolSize, settings.DefaultSymbolSize),
 		fileList:     widget.List{List: layout.List{Axis: layout.Vertical}},
 		pending:      map[int][]settings.File{},
 	}
@@ -244,6 +245,7 @@ func (a *App) State() settings.Settings {
 			TrackWidth:   float32(a.trackWidth),
 			RouteWidth:   float32(a.routeWidth),
 			WaypointSize: float32(a.waypointSize),
+			SymbolSize:   float32(a.symbolSize),
 			MutedColor:   formatColorAlpha(a.style.MutedTrack),
 		},
 		View: &settings.View{

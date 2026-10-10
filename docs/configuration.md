@@ -20,6 +20,7 @@ style:
   track_width: 3           # line width of tracks
   route_width: 3           # line width of routes
   waypoint_size: 8         # diameter of waypoint dots
+  symbol_size: 18          # diameter of the markers of waypoints with a symbol
   muted_color: '#808080c0' # color of the selected track outside the zoomed chart range,
                            # and of segments without value when coloring by value
 ```

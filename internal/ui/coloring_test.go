@@ -103,7 +103,7 @@ func TestLineValues(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := newOpenFile("mixed.gpx", data)
-	trk, rte, wpts := f.items[0], f.items[1], f.items[2]
+	wpts, trk, rte := f.items[0], f.items[1], f.items[2]
 
 	vals := trk.lineValues(track.SpeedMetric)
 	if len(vals) != 1 || len(vals[0]) != 3 {

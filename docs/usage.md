@@ -17,8 +17,15 @@ Opened files are listed in the side panel, with length, duration and sampling in
 Click a file to zoom to it, use the checkbox to show or hide it, and × to close it.
 All buttons show a short help when hovered.
 Files with several tracks, routes or waypoint sets can be expanded to show or hide them individually.
+The waypoints of a file are always listed first, and drawn above its tracks and routes.
 
 To create and edit routes and waypoints, see [Editing](editing.md).
+
+Waypoints with a symbol are drawn as markers with an icon.
+GPX does not standardize symbol names; TRAMP knows the common outdoor symbols in the names used by Garmin devices,
+like `Summit`, `Campground` or `Flag, Blue`, and some aliases like `Peak` or `Hut`, ignoring case and punctuation.
+Unknown symbols are drawn with a generic pin icon, waypoints without symbol as plain dots.
+Route points are drawn only if they have a symbol.
 
 ## Coloring
 
