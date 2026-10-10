@@ -76,10 +76,74 @@ func (a *App) layoutEditMap(gtx layout.Context) {
 		v := vertex{-1, i}
 		handle(pos(v, w.Pos), st.EditHandleFill, r)
 	}
+	// Names, of linked points once.
+	for ri := range d.Routes {
+		for i, w := range d.Routes[ri].Points {
+			if v := (vertex{ri, i}); w.Name != "" && !linkedPts[v] {
+				a.drawPointLabel(gtx, pos(v, w.Pos), r, w.Name, visible)
+			}
+		}
+	}
+	for i, w := range d.Waypoints {
+		if w.Name != "" {
+			a.drawPointLabel(gtx, pos(vertex{-1, i}, w.Pos), r, w.Name, visible)
+		}
+	}
 	// The selected point is drawn last, so that it is not covered by a linked point.
 	if ll, ok := vertexPos(d, e.sel); e.hasSel && ok {
 		handle(pos(e.sel, ll), st.EditActive, r*1.3)
 	}
+	// The point a click or drag would snap to or continue is highlighted like a selection.
+	if ll, ok := a.snapHighlight(gtx); ok {
+		handle(screenPos(view, ll), st.EditActive, r*1.3)
+	}
+}
+
+// snapHighlight returns the position of the point to highlight: the waypoint a dragged point snaps to,
+// or with the route tool, the route end a click would continue, or the waypoint it would snap to.
+func (a *App) snapHighlight(gtx layout.Context) (geo.LonLat, bool) {
+	e, d := &a.editor, a.editing.data
+	if e.drag.active {
+		if e.drag.snapped {
+			return d.Waypoints[e.drag.snap].Pos, true
+		}
+		return geo.LonLat{}, false
+	}
+	if e.tool != routeTool || !a.mapView.HoverValid {
+		return geo.LonLat{}, false
+	}
+	if !e.drawing {
+		x, y := a.mapView.View.ToScreen(a.mapView.Hover)
+		if v, ok := hitRouteEnd(d, &a.mapView.View, f32.Pt(float32(x), float32(y)), a.handleRadius(gtx), a.preferredRoute()); ok {
+			return d.Routes[v.route].Points[v.point].Pos, true
+		}
+	}
+	if wi, ok := a.hoverSnap(gtx); ok {
+		return d.Waypoints[wi].Pos, true
+	}
+	return geo.LonLat{}, false
+}
+
+// drawPointLabel draws the name of a point right of its handle of radius r at p.
+func (a *App) drawPointLabel(gtx layout.Context, p f32.Point, r float32, name string, visible func(f32.Point) bool) {
+	if !visible(p) {
+		return
+	}
+	st := a.style
+	gtx.Constraints = layout.Constraints{Max: image.Pt(gtx.Dp(200), gtx.Dp(50))}
+	pad := gtx.Dp(2)
+	macro := op.Record(gtx.Ops)
+	l := st.SmallLabel(name)
+	l.MaxLines = 1
+	dims := l.Layout(gtx)
+	call := macro.Stop()
+
+	x := int(p.X+r) + gtx.Dp(3)
+	y := int(p.Y) - dims.Size.Y/2
+	defer op.Offset(image.Pt(x, y)).Push(gtx.Ops).Pop()
+	bg := image.Rect(-pad, 0, dims.Size.X+pad, dims.Size.Y)
+	paint.FillShape(gtx.Ops, st.LegendBg, clip.UniformRRect(bg, pad).Op(gtx.Ops))
+	call.Add(gtx.Ops)
 }
 
 // drawRubberBand draws the lines to a point being moved or inserted, or from the end of the drawn route to the pointer.
@@ -116,7 +180,11 @@ func (a *App) drawRubberBand(gtx layout.Context) {
 		if e.drawStart {
 			end = route[0]
 		}
-		lines = append(lines, []f32.Point{screenPos(view, end.Pos), toScreen(a.mapView.Hover)})
+		to := toScreen(a.mapView.Hover)
+		if wi, ok := a.hoverSnap(gtx); ok {
+			to = screenPos(view, d.Waypoints[wi].Pos)
+		}
+		lines = append(lines, []f32.Point{screenPos(view, end.Pos), to})
 	}
 	if len(lines) == 0 {
 		return
@@ -194,7 +262,7 @@ func (a *App) editHint() string {
 		return "Click to add a waypoint"
 	case routeTool:
 		if e.drawing {
-			return "Click to add points · Esc, Enter or double-click to finish · Del removes the last point"
+			return "Click to add points, on a waypoint to use it (Shift: don't) · Esc, Enter or double-click to finish · Del removes the last point"
 		}
 		return "Click to start a route, or on a route end to continue it"
 	}

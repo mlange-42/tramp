@@ -190,29 +190,38 @@ func (a *App) layoutPanel(gtx layout.Context) layout.Dimensions {
 				}
 			}
 		}
-		return material.List(st.Theme, &a.fileList).Layout(gtx, len(a.panelRows), func(gtx layout.Context, i int) layout.Dimensions {
-			r := a.panelRows[i]
-			d := &r.file.drag
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Flexed(1, a.layoutFileList),
+			layout.Rigid(a.layoutProps),
+		)
+	})
+}
+
+// layoutFileList draws the opened files and their items, scrolling if they don't fit.
+func (a *App) layoutFileList(gtx layout.Context) layout.Dimensions {
+	st := a.style
+	return material.List(st.Theme, &a.fileList).Layout(gtx, len(a.panelRows), func(gtx layout.Context, i int) layout.Dimensions {
+		r := a.panelRows[i]
+		d := &r.file.drag
+		if r.item != nil {
+			d = &r.item.drag
+		}
+		macro := op.Record(gtx.Ops)
+		dims := layout.Inset{Bottom: st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			if r.item != nil {
-				d = &r.item.drag
+				return a.layoutItemRow(gtx, r.file, r.item)
 			}
-			macro := op.Record(gtx.Ops)
-			dims := layout.Inset{Bottom: st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				if r.item != nil {
-					return a.layoutItemRow(gtx, r.file, r.item)
-				}
-				return a.layoutFileRow(gtx, r.file)
-			})
-			call := macro.Stop()
-			d.height = dims.Size.Y
-			if d.dragging {
-				paint.FillShape(gtx.Ops, st.DragBg, clip.Rect{Max: dims.Size}.Op())
-			} else if a.selectedRow(r) {
-				paint.FillShape(gtx.Ops, st.SelectedBg, clip.Rect{Max: dims.Size}.Op())
-			}
-			call.Add(gtx.Ops)
-			return dims
+			return a.layoutFileRow(gtx, r.file)
 		})
+		call := macro.Stop()
+		d.height = dims.Size.Y
+		if d.dragging {
+			paint.FillShape(gtx.Ops, st.DragBg, clip.Rect{Max: dims.Size}.Op())
+		} else if a.selectedRow(r) {
+			paint.FillShape(gtx.Ops, st.SelectedBg, clip.Rect{Max: dims.Size}.Op())
+		}
+		call.Add(gtx.Ops)
+		return dims
 	})
 }
 

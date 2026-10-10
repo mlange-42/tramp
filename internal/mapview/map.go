@@ -9,6 +9,7 @@ import (
 
 	"gioui.org/f32"
 	"gioui.org/io/event"
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -213,14 +214,17 @@ type PointerEvent struct {
 	Screen f32.Point
 	// Double is set for a press that completes a double click.
 	Double bool
+	// Modifiers are the keyboard modifiers held.
+	Modifiers key.Modifiers
 }
 
 func (m *Map) addEvent(e pointer.Event, double bool) {
 	m.events = append(m.events, PointerEvent{
-		Kind:   e.Kind,
-		Pos:    m.View.ToMap(float64(e.Position.X), float64(e.Position.Y)),
-		Screen: e.Position,
-		Double: double,
+		Kind:      e.Kind,
+		Pos:       m.View.ToMap(float64(e.Position.X), float64(e.Position.Y)),
+		Screen:    e.Position,
+		Double:    double,
+		Modifiers: e.Modifiers,
 	})
 }
 

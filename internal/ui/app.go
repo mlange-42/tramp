@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"gioui.org/app"
+	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/io/system"
 	"gioui.org/layout"
@@ -118,6 +119,7 @@ type App struct {
 	// editing is the file in edit mode, or nil.
 	editing *openFile
 	editor  editor
+	props   props
 	// closeOK is set when unsaved changes were saved or discarded on closing the window.
 	closeOK bool
 
@@ -371,6 +373,7 @@ func (a *App) update(gtx layout.Context) {
 	// The map's hover position is needed before the map is drawn.
 	a.mapView.Update(gtx)
 	a.updateEditor(gtx)
+	a.updateProps(gtx)
 	// The selected item is muted on the map while the chart is zoomed in.
 	zoomed := a.chart.zoomed()
 	a.chart.update(gtx)
@@ -404,15 +407,22 @@ func (a *App) update(gtx layout.Context) {
 }
 
 // updateShortcuts handles the global keyboard shortcuts.
+// Key events go to the first handler asking for them, so while typing in a property field,
+// undo and redo are left to the field.
 func (a *App) updateShortcuts(gtx layout.Context) {
-	for {
-		ev, ok := gtx.Event(
-			key.Filter{Name: "O", Required: key.ModShortcut},
-			key.Filter{Name: "N", Required: key.ModShortcut},
-			key.Filter{Name: "S", Required: key.ModShortcut},
+	filters := []event.Filter{
+		key.Filter{Name: "O", Required: key.ModShortcut},
+		key.Filter{Name: "N", Required: key.ModShortcut},
+		key.Filter{Name: "S", Required: key.ModShortcut},
+	}
+	if !a.propsFocused(gtx) {
+		filters = append(filters,
 			key.Filter{Name: "Z", Required: key.ModShortcut, Optional: key.ModShift},
 			key.Filter{Name: "Y", Required: key.ModShortcut},
 		)
+	}
+	for {
+		ev, ok := gtx.Event(filters...)
 		if !ok {
 			break
 		}
