@@ -364,8 +364,18 @@ func (a *App) update(gtx layout.Context) {
 		a.tracksChanged = false
 		a.updateTracks()
 	}
-	a.updateHighlight()
 	a.updateHover(gtx)
+	// Clicking the chart moves the map to the clicked position, without zooming.
+	if a.chart.clicked && a.hover.valid {
+		a.mapView.View.Center = a.hover.pos
+	}
+	// Double-clicking the selected item on the map centers the zoomed chart on the position.
+	if a.mapView.DoubleClicked() && a.hover.valid && a.chart.zoomedOn(a.selected) {
+		c := &a.chart
+		span := c.to - c.from
+		c.setRange(a.hover.x-span/2, span)
+	}
+	a.updateHighlight()
 }
 
 func (a *App) layout(gtx layout.Context) layout.Dimensions {
