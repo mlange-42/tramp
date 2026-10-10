@@ -250,18 +250,22 @@ func (a *App) validateEditor() {
 }
 
 // updateEditKeys handles the keys for editing.
+// Key events go to the first handler asking for them, so while typing in a property field,
+// only Esc is taken, for reverting the field.
 func (a *App) updateEditKeys(gtx layout.Context) {
-	filters := []event.Filter{
-		key.Filter{Name: key.NameEscape},
-		key.Filter{Name: key.NameReturn},
-		key.Filter{Name: key.NameDeleteForward},
-		key.Filter{Name: key.NameDeleteBackward},
-	}
-	for _, t := range tools {
-		filters = append(filters, key.Filter{Name: key.Name(t.key)})
+	filters := []event.Filter{key.Filter{Name: key.NameEscape}}
+	typing := a.propsFocused(gtx)
+	if !typing {
+		filters = append(filters,
+			key.Filter{Name: key.NameReturn},
+			key.Filter{Name: key.NameDeleteForward},
+			key.Filter{Name: key.NameDeleteBackward},
+		)
+		for _, t := range tools {
+			filters = append(filters, key.Filter{Name: key.Name(t.key)})
+		}
 	}
 	e := &a.editor
-	typing := a.propsFocused(gtx)
 	for {
 		ev, ok := gtx.Event(filters...)
 		if !ok {
@@ -271,11 +275,8 @@ func (a *App) updateEditKeys(gtx layout.Context) {
 		if !ok || ke.State != key.Press {
 			continue
 		}
-		// While typing in a property field, keys are for the field, and Esc reverts it.
 		if typing {
-			if ke.Name == key.NameEscape {
-				a.revertProps(gtx)
-			}
+			a.revertProps(gtx)
 			continue
 		}
 		switch ke.Name {
