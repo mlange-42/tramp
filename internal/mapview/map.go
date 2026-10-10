@@ -56,11 +56,8 @@ type Map struct {
 	last     f32.Point
 	wanted   []geo.TileKey
 
-	// lastClick is the time and position of the last primary click, if hasClick, for detecting double clicks.
-	lastClick    time.Duration
-	lastClickPos f32.Point
-	hasClick     bool
-	doubleClick  bool
+	clicks      DoubleClick
+	doubleClick bool
 }
 
 // New creates a map centered on the given position.
@@ -148,7 +145,7 @@ func (m *Map) Update(gtx layout.Context) {
 				gtx.Execute(pointer.GrabCmd{Tag: m, ID: e.PointerID})
 			}
 			if e.Buttons.Contain(pointer.ButtonPrimary) {
-				m.click(e)
+				m.doubleClick = m.clicks.Click(e) || m.doubleClick
 			}
 		case pointer.Drag:
 			if m.dragging && e.PointerID == m.dragID {
@@ -185,15 +182,24 @@ func (m *Map) DoubleClicked() bool {
 	return d
 }
 
-// click registers a primary click, and detects double clicks. A third click starts a new double click.
-func (m *Map) click(e pointer.Event) {
-	d := e.Position.Sub(m.lastClickPos)
-	if m.hasClick && e.Time-m.lastClick <= doubleClickTime && d.X*d.X+d.Y*d.Y <= doubleClickSlop*doubleClickSlop {
-		m.doubleClick = true
-		m.hasClick = false
-		return
+// DoubleClick detects double clicks from press events.
+type DoubleClick struct {
+	// last is the time and position of the last click, if has.
+	last    time.Duration
+	lastPos f32.Point
+	has     bool
+}
+
+// Click registers a click and reports whether it completes a double click.
+// A third click starts a new double click.
+func (c *DoubleClick) Click(e pointer.Event) bool {
+	d := e.Position.Sub(c.lastPos)
+	if c.has && e.Time-c.last <= doubleClickTime && d.X*d.X+d.Y*d.Y <= doubleClickSlop*doubleClickSlop {
+		c.has = false
+		return true
 	}
-	m.lastClick, m.lastClickPos, m.hasClick = e.Time, e.Position, true
+	c.last, c.lastPos, c.has = e.Time, e.Position, true
+	return false
 }
 
 // TileLevel returns the tile level used for the current zoom.

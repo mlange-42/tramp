@@ -26,7 +26,9 @@ const minFitSize = 500
 
 // openFile is an opened track file in the side panel.
 type openFile struct {
-	path    string
+	path string
+	// data is the content of the file, for editing and saving it.
+	data    *track.File
 	name    string
 	summary string
 	items   []*fileItem
@@ -85,7 +87,7 @@ type fileItem struct {
 
 // newOpenFile prepares a read file for the panel and the map.
 func newOpenFile(path string, f *track.File) *openFile {
-	of := &openFile{path: path, name: filepath.Base(path), bounds: geo.EmptyRect()}
+	of := &openFile{path: path, data: f, name: filepath.Base(path), bounds: geo.EmptyRect()}
 	of.visible.Value = true
 
 	for i := range f.Tracks {

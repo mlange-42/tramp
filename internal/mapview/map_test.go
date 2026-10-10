@@ -9,10 +9,9 @@ import (
 )
 
 func TestDoubleClick(t *testing.T) {
-	var m Map
+	var c DoubleClick
 	click := func(ms int, x float32) bool {
-		m.click(pointer.Event{Time: time.Duration(ms) * time.Millisecond, Position: f32.Pt(x, 0)})
-		return m.DoubleClicked()
+		return c.Click(pointer.Event{Time: time.Duration(ms) * time.Millisecond, Position: f32.Pt(x, 0)})
 	}
 	if click(1000, 0) {
 		t.Error("single click detected as double click")

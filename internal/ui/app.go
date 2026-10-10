@@ -374,8 +374,8 @@ func (a *App) update(gtx layout.Context) {
 		a.updateTracks()
 	}
 	a.updateHover(gtx)
-	// Clicking the chart moves the map to the clicked position, without zooming.
-	if a.chart.clicked && a.hover.valid {
+	// Double-clicking the chart moves the map to the clicked position, without zooming.
+	if a.chart.doubleClicked && a.hover.valid {
 		a.mapView.View.Center = a.hover.pos
 	}
 	// Double-clicking the selected item on the map centers the zoomed chart on the position.
