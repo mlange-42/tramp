@@ -26,7 +26,9 @@ const minFitSize = 500
 
 // openFile is an opened track file in the side panel.
 type openFile struct {
-	path    string
+	path string
+	// data is the content of the file, for editing and saving it.
+	data    *track.File
 	name    string
 	summary string
 	items   []*fileItem
@@ -38,8 +40,13 @@ type openFile struct {
 	close    widget.Clickable
 	expand   widget.Clickable
 	colorBtn widget.Clickable
+	editBtn  widget.Clickable
 	expanded bool
 	drag     rowDrag
+	// defColor is the color for new items of a file without items.
+	defColor color.NRGBA
+
+	edit editState
 }
 
 // itemKind is the kind of a file item.
@@ -75,6 +82,8 @@ type fileItem struct {
 	color    color.NRGBA
 	// index is the position of the item in the file, independent of the panel order.
 	index int
+	// nth is the position of the item among the items of its kind in the file.
+	nth int
 
 	visible widget.Bool
 	// click is the name of the item: a click selects it, a double click zooms to it.
@@ -85,12 +94,22 @@ type fileItem struct {
 
 // newOpenFile prepares a read file for the panel and the map.
 func newOpenFile(path string, f *track.File) *openFile {
-	of := &openFile{path: path, name: filepath.Base(path), bounds: geo.EmptyRect()}
+	of := &openFile{path: path, data: f, name: filepath.Base(path)}
 	of.visible.Value = true
+	of.items = buildItems(f)
+	for _, it := range of.items {
+		it.visible.Value = true
+	}
+	of.update()
+	return of
+}
 
+// buildItems returns the items for the content of the file, in file order, without panel state.
+func buildItems(f *track.File) []*fileItem {
+	var items []*fileItem
 	for i := range f.Tracks {
 		t := &f.Tracks[i]
-		it := &fileItem{kind: trackItem, name: itemName(t.Name, "Track", i, len(f.Tracks)), summary: trackSummary(t)}
+		it := &fileItem{kind: trackItem, nth: i, name: itemName(t.Name, "Track", i, len(f.Tracks)), summary: trackSummary(t)}
 		for j := range t.Segments {
 			pts := make([]geo.Point, t.Segments[j].Len())
 			for k, p := range t.Segments[j].Points {
@@ -99,11 +118,11 @@ func newOpenFile(path string, f *track.File) *openFile {
 			it.lines = append(it.lines, mapview.NewPolyline(pts))
 			it.points = append(it.points, t.Segments[j].Points)
 		}
-		of.add(it)
+		items = append(items, it)
 	}
 	for i := range f.Routes {
 		r := &f.Routes[i]
-		it := &fileItem{kind: routeItem, name: itemName(r.Name, "Route", i, len(f.Routes)), summary: "route · " + formatDistance(r.Length())}
+		it := &fileItem{kind: routeItem, nth: i, name: itemName(r.Name, "Route", i, len(f.Routes)), summary: "route · " + formatDistance(r.Length())}
 		pts := make([]geo.Point, len(r.Points))
 		tps := make([]track.Point, len(r.Points))
 		for k, p := range r.Points {
@@ -112,49 +131,96 @@ func newOpenFile(path string, f *track.File) *openFile {
 		}
 		it.lines = append(it.lines, mapview.NewPolyline(pts))
 		it.points = append(it.points, tps)
-		of.add(it)
+		items = append(items, it)
 	}
 	if len(f.Waypoints) > 0 {
 		it := &fileItem{kind: waypointItem, name: "Waypoints", summary: count(len(f.Waypoints), "waypoint")}
 		for _, w := range f.Waypoints {
 			it.dots = append(it.dots, geo.ToMercator(w.Pos))
 		}
-		of.add(it)
+		items = append(items, it)
 	}
-
-	switch len(of.items) {
-	case 0:
-		of.summary = "empty"
-	case 1:
-		of.summary = of.items[0].summary
-	default:
-		var parts []string
-		if n := len(f.Tracks); n > 0 {
-			parts = append(parts, count(n, "track"))
+	for _, it := range items {
+		it.bounds = geo.EmptyRect()
+		for _, l := range it.lines {
+			it.bounds = it.bounds.Union(l.Bounds)
 		}
-		if n := len(f.Routes); n > 0 {
-			parts = append(parts, count(n, "route"))
+		for _, p := range it.dots {
+			it.bounds = it.bounds.Extend(p)
 		}
-		if n := len(f.Waypoints); n > 0 {
-			parts = append(parts, count(n, "waypoint"))
-		}
-		of.summary = strings.Join(parts, " · ")
 	}
-	return of
+	return items
 }
 
-func (f *openFile) add(it *fileItem) {
-	it.visible.Value = true
-	it.bounds = geo.EmptyRect()
-	for _, l := range it.lines {
-		it.bounds = it.bounds.Union(l.Bounds)
+// update sets the file indices of the items, which are in file order, and the bounds and summary of the file.
+func (f *openFile) update() {
+	f.bounds = geo.EmptyRect()
+	for i, it := range f.items {
+		it.index = i
+		f.bounds = f.bounds.Union(it.bounds)
 	}
-	for _, p := range it.dots {
-		it.bounds = it.bounds.Extend(p)
+	switch len(f.items) {
+	case 0:
+		f.summary = "empty"
+	case 1:
+		f.summary = f.items[0].summary
+	default:
+		var parts []string
+		if n := len(f.data.Tracks); n > 0 {
+			parts = append(parts, count(n, "track"))
+		}
+		if n := len(f.data.Routes); n > 0 {
+			parts = append(parts, count(n, "route"))
+		}
+		if n := len(f.data.Waypoints); n > 0 {
+			parts = append(parts, count(n, "waypoint"))
+		}
+		f.summary = strings.Join(parts, " · ")
 	}
-	f.bounds = f.bounds.Union(it.bounds)
-	it.index = len(f.items)
-	f.items = append(f.items, it)
+}
+
+// rebuild updates the items after the file data changed.
+// An item that still exists, by kind and position among the items of its kind, keeps its color,
+// visibility and place in the panel. New items are visible, in the file's first color, and listed last.
+func (f *openFile) rebuild() {
+	old := f.items
+	built := buildItems(f.data)
+	f.items = make([]*fileItem, len(built))
+	var added []*fileItem
+	for i, n := range built {
+		j := slices.IndexFunc(old, func(o *fileItem) bool { return o.kind == n.kind && o.nth == n.nth })
+		if j < 0 {
+			n.visible.Value = true
+			n.color = f.defColor
+			if len(old) > 0 {
+				n.color = old[0].color
+			}
+			f.items[i] = n
+			added = append(added, n)
+			continue
+		}
+		f.items[i] = old[j]
+		old[j].setContent(n)
+	}
+	f.update()
+
+	// Restore the panel order.
+	var order []*fileItem
+	for _, o := range old {
+		if slices.Contains(f.items, o) {
+			order = append(order, o)
+		}
+	}
+	f.items = append(order, added...)
+}
+
+// setContent replaces the content of the item with that of n, and clears the caches.
+func (it *fileItem) setContent(n *fileItem) {
+	it.name, it.summary = n.name, n.summary
+	it.lines, it.points, it.dots, it.bounds = n.lines, n.points, n.dots, n.bounds
+	it.values, it.dist = nil, nil
+	it.timeCache, it.start, it.timesDone = nil, time.Time{}, false
+	it.gapCache, it.gapsDone = nil, false
 }
 
 // order returns the file indices of the items in panel order, or nil if that is the file order.
@@ -320,6 +386,7 @@ func (f *openFile) colors() []color.NRGBA {
 // setColors sets the item colors from saved colors, if there is one per item,
 // or otherwise all to the given default.
 func (f *openFile) setColors(saved []string, def color.NRGBA) {
+	f.defColor = def
 	ok := len(saved) == len(f.items)
 	cols := make([]color.NRGBA, len(f.items))
 	for i := range cols {

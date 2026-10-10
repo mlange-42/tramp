@@ -29,6 +29,8 @@ const (
 	doubleClickTime = 300 * time.Millisecond
 	// doubleClickSlop is the farthest distance between the clicks of a double click, in pixels.
 	doubleClickSlop = 6
+	// clickSlop is the farthest the pointer may move while pressed, in pixels, for a click instead of a drag.
+	clickSlop = 3
 )
 
 var background = color.NRGBA{R: 0xe0, G: 0xe0, B: 0xe0, A: 0xff}
@@ -46,6 +48,8 @@ type Map struct {
 	// Hover is the map position under the pointer, if HoverValid.
 	Hover      geo.Point
 	HoverValid bool
+	// Cursor is the pointer cursor over the map, except while panning.
+	Cursor pointer.Cursor
 
 	// scroll is the accumulated scroll distance not yet applied as a zoom step, in zoom levels.
 	scroll float64
@@ -54,13 +58,19 @@ type Map struct {
 	dragging bool
 	dragID   pointer.ID
 	last     f32.Point
-	wanted   []geo.TileKey
+	// pressPos is where the pan drag started, panned is set once it moved farther than clickSlop.
+	pressPos       f32.Point
+	panned         bool
+	secondaryClick bool
+	wanted         []geo.TileKey
 
-	// lastClick is the time and position of the last primary click, if hasClick, for detecting double clicks.
-	lastClick    time.Duration
-	lastClickPos f32.Point
-	hasClick     bool
-	doubleClick  bool
+	clicks      DoubleClick
+	doubleClick bool
+	// primary is set while the primary button is pressed, primaryID is the pointer.
+	primary   bool
+	primaryID pointer.ID
+	// events are the primary button events not yet taken by [Map.Primary].
+	events []PointerEvent
 }
 
 // New creates a map centered on the given position.
@@ -118,6 +128,8 @@ func (m *Map) Layout(gtx layout.Context, layers ...Layer) layout.Dimensions {
 	event.Op(gtx.Ops, m)
 	if m.dragging {
 		pointer.CursorGrabbing.Add(gtx.Ops)
+	} else {
+		m.Cursor.Add(gtx.Ops)
 	}
 	return layout.Dimensions{Size: size}
 }
@@ -145,21 +157,35 @@ func (m *Map) Update(gtx layout.Context) {
 				m.dragging = true
 				m.dragID = e.PointerID
 				m.last = e.Position
+				m.pressPos, m.panned = e.Position, false
 				gtx.Execute(pointer.GrabCmd{Tag: m, ID: e.PointerID})
 			}
-			if e.Buttons.Contain(pointer.ButtonPrimary) {
-				m.click(e)
+			if !m.primary && e.Buttons.Contain(pointer.ButtonPrimary) {
+				double := m.clicks.Click(e)
+				m.doubleClick = double || m.doubleClick
+				m.primary, m.primaryID = true, e.PointerID
+				m.addEvent(e, double)
 			}
 		case pointer.Drag:
 			if m.dragging && e.PointerID == m.dragID {
 				d := e.Position.Sub(m.last)
 				m.View.Pan(float64(d.X), float64(d.Y))
 				m.last = e.Position
+				d = e.Position.Sub(m.pressPos)
+				m.panned = m.panned || d.X*d.X+d.Y*d.Y > clickSlop*clickSlop
+			}
+			if m.primary && e.PointerID == m.primaryID {
+				m.addEvent(e, false)
 			}
 		case pointer.Release, pointer.Cancel:
 			// Releasing another button doesn't end the drag.
-			if e.PointerID == m.dragID && (e.Kind == pointer.Cancel || !e.Buttons.Contain(pointer.ButtonSecondary)) {
+			if m.dragging && e.PointerID == m.dragID && (e.Kind == pointer.Cancel || !e.Buttons.Contain(pointer.ButtonSecondary)) {
 				m.dragging = false
+				m.secondaryClick = m.secondaryClick || e.Kind == pointer.Release && !m.panned
+			}
+			if m.primary && e.PointerID == m.primaryID && (e.Kind == pointer.Cancel || !e.Buttons.Contain(pointer.ButtonPrimary)) {
+				m.primary = false
+				m.addEvent(e, false)
 			}
 		case pointer.Scroll:
 			// Touchpads scroll in small amounts, so zoom once a full step has accumulated.
@@ -177,6 +203,36 @@ func (m *Map) Update(gtx layout.Context) {
 	}
 }
 
+// PointerEvent is an event of the primary pointer button on the map.
+type PointerEvent struct {
+	// Kind is [pointer.Press], [pointer.Drag], [pointer.Release] or [pointer.Cancel].
+	Kind pointer.Kind
+	// Pos is the map position.
+	Pos geo.Point
+	// Screen is the position in pixels.
+	Screen f32.Point
+	// Double is set for a press that completes a double click.
+	Double bool
+}
+
+func (m *Map) addEvent(e pointer.Event, double bool) {
+	m.events = append(m.events, PointerEvent{
+		Kind:   e.Kind,
+		Pos:    m.View.ToMap(float64(e.Position.X), float64(e.Position.Y)),
+		Screen: e.Position,
+		Double: double,
+	})
+}
+
+// Primary returns the events of the primary pointer button since the last call:
+// a press, the drags while the button is held, and the release or cancel.
+// Dragging with the primary button doesn't pan the map.
+func (m *Map) Primary() []PointerEvent {
+	evs := m.events
+	m.events = nil
+	return evs
+}
+
 // DoubleClicked reports whether the map was double-clicked with the primary button since the last call.
 // The position is [Map.Hover].
 func (m *Map) DoubleClicked() bool {
@@ -185,15 +241,32 @@ func (m *Map) DoubleClicked() bool {
 	return d
 }
 
-// click registers a primary click, and detects double clicks. A third click starts a new double click.
-func (m *Map) click(e pointer.Event) {
-	d := e.Position.Sub(m.lastClickPos)
-	if m.hasClick && e.Time-m.lastClick <= doubleClickTime && d.X*d.X+d.Y*d.Y <= doubleClickSlop*doubleClickSlop {
-		m.doubleClick = true
-		m.hasClick = false
-		return
+// SecondaryClicked reports whether the map was clicked with the secondary button,
+// without panning, since the last call.
+func (m *Map) SecondaryClicked() bool {
+	c := m.secondaryClick
+	m.secondaryClick = false
+	return c
+}
+
+// DoubleClick detects double clicks from press events.
+type DoubleClick struct {
+	// last is the time and position of the last click, if has.
+	last    time.Duration
+	lastPos f32.Point
+	has     bool
+}
+
+// Click registers a click and reports whether it completes a double click.
+// A third click starts a new double click.
+func (c *DoubleClick) Click(e pointer.Event) bool {
+	d := e.Position.Sub(c.lastPos)
+	if c.has && e.Time-c.last <= doubleClickTime && d.X*d.X+d.Y*d.Y <= doubleClickSlop*doubleClickSlop {
+		c.has = false
+		return true
 	}
-	m.lastClick, m.lastClickPos, m.hasClick = e.Time, e.Position, true
+	c.last, c.lastPos, c.has = e.Time, e.Position, true
+	return false
 }
 
 // TileLevel returns the tile level used for the current zoom.
