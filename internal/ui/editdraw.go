@@ -93,6 +93,10 @@ func (a *App) layoutEditMap(gtx layout.Context) {
 	if ll, ok := vertexPos(d, e.sel); e.hasSel && ok {
 		handle(pos(e.sel, ll), st.EditActive, r*1.3)
 	}
+	// The waypoint the route tool snaps to is highlighted like a selection.
+	if wi, ok := a.hoverSnap(gtx); ok {
+		handle(screenPos(view, d.Waypoints[wi].Pos), st.EditActive, r*1.3)
+	}
 }
 
 // drawPointLabel draws the name of a point right of its handle of radius r at p.
@@ -151,7 +155,11 @@ func (a *App) drawRubberBand(gtx layout.Context) {
 		if e.drawStart {
 			end = route[0]
 		}
-		lines = append(lines, []f32.Point{screenPos(view, end.Pos), toScreen(a.mapView.Hover)})
+		to := toScreen(a.mapView.Hover)
+		if wi, ok := a.hoverSnap(gtx); ok {
+			to = screenPos(view, d.Waypoints[wi].Pos)
+		}
+		lines = append(lines, []f32.Point{screenPos(view, end.Pos), to})
 	}
 	if len(lines) == 0 {
 		return
@@ -229,7 +237,7 @@ func (a *App) editHint() string {
 		return "Click to add a waypoint"
 	case routeTool:
 		if e.drawing {
-			return "Click to add points · Esc, Enter or double-click to finish · Del removes the last point"
+			return "Click to add points, on a waypoint to use it (Shift: don't) · Esc, Enter or double-click to finish · Del removes the last point"
 		}
 		return "Click to start a route, or on a route end to continue it"
 	}

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"gioui.org/f32"
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/unit"
@@ -239,5 +240,42 @@ func TestLinkedPoints(t *testing.T) {
 	a.deleteSelected()
 	if len(d.Waypoints) != 2 || len(d.Routes[0].Points) != 3 {
 		t.Errorf("expected only the route point deleted")
+	}
+}
+
+func TestRouteSnap(t *testing.T) {
+	a, f, gtx := editorApp(t)
+	d := f.data
+	a.setTool(routeTool)
+	hut, unnamed := d.Waypoints[0].Pos, d.Waypoints[1].Pos
+
+	// Clicking waypoints adds linked copies of them. An unnamed waypoint gets a name.
+	click(a, gtx, hut)
+	click(a, gtx, unnamed)
+	r := d.Routes[1].Points
+	if len(r) != 2 || r[0].Name != "Hut" || d.Waypoints[1].Name != "WP001" || r[1].Name != "WP001" {
+		t.Fatalf("unexpected route %v, waypoint %q", r, d.Waypoints[1].Name)
+	}
+	if len(linkedGroup(d, vertex{-1, 1})) != 2 {
+		t.Errorf("expected the route point linked")
+	}
+
+	// With Shift, the point is placed without snapping.
+	ev := at(a, pointer.Press, hut)
+	ev.Modifiers = key.ModShift
+	a.editPress(gtx, ev)
+	a.editRelease()
+	if p := d.Routes[1].Points[2]; p.Name != "" || len(linkedGroup(d, vertex{1, 2})) != 1 {
+		t.Errorf("expected an unlinked point, got %v", p)
+	}
+
+	// Undo also takes back the generated name.
+	a.undo()
+	a.undo()
+	if d.Waypoints[1].Name != "" {
+		t.Errorf("expected generated name undone, got %q", d.Waypoints[1].Name)
+	}
+	if n := uniqueName(d); n != "WP001" {
+		t.Errorf("unexpected name %q", n)
 	}
 }

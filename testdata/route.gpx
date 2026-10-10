@@ -5,61 +5,70 @@
     <desc>Planned bike route from Leipzig to Cospudener and Markkleeberger See, with waypoints.</desc>
     <time>2026-10-09T12:00:00Z</time>
   </metadata>
-  <wpt lat="51.317339058443764" lon="12.352034097710813">
+  <wpt lat="51.30971154359341" lon="12.372974925963618">
     <name>Connewitzer Kreuz</name>
     <sym>Crossing</sym>
   </wpt>
-  <wpt lat="51.266581812716566" lon="12.343044614996858">
-    <name>Cospudener See, north beach</name>
+  <wpt lat="51.28304131326556" lon="12.346543159013137">
+    <name>Cospudener See</name>
     <desc>Swimming and café</desc>
     <sym>Swimming Area</sym>
   </wpt>
-  <wpt lat="51.26" lon="12.4228">
-    <ele>116</ele>
+  <wpt lat="51.258609536540945" lon="12.428742777765883">
     <name>Kanupark</name>
     <sym>Scenic Area</sym>
   </wpt>
-  <wpt lat="51.27766903214206" lon="12.389412891854604">
+  <wpt lat="51.278813275229965" lon="12.372635440945988">
     <name>Markkleeberg station</name>
     <sym>Ground Transportation</sym>
     <type>end</type>
   </wpt>
+  <wpt lat="51.340167991712946" lon="12.374510736359348">
+    <name>Markt</name>
+  </wpt>
   <rte>
-    <name>Lake loop</name>
-    <desc>About 30 km, mostly flat</desc>
-    <type>cycling</type>
-    <rtept lat="51.3444818937507" lon="12.417056293781952">
-      <name>Markt</name>
-    </rtept>
-    <rtept lat="51.34371210567639" lon="12.382508797801584"/>
-    <rtept lat="51.33810822414486" lon="12.372769866403594"/>
-    <rtept lat="51.3336" lon="12.3721">
-      <ele>114</ele>
-    </rtept>
-    <rtept lat="51.329172489070544" lon="12.358588775591226"/>
-    <rtept lat="51.317339058443764" lon="12.352034097710813">
-      <name>Connewitzer Kreuz</name>
-    </rtept>
-    <rtept lat="51.30292242277852" lon="12.350334736778855"/>
-    <rtept lat="51.29290398822806" lon="12.342566229661323"/>
-    <rtept lat="51.28116171143165" lon="12.346443336860776"/>
-    <rtept lat="51.26718940087022" lon="12.358338863384493">
-      <name>Cospudener See</name>
-    </rtept>
-    <rtept lat="51.256" lon="12.348">
-      <ele>114</ele>
-    </rtept>
-    <rtept lat="51.2413253389943" lon="12.350221262028638"/>
-    <rtept lat="51.24154027279792" lon="12.380776987126294"/>
-    <rtept lat="51.24723565265836" lon="12.406011209538404"/>
-    <rtept lat="51.26" lon="12.4228">
-      <ele>116</ele>
+    <rtept lat="51.258609536540945" lon="12.428742777765883">
       <name>Kanupark</name>
+      <sym>Scenic Area</sym>
     </rtept>
-    <rtept lat="51.27329699640367" lon="12.423040804592613"/>
-    <rtept lat="51.280662384527005" lon="12.404105068493639"/>
-    <rtept lat="51.29121359854295" lon="12.389791773224268">
-      <name>Markkleeberg station</name>
+    <rtept lat="51.27235140402894" lon="12.41039082743958"/>
+    <rtept lat="51.271117534500604" lon="12.403890759815985"/>
+    <rtept lat="51.271842462143695" lon="12.392260701527409"/>
+    <rtept lat="51.275522682447814" lon="12.388988370936001"/>
+    <rtept lat="51.276832529496374" lon="12.388988370936001"/>
+    <rtept lat="51.278427075498314" lon="12.380370183352495"/>
+    <rtept lat="51.27850300487978" lon="12.377123190143216"/>
+    <rtept lat="51.27785760113687" lon="12.374088617050433"/>
+    <rtept lat="51.27956600304282" lon="12.373299628046308"/>
+    <rtept lat="51.279028947304425" lon="12.368716069585757"/>
+    <rtept lat="51.27697527720443" lon="12.368737527257876"/>
+    <rtept lat="51.27718543837179" lon="12.362665006048159"/>
+    <rtept lat="51.27850086560207" lon="12.358909913427308"/>
+    <rtept lat="51.28101081101221" lon="12.352558442480042"/>
+    <rtept lat="51.28449530672469" lon="12.347845659597066"/>
+    <rtept lat="51.28304131326556" lon="12.346543159013137">
+      <name>Cospudener See</name>
+      <desc>Swimming and café</desc>
+      <sym>Swimming Area</sym>
+    </rtept>
+    <rtept lat="51.28368294127793" lon="12.343729468104694"/>
+    <rtept lat="51.293057718486466" lon="12.353650275732743"/>
+    <rtept lat="51.28922434288191" lon="12.359385618878102"/>
+    <rtept lat="51.290051733488696" lon="12.359728941632008"/>
+    <rtept lat="51.29273790485169" lon="12.359496904620647"/>
+    <rtept lat="51.30092238362809" lon="12.359239412555217"/>
+    <rtept lat="51.30301522915707" lon="12.362157655963417"/>
+    <rtept lat="51.309786467994115" lon="12.363315291955503"/>
+    <rtept lat="51.309920601711724" lon="12.366319366052183"/>
+    <rtept lat="51.30890443032152" lon="12.366653800747283"/>
+    <rtept lat="51.30971154359341" lon="12.372974925963618">
+      <name>Connewitzer Kreuz</name>
+      <sym>Crossing</sym>
+    </rtept>
+    <rtept lat="51.33558392257072" lon="12.374367652717675"/>
+    <rtept lat="51.33683014758472" lon="12.375154466522922"/>
+    <rtept lat="51.340167991712946" lon="12.374510736359348">
+      <name>Markt</name>
     </rtept>
   </rte>
 </gpx>

@@ -70,6 +70,8 @@ In edit mode, the toolbar shows the edit tools, also selected with the keys S, W
 - **Route**: click to add points to a new route. Click the first or last point of a route,
   or select the route in the side panel, to continue it.
   Esc, Enter, a right click or a double click finishes the route, Del removes the last point.
+  Clicking a waypoint adds it to the route, linked to it (see below); unnamed waypoints get a name like `WP001`.
+  The pointer snaps to waypoints, which are highlighted. Hold Shift to place a point without snapping.
 
 Hover a tool for a short help.
 Moved and added points have no elevation.

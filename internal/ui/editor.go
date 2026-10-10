@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"math"
 	"slices"
 
@@ -45,6 +46,8 @@ Click on the map to add a waypoint.`},
 	{"Route", "R", `Route tool (R)
 
 Click on the map to add points to a new route.
+Clicking a waypoint adds it to the route, linked to it. Unnamed waypoints get a name.
+Hold Shift to place a point without snapping to waypoints.
 Esc, Enter, a right click or a double click finishes the route.
 Del or Backspace removes the last point.
 
@@ -76,6 +79,8 @@ type editor struct {
 	drawStart bool
 	// lastSelected is the item selected for the chart at the last frame, for noticing a new selection.
 	lastSelected *fileItem
+	// shift is set while the Shift key is held, which disables snapping to waypoints.
+	shift bool
 
 	drag editDrag
 }
@@ -253,7 +258,10 @@ func (a *App) validateEditor() {
 // Key events go to the first handler asking for them, so while typing in a property field,
 // only Esc is taken, for reverting the field.
 func (a *App) updateEditKeys(gtx layout.Context) {
-	filters := []event.Filter{key.Filter{Name: key.NameEscape}}
+	filters := []event.Filter{
+		key.Filter{Name: key.NameEscape},
+		key.Filter{Name: key.NameShift, Optional: key.ModShift},
+	}
 	typing := a.propsFocused(gtx)
 	if !typing {
 		filters = append(filters,
@@ -272,6 +280,10 @@ func (a *App) updateEditKeys(gtx layout.Context) {
 			break
 		}
 		ke, ok := ev.(key.Event)
+		if ok && ke.Name == key.NameShift {
+			e.shift = ke.State == key.Press
+			continue
+		}
 		if !ok || ke.State != key.Press {
 			continue
 		}
@@ -345,6 +357,8 @@ func (a *App) editPress(gtx layout.Context, ev mapview.PointerEvent) {
 			e.drawing = false
 			return
 		}
+		e.shift = ev.Modifiers.Contain(key.ModShift)
+		snap, _ := a.snapTarget(gtx, ev.Screen)
 		if !e.drawing {
 			// Clicking an end point of a route continues it.
 			if v, ok := hitRouteEnd(f.data, view, ev.Screen, radius, a.preferredRoute()); ok {
@@ -354,7 +368,7 @@ func (a *App) editPress(gtx layout.Context, ev mapview.PointerEvent) {
 				return
 			}
 			f.change(func(d *track.File) {
-				d.Routes = append(d.Routes, track.Route{Points: []track.Waypoint{newWaypoint(ev.Pos)}})
+				d.Routes = append(d.Routes, track.Route{Points: []track.Waypoint{routePoint(d, ev.Pos, snap)}})
 			})
 			a.changed()
 			e.drawing, e.drawRoute, e.drawStart = true, len(f.data.Routes)-1, false
@@ -365,9 +379,9 @@ func (a *App) editPress(gtx layout.Context, ev mapview.PointerEvent) {
 		f.change(func(d *track.File) {
 			pts := &d.Routes[r].Points
 			if start {
-				*pts = slices.Insert(*pts, 0, newWaypoint(ev.Pos))
+				*pts = slices.Insert(*pts, 0, routePoint(d, ev.Pos, snap))
 			} else {
-				*pts = append(*pts, newWaypoint(ev.Pos))
+				*pts = append(*pts, routePoint(d, ev.Pos, snap))
 			}
 		})
 		a.changed()
@@ -376,6 +390,66 @@ func (a *App) editPress(gtx layout.Context, ev mapview.PointerEvent) {
 			v.point = len(f.data.Routes[r].Points) - 1
 		}
 		a.selectVertex(v)
+	}
+}
+
+// snapTarget returns the waypoint the route tool snaps to at screen position p, or -1.
+// Shift disables snapping.
+func (a *App) snapTarget(gtx layout.Context, p f32.Point) (int, bool) {
+	e, f := &a.editor, a.editing
+	if f == nil || e.tool != routeTool || e.shift {
+		return -1, false
+	}
+	v, ok := nearestVertex(f.data, &a.mapView.View, p, a.handleRadius(gtx), func(v vertex) int {
+		if v.route < 0 {
+			return 0
+		}
+		return -1
+	})
+	if !ok {
+		return -1, false
+	}
+	return v.point, true
+}
+
+// hoverSnap returns the waypoint the route tool snaps to at the pointer, or -1.
+func (a *App) hoverSnap(gtx layout.Context) (int, bool) {
+	if !a.mapView.HoverValid {
+		return -1, false
+	}
+	x, y := a.mapView.View.ToScreen(a.mapView.Hover)
+	return a.snapTarget(gtx, f32.Pt(float32(x), float32(y)))
+}
+
+// routePoint returns a new route point at map position p, or, if snap is a waypoint,
+// a copy of that waypoint, which is then linked to it, see [linked].
+// An unnamed waypoint gets a generated name first, as linking needs a name.
+func routePoint(d *track.File, p geo.Point, snap int) track.Waypoint {
+	if snap < 0 || snap >= len(d.Waypoints) {
+		return newWaypoint(p)
+	}
+	w := &d.Waypoints[snap]
+	if w.Name == "" {
+		w.Name = uniqueName(d)
+	}
+	return *w
+}
+
+// uniqueName returns a waypoint name not used by any point of the file, like "WP007".
+func uniqueName(d *track.File) string {
+	used := map[string]bool{}
+	for _, w := range d.Waypoints {
+		used[w.Name] = true
+	}
+	for _, r := range d.Routes {
+		for _, w := range r.Points {
+			used[w.Name] = true
+		}
+	}
+	for i := 1; ; i++ {
+		if name := fmt.Sprintf("WP%03d", i); !used[name] {
+			return name
+		}
 	}
 }
 
