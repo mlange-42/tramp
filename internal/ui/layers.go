@@ -280,18 +280,7 @@ func DefaultMaps() []Map {
 				Attribution: "Sentinel-2 cloudless by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2025)",
 			},
 		},
-		// The free terrestris service adds advertising watermarks to some tiles.
-		// Add them to the WMS configuration file if needed:
-		//   url: https://ows.terrestris.de/osm/service, layers: OSM-WMS or TOPO-OSM-WMS
-		{Section: "Germany"},
-		{
-			Layer: wms.Layer{
-				Name:        "basemap.de",
-				Type:        wms.TypeXYZ,
-				URL:         bkgURL + "/wmts_basemapde/tile/1.0.0/de_basemapde_web_raster_farbe/default/GLOBAL_WEBMERCATOR/{z}/{y}/{x}.png",
-				Attribution: basemapAttribution,
-			},
-		},
+		{Section: "Europe"},
 		{
 			Layer: wms.Layer{
 				Name:        "TopPlusOpen",
@@ -310,6 +299,15 @@ func DefaultMaps() []Map {
 				Format:      "image/png",
 				Version:     "1.3.0",
 				Attribution: bkgAttribution,
+			},
+		},
+		{Section: "Germany"},
+		{
+			Layer: wms.Layer{
+				Name:        "basemap.de",
+				Type:        wms.TypeXYZ,
+				URL:         bkgURL + "/wmts_basemapde/tile/1.0.0/de_basemapde_web_raster_farbe/default/GLOBAL_WEBMERCATOR/{z}/{y}/{x}.png",
+				Attribution: basemapAttribution,
 			},
 		},
 		{Section: "Other"},
