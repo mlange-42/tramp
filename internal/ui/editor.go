@@ -37,6 +37,7 @@ var tools = [numTools]struct {
 Click a point to select it, drag it to move it.
 Del or Backspace deletes the selected point.
 Drag or click the small circles between route points to insert a point.
+Route points dropped on a waypoint snap to it and are linked to it. Hold Shift to not snap.
 Esc or a right click clears the selection.
 
 Route points with the same name and position as a waypoint are linked to it and move with it.`},
@@ -93,9 +94,18 @@ type editDrag struct {
 	insert bool
 	v      vertex
 	group  []vertex
-	pos    geo.Point
-	start  f32.Point
-	moved  bool
+	// pos is the position to move or insert at: raw, the pointer position, or the snapped waypoint, if snapped.
+	pos, raw geo.Point
+	snap     int
+	snapped  bool
+	// start is the screen position of the press, screen the current one.
+	start, screen f32.Point
+	moved         bool
+}
+
+// canSnap reports whether the dragged point can snap to a waypoint: a new point, or an unlinked route point.
+func (d *editDrag) canSnap() bool {
+	return d.insert || d.v.route >= 0 && len(d.group) == 1
 }
 
 // reset clears all state except the tool.
@@ -216,8 +226,9 @@ func (a *App) updateEditor(gtx layout.Context) {
 			a.editPress(gtx, ev)
 		case pointer.Drag:
 			if d := &e.drag; d.active {
-				d.pos = ev.Pos
+				d.pos, d.raw, d.screen = ev.Pos, ev.Pos, ev.Screen
 				d.moved = d.moved || dist2(ev.Screen, d.start) > dragSlop*dragSlop
+				e.shift = ev.Modifiers.Contain(key.ModShift)
 			}
 		case pointer.Release:
 			a.editRelease()
@@ -225,6 +236,7 @@ func (a *App) updateEditor(gtx layout.Context) {
 			e.drag = editDrag{}
 		}
 	}
+	a.updateDragSnap(gtx)
 	e.lastSelected = a.selected
 	a.mapView.Cursor = a.editCursor(gtx)
 }
@@ -339,9 +351,9 @@ func (a *App) editPress(gtx layout.Context, ev mapview.PointerEvent) {
 	case selectTool:
 		if v, ok := hitVertex(f.data, view, ev.Screen, radius, a.preferredRoute()); ok {
 			a.selectVertex(v)
-			e.drag = editDrag{active: true, v: v, group: linkedGroup(f.data, v), pos: ev.Pos, start: ev.Screen}
+			e.drag = editDrag{active: true, v: v, group: linkedGroup(f.data, v), pos: ev.Pos, raw: ev.Pos, start: ev.Screen, screen: ev.Screen}
 		} else if v, ok := hitMidpoint(f.data, view, ev.Screen, radius); ok {
-			e.drag = editDrag{active: true, insert: true, v: v, pos: ev.Pos, start: ev.Screen}
+			e.drag = editDrag{active: true, insert: true, v: v, pos: ev.Pos, raw: ev.Pos, start: ev.Screen, screen: ev.Screen}
 		} else {
 			e.hasSel = false
 		}
@@ -393,11 +405,26 @@ func (a *App) editPress(gtx layout.Context, ev mapview.PointerEvent) {
 	}
 }
 
-// snapTarget returns the waypoint the route tool snaps to at screen position p, or -1.
+// updateDragSnap snaps a dragged route point to a waypoint near the pointer, unless Shift is held.
+func (a *App) updateDragSnap(gtx layout.Context) {
+	d := &a.editor.drag
+	if !d.active || !d.moved {
+		return
+	}
+	d.pos, d.snapped = d.raw, false
+	if !d.canSnap() {
+		return
+	}
+	if wi, ok := a.snapTarget(gtx, d.screen); ok {
+		d.pos, d.snap, d.snapped = geo.ToMercator(a.editing.data.Waypoints[wi].Pos), wi, true
+	}
+}
+
+// snapTarget returns the waypoint to snap to at screen position p, or -1.
 // Shift disables snapping.
 func (a *App) snapTarget(gtx layout.Context, p f32.Point) (int, bool) {
 	e, f := &a.editor, a.editing
-	if f == nil || e.tool != routeTool || e.shift {
+	if f == nil || e.shift {
 		return -1, false
 	}
 	v, ok := nearestVertex(f.data, &a.mapView.View, p, a.handleRadius(gtx), func(v vertex) int {
@@ -414,7 +441,7 @@ func (a *App) snapTarget(gtx layout.Context, p f32.Point) (int, bool) {
 
 // hoverSnap returns the waypoint the route tool snaps to at the pointer, or -1.
 func (a *App) hoverSnap(gtx layout.Context) (int, bool) {
-	if !a.mapView.HoverValid {
+	if !a.mapView.HoverValid || a.editor.tool != routeTool {
 		return -1, false
 	}
 	x, y := a.mapView.View.ToScreen(a.mapView.Hover)
@@ -463,6 +490,10 @@ func (a *App) editRelease() {
 		return
 	}
 	v := d.v
+	snap := -1
+	if d.snapped {
+		snap = d.snap
+	}
 	switch {
 	case d.insert:
 		pts := f.data.Routes[v.route].Points
@@ -473,10 +504,16 @@ func (a *App) editRelease() {
 		}
 		f.change(func(fd *track.File) {
 			p := &fd.Routes[v.route].Points
-			*p = slices.Insert(*p, v.point+1, newWaypoint(pos))
+			*p = slices.Insert(*p, v.point+1, routePoint(fd, pos, snap))
 		})
 		a.changed()
 		a.selectVertex(vertex{route: v.route, point: v.point + 1})
+	case d.moved && d.snapped:
+		// The route point becomes a copy of the waypoint, linked to it.
+		f.change(func(fd *track.File) {
+			fd.Routes[v.route].Points[v.point] = routePoint(fd, d.pos, snap)
+		})
+		a.changed()
 	case d.moved:
 		f.change(func(fd *track.File) {
 			for _, g := range d.group {

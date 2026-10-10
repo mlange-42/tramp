@@ -279,3 +279,44 @@ func TestRouteSnap(t *testing.T) {
 		t.Errorf("unexpected name %q", n)
 	}
 }
+
+// dragTo simulates dragging from a press at from to a position, and releasing.
+func dragTo(a *App, gtx layout.Context, from, to geo.LonLat, mods key.Modifiers) {
+	a.editPress(gtx, at(a, pointer.Press, from))
+	ev := at(a, pointer.Drag, to)
+	d := &a.editor.drag
+	d.raw, d.screen, d.moved = ev.Pos, ev.Screen, true
+	a.editor.shift = mods.Contain(key.ModShift)
+	a.updateDragSnap(gtx)
+	a.editRelease()
+}
+
+func TestDragSnap(t *testing.T) {
+	a, f, gtx := editorApp(t)
+	d := f.data
+	hut, unnamed := d.Waypoints[0].Pos, d.Waypoints[1].Pos
+	near := geo.LonLat{Lon: unnamed.Lon + 0.001, Lat: unnamed.Lat}
+	a.selected = f.routeItem(0)
+
+	// A route point dropped near a waypoint snaps to it, and is linked.
+	dragTo(a, gtx, d.Routes[0].Points[1].Pos, near, 0)
+	if p := d.Routes[0].Points[1]; p.Pos != unnamed || p.Name != "WP001" || len(linkedGroup(d, vertex{0, 1})) != 2 {
+		t.Errorf("expected point snapped and linked, got %v", p)
+	}
+
+	// With Shift, it doesn't snap.
+	dragTo(a, gtx, d.Routes[0].Points[0].Pos, hut, key.ModShift)
+	if p := d.Routes[0].Points[0]; p.Name != "" || len(linkedGroup(d, vertex{0, 0})) != 1 {
+		t.Errorf("expected point not snapped, got %v", p)
+	}
+	a.undo()
+
+	// A point inserted by dragging a midpoint snaps, too.
+	r := d.Routes[0].Points
+	p0, p1 := geo.ToMercator(r[0].Pos), geo.ToMercator(r[1].Pos)
+	mid := geo.ToLonLat(geo.Point{X: (p0.X + p1.X) / 2, Y: (p0.Y + p1.Y) / 2})
+	dragTo(a, gtx, mid, hut, 0)
+	if p := d.Routes[0].Points[1]; len(d.Routes[0].Points) != 3 || p.Name != "Hut" || p.Pos != hut {
+		t.Errorf("expected inserted point snapped to Hut, got %v", d.Routes[0].Points)
+	}
+}

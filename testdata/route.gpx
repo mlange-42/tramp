@@ -18,15 +18,16 @@
     <name>Kanupark</name>
     <sym>Scenic Area</sym>
   </wpt>
-  <wpt lat="51.278813275229965" lon="12.372635440945988">
+  <wpt lat="51.27960187340017" lon="12.373250998788878">
     <name>Markkleeberg station</name>
     <sym>Ground Transportation</sym>
     <type>end</type>
   </wpt>
-  <wpt lat="51.340167991712946" lon="12.374510736359348">
+  <wpt lat="51.340212637364544" lon="12.374563611490732">
     <name>Markt</name>
   </wpt>
   <rte>
+    <name>Markkleeberger - Cosi</name>
     <rtept lat="51.258609536540945" lon="12.428742777765883">
       <name>Kanupark</name>
       <sym>Scenic Area</sym>
@@ -39,7 +40,11 @@
     <rtept lat="51.278427075498314" lon="12.380370183352495"/>
     <rtept lat="51.27850300487978" lon="12.377123190143216"/>
     <rtept lat="51.27785760113687" lon="12.374088617050433"/>
-    <rtept lat="51.27956600304282" lon="12.373299628046308"/>
+    <rtept lat="51.27960187340017" lon="12.373250998788878">
+      <name>Markkleeberg station</name>
+      <sym>Ground Transportation</sym>
+      <type>end</type>
+    </rtept>
     <rtept lat="51.279028947304425" lon="12.368716069585757"/>
     <rtept lat="51.27697527720443" lon="12.368737527257876"/>
     <rtept lat="51.27718543837179" lon="12.362665006048159"/>
@@ -67,7 +72,7 @@
     </rtept>
     <rtept lat="51.33558392257072" lon="12.374367652717675"/>
     <rtept lat="51.33683014758472" lon="12.375154466522922"/>
-    <rtept lat="51.340167991712946" lon="12.374510736359348">
+    <rtept lat="51.340212637364544" lon="12.374563611490732">
       <name>Markt</name>
     </rtept>
   </rte>

@@ -93,10 +93,35 @@ func (a *App) layoutEditMap(gtx layout.Context) {
 	if ll, ok := vertexPos(d, e.sel); e.hasSel && ok {
 		handle(pos(e.sel, ll), st.EditActive, r*1.3)
 	}
-	// The waypoint the route tool snaps to is highlighted like a selection.
-	if wi, ok := a.hoverSnap(gtx); ok {
-		handle(screenPos(view, d.Waypoints[wi].Pos), st.EditActive, r*1.3)
+	// The point a click or drag would snap to or continue is highlighted like a selection.
+	if ll, ok := a.snapHighlight(gtx); ok {
+		handle(screenPos(view, ll), st.EditActive, r*1.3)
 	}
+}
+
+// snapHighlight returns the position of the point to highlight: the waypoint a dragged point snaps to,
+// or with the route tool, the route end a click would continue, or the waypoint it would snap to.
+func (a *App) snapHighlight(gtx layout.Context) (geo.LonLat, bool) {
+	e, d := &a.editor, a.editing.data
+	if e.drag.active {
+		if e.drag.snapped {
+			return d.Waypoints[e.drag.snap].Pos, true
+		}
+		return geo.LonLat{}, false
+	}
+	if e.tool != routeTool || !a.mapView.HoverValid {
+		return geo.LonLat{}, false
+	}
+	if !e.drawing {
+		x, y := a.mapView.View.ToScreen(a.mapView.Hover)
+		if v, ok := hitRouteEnd(d, &a.mapView.View, f32.Pt(float32(x), float32(y)), a.handleRadius(gtx), a.preferredRoute()); ok {
+			return d.Routes[v.route].Points[v.point].Pos, true
+		}
+	}
+	if wi, ok := a.hoverSnap(gtx); ok {
+		return d.Waypoints[wi].Pos, true
+	}
+	return geo.LonLat{}, false
 }
 
 // drawPointLabel draws the name of a point right of its handle of radius r at p.

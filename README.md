@@ -65,6 +65,7 @@ In edit mode, the toolbar shows the edit tools, also selected with the keys S, W
 
 - **Select**: click a point to select it, drag it to move it, and press Del to delete it.
   Drag or click the small circles between route points to insert a point.
+  Route points dropped on a waypoint snap to it and are linked to it; hold Shift to not snap.
   Esc or a right click clears the selection.
 - **Waypoint**: click to add a waypoint.
 - **Route**: click to add points to a new route. Click the first or last point of a route,
