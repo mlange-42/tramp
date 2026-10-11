@@ -24,6 +24,10 @@ A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Wr
 
 ## Installation
 
+### Precompiled binary
+
+Binaries for Windows, Linux and macOS will be available on the GitHub [releases page](https://github.com/mlange-42/tramp/releases). [TODO].
+
 ### With Go
 
 ```sh
@@ -36,19 +40,9 @@ On Linux, also the development headers listed in the [Gio Linux install docs](ht
 
 On Windows, add `-ldflags="-H windowsgui"` to prevent a console window from opening.
 
+### Requirements
+
 On Linux, the file dialog requires `zenity`, `kdialog` or a similar tool, which most desktops have installed.
-
-### Precompiled binary
-
-Binaries for Windows, Linux and macOS will be available on the GitHub [releases page](https://github.com/mlange-42/tramp/releases). [TODO].
-
-## Usage
-
-Run `tramp` to open the map, optionally with GPX files to open:
-
-```sh
-tramp morning.gpx evening.gpx
-```
 
 ## Documentation
 
