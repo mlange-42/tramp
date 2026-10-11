@@ -17,6 +17,10 @@ import (
 	"golang.org/x/image/font/gofont/gomonoitalic"
 )
 
+// brandBlue is the blue of the UI, the middle of the gradient of the logo's tile.
+// The tints, neutral colors and the text color are derived from it.
+var brandBlue = color.NRGBA{R: 0x27, G: 0x4a, B: 0x6d, A: 0xff}
+
 // Style collects the theme and all sizes and colors of the UI, to tune the look in one place.
 type Style struct {
 	// Theme provides fonts and the base palette for Gio's material widgets.
@@ -119,6 +123,8 @@ type Style struct {
 func DefaultStyle() *Style {
 	th := material.NewTheme()
 	th.TextSize = 14
+	th.ContrastBg = brandBlue
+	th.Fg = mix(color.NRGBA{A: 0xff}, brandBlue, 0.35)
 	// A monospaced font keeps changing numbers, like coordinates, from moving around.
 	// System fonts remain as a fallback for glyphs that Go Mono lacks.
 	faces := monoFaces()
@@ -143,13 +149,13 @@ func DefaultStyle() *Style {
 		MinPaneSize:  120,
 
 		PanelBg:      color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
-		PanelBorder:  color.NRGBA{R: 0xa0, G: 0xa0, B: 0xa0, A: 0xff},
-		DividerColor: color.NRGBA{R: 0xd8, G: 0xd8, B: 0xd8, A: 0xff},
-		StatusBg:     color.NRGBA{R: 0xf4, G: 0xf4, B: 0xf4, A: 0xff},
-		SideBg:       color.NRGBA{R: 0xfa, G: 0xfa, B: 0xfa, A: 0xff},
-		HintFg:       color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xff},
-		DragBg:       color.NRGBA{R: 0xe4, G: 0xe8, B: 0xf4, A: 0xff},
-		SelectedBg:   color.NRGBA{R: 0xcc, G: 0xda, B: 0xf4, A: 0xff},
+		PanelBorder:  neutral(0xa0),
+		DividerColor: neutral(0xd8),
+		StatusBg:     neutral(0xf4),
+		SideBg:       neutral(0xfa),
+		HintFg:       neutral(0x80),
+		DragBg:       tint(0.12),
+		SelectedBg:   tint(0.25),
 		EditActive:   color.NRGBA{R: 0xd0, G: 0x40, B: 0x20, A: 0xff},
 		MutedTrack:   color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xc0},
 		ChartGrid:    color.NRGBA{A: 0x20},
@@ -212,4 +218,23 @@ func (s *Style) Button(clk *widget.Clickable, txt string) material.ButtonStyle {
 	b.Inset = s.ButtonInset
 	b.CornerRadius = s.CornerRadius
 	return b
+}
+
+// mix blends a with b, by the share t of b.
+func mix(a, b color.NRGBA, t float32) color.NRGBA {
+	ch := func(x, y uint8) uint8 { return uint8(float32(x)*(1-t) + float32(y)*t + 0.5) }
+	return color.NRGBA{R: ch(a.R, b.R), G: ch(a.G, b.G), B: ch(a.B, b.B), A: ch(a.A, b.A)}
+}
+
+// tint returns the brand blue mixed with white, with the share t of the blue.
+func tint(t float32) color.NRGBA {
+	return mix(color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff}, brandBlue, t)
+}
+
+// neutral returns a grey of about the lightness v, with a hint of the brand blue:
+// halfway between the plain grey and the tint of the same lightness.
+func neutral(v uint8) color.NRGBA {
+	luma := func(c color.NRGBA) float32 { return 0.2126*float32(c.R) + 0.7152*float32(c.G) + 0.0722*float32(c.B) }
+	t := (255 - float32(v)) / (255 - luma(brandBlue))
+	return mix(color.NRGBA{R: v, G: v, B: v, A: 0xff}, tint(t), 0.5)
 }
