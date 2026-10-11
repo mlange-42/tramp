@@ -92,6 +92,23 @@ type Search struct {
 	// URL is the search endpoint of the service, for using another server.
 	// If empty, the public server of the service is used.
 	URL string `yaml:"url"`
+	// Limit is the maximum number of places listed for a search, up to [MaxSearchLimit].
+	// If 0, [DefaultSearchLimit] is used.
+	Limit int `yaml:"limit"`
+}
+
+// DefaultSearchLimit is the default for [Search.Limit].
+const DefaultSearchLimit = 10
+
+// MaxSearchLimit is the highest [Search.Limit], the most results Nominatim returns.
+const MaxSearchLimit = 40
+
+// SearchLimit returns the limit, or the default if not set, at most [MaxSearchLimit].
+func (s Search) SearchLimit() int {
+	if s.Limit <= 0 {
+		return DefaultSearchLimit
+	}
+	return min(s.Limit, MaxSearchLimit)
 }
 
 // File is an opened track file.

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"math"
 	"regexp"
@@ -18,6 +19,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/mlange-42/tramp/internal/geo"
@@ -25,8 +27,6 @@ import (
 )
 
 const (
-	// searchLimit is the maximum number of places shown for a search.
-	searchLimit = 8
 	// placeZoom is the zoom level for a found position without extent, like typed coordinates.
 	// The map keeps a higher zoom level.
 	placeZoom = 15
@@ -36,6 +36,10 @@ const (
 	// typeMinLen the shortest text searched while typing.
 	typeDelay  = 500 * time.Millisecond
 	typeMinLen = 3
+	// searchAttributionHeight is the room kept below the result list for the attribution, which may take two lines.
+	searchAttributionHeight unit.Dp = 40
+	// searchBottomMargin is the space kept between the result panel and the bottom of the window.
+	searchBottomMargin unit.Dp = 24
 )
 
 // coordLike matches text that may become coordinates, which is not searched while typing.
@@ -61,6 +65,8 @@ type searchBox struct {
 	err    error
 	places []geocode.Place
 	rows   []widget.Clickable
+	// list scrolls the places, if more than fit.
+	list widget.List
 	// sel is the place chosen by Enter, selected with the arrow keys.
 	sel int
 	// marker is the found position, if hasMarker.
@@ -167,10 +173,18 @@ func (a *App) searchFocused(gtx layout.Context) bool {
 	return gtx.Focused(&a.search.ed)
 }
 
-// moveSearchSel moves the selection in the result list by d places.
+// moveSearchSel moves the selection in the result list by d places, and scrolls it into view.
 func (a *App) moveSearchSel(d int) {
 	s := &a.search
 	s.sel = max(0, min(len(s.places)-1, s.sel+d))
+	pos := &s.list.Position
+	switch {
+	case s.sel <= pos.First:
+		pos.First, pos.Offset = s.sel, 0
+	case pos.Count > 0 && s.sel >= pos.First+pos.Count-1:
+		// The last visible place may be cut off, so scroll until the one after it would be the last.
+		pos.First, pos.Offset = s.sel-pos.Count+2, 0
+	}
 }
 
 // searchWhileTyping reports whether text is searched while typing:
@@ -232,7 +246,7 @@ func (a *App) startSearch(text string, keep bool) {
 		s.places = nil
 	}
 	v := &a.mapView.View
-	q := geocode.Query{Text: text, Limit: searchLimit, Near: geo.ToLonLat(v.Center), HasNear: true, Zoom: int(math.Round(v.Zoom))}
+	q := geocode.Query{Text: text, Limit: a.searchCfg.SearchLimit(), Near: geo.ToLonLat(v.Center), HasNear: true, Zoom: int(math.Round(v.Zoom))}
 	go func() {
 		places, err := a.geocoder.Search(ctx, q)
 		a.runOnUI(func() {
@@ -242,6 +256,7 @@ func (a *App) startSearch(text string, keep bool) {
 			cancel()
 			s.cancel = nil
 			s.busy, s.err, s.places, s.sel = false, err, places, 0
+			s.list.Position = layout.Position{}
 			if len(s.rows) < len(places) {
 				s.rows = make([]widget.Clickable, len(places))
 			}
@@ -292,6 +307,8 @@ func (a *App) gotoPlace(p geocode.Place) {
 // layoutSearch draws the search field, and the result panel below it if open.
 func (a *App) layoutSearch(gtx layout.Context) layout.Dimensions {
 	st, s := a.style, &a.search
+	// The toolbar gets the height of the window, which limits the height of the result panel.
+	availY := gtx.Constraints.Max.Y
 	gtx.Constraints.Min.X = min(gtx.Dp(st.SearchWidth), gtx.Constraints.Max.X)
 	gtx.Constraints.Max.X = gtx.Constraints.Min.X
 	dims := layoutFieldBox(gtx, st, a.searchFocused(gtx), func(gtx layout.Context) layout.Dimensions {
@@ -326,7 +343,8 @@ func (a *App) layoutSearch(gtx layout.Context) layout.Dimensions {
 	scrim.Pop()
 	op.Offset(image.Pt(0, dims.Size.Y)).Add(gtx.Ops)
 	gtx.Constraints = layout.Exact(image.Pt(dims.Size.X, 0))
-	gtx.Constraints.Max.Y = gtx.Dp(600)
+	// Keep the status bar visible below the panel.
+	gtx.Constraints.Max.Y = max(0, min(gtx.Dp(600), availY-dims.Size.Y-gtx.Dp(searchBottomMargin)))
 	layoutPanel(gtx, st, &s.panel, func(gtx layout.Context) layout.Dimensions {
 		return a.layoutSearchResults(gtx)
 	})
@@ -374,9 +392,15 @@ func (a *App) layoutSearchResults(gtx layout.Context) layout.Dimensions {
 	case !s.busy && len(s.places) == 0:
 		children = append(children, hint("No places found"))
 	}
-	for i, p := range s.places {
+	if len(s.places) > 0 {
+		center := geo.ToLonLat(a.mapView.View.Center)
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.layoutPlace(gtx, &s.rows[i], p, i == s.sel)
+			// Leave room for the attribution below.
+			gtx.Constraints.Max.Y = max(0, gtx.Constraints.Max.Y-gtx.Dp(searchAttributionHeight))
+			s.list.Axis = layout.Vertical
+			return material.List(st.Theme, &s.list).Layout(gtx, len(s.places), func(gtx layout.Context, i int) layout.Dimensions {
+				return a.layoutPlace(gtx, &s.rows[i], s.places[i], i == s.sel, center)
+			})
 		}))
 	}
 	if !s.busy && s.err == nil && a.geocoder != nil {
@@ -385,9 +409,9 @@ func (a *App) layoutSearchResults(gtx layout.Context) layout.Dimensions {
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-// layoutPlace draws a found place as a clickable row: its name, and its kind below.
-// The selected place is highlighted.
-func (a *App) layoutPlace(gtx layout.Context, btn *widget.Clickable, p geocode.Place, selected bool) layout.Dimensions {
+// layoutPlace draws a found place as a clickable row: its name, and below its kind,
+// and right-aligned the beeline distance from the map center. The selected place is highlighted.
+func (a *App) layoutPlace(gtx layout.Context, btn *widget.Clickable, p geocode.Place, selected bool, center geo.LonLat) layout.Dimensions {
 	st := a.style
 	return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		macro := op.Record(gtx.Ops)
@@ -400,10 +424,20 @@ func (a *App) layoutPlace(gtx layout.Context, btn *widget.Clickable, p geocode.P
 					return l.Layout(gtx)
 				}),
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					l := st.SmallLabel(strings.ReplaceAll(p.Kind, "_", " "))
-					l.Color = st.HintFg
-					l.Font.Style = font.Italic
-					return l.Layout(gtx)
+					return layout.Flex{}.Layout(gtx,
+						layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+							l := st.SmallLabel(strings.ReplaceAll(p.Kind, "_", " "))
+							l.Color = st.HintFg
+							l.Font.Style = font.Italic
+							l.MaxLines = 1
+							return l.Layout(gtx)
+						}),
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							l := st.SmallLabel(formatPlaceDistance(geo.Distance(center, p.Pos)))
+							l.Color = st.HintFg
+							return l.Layout(gtx)
+						}),
+					)
 				}),
 			)
 		})
@@ -418,6 +452,14 @@ func (a *App) layoutPlace(gtx layout.Context, btn *widget.Clickable, p geocode.P
 		pointer.CursorPointer.Add(gtx.Ops)
 		return dims
 	})
+}
+
+// formatPlaceDistance formats the distance to a found place, in whole kilometers from 10 km on.
+func formatPlaceDistance(m float64) string {
+	if m >= 10_000 {
+		return fmt.Sprintf("%.0f km", m/1000)
+	}
+	return formatDistance(m)
 }
 
 // layoutSearchMarker draws the marker of the found position on the map.

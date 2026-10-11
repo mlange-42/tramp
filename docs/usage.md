@@ -23,7 +23,7 @@ Anything else is searched as a place name, by default with [Photon](https://phot
 based on OpenStreetMap data.
 Places are searched while typing. Places in about the area shown on the map are preferred,
 but well-known places elsewhere are still found.
-The matching places are listed below the field.
+The matching places are listed below the field, with their beeline distance from the map center.
 Click one, or select it with the arrow keys and press Enter, to show it.
 Searching place names needs an internet connection.
 

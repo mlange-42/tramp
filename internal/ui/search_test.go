@@ -279,6 +279,23 @@ func TestSearchOnEnterOnly(t *testing.T) {
 	}
 }
 
+func TestFormatPlaceDistance(t *testing.T) {
+	leipzig := geo.LonLat{Lon: 12.3747, Lat: 51.3406}
+	tests := []struct {
+		to   geo.LonLat
+		want string
+	}{
+		{geo.LonLat{Lon: 13.3889, Lat: 52.5170}, "148 km"},
+		{geo.LonLat{Lon: 12.3820, Lat: 51.3455}, "744 m"},
+		{geo.LonLat{Lon: 12.45, Lat: 51.34}, "5.2 km"},
+	}
+	for _, tt := range tests {
+		if got := formatPlaceDistance(geo.Distance(leipzig, tt.to)); got != tt.want {
+			t.Errorf("got %q, want %q", got, tt.want)
+		}
+	}
+}
+
 func TestSearchKeys(t *testing.T) {
 	a := newApp(func() {}, Options{Maps: DefaultMaps(), State: settings.Settings{View: &settings.View{Map: "None", Zoom: 5}}})
 	defer a.closeTiles()
@@ -315,5 +332,18 @@ func TestSearchKeys(t *testing.T) {
 	press(key.NameReturn)
 	if a.search.open || !a.search.hasMarker || a.search.marker != places[1].Pos {
 		t.Errorf("expected the second place shown, got %+v", a.search)
+	}
+}
+
+func TestSearchLimit(t *testing.T) {
+	for limit, want := range map[int]int{0: settings.DefaultSearchLimit, 20: 20, 100: settings.MaxSearchLimit} {
+		a, f, gtx := searchApp(nil, nil)
+		a.searchCfg.Limit = limit
+		a.search.ed.SetText("Leipzig")
+		a.submitSearch(gtx)
+		waitSearch(a)
+		if len(f.queries) != 1 || f.queries[0].Limit != want {
+			t.Errorf("limit %d: expected %d places requested, got %v", limit, want, f.queries)
+		}
 	}
 }

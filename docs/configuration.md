@@ -30,6 +30,7 @@ gps:
 search:
   service: photon          # search service for place names: photon or nominatim
   url: ''                  # search endpoint of another server; empty for the public server of the service
+  limit: 10                # most places listed for a search, up to 40
 ```
 
 Sizes are in device-independent pixels.
