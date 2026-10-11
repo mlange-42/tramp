@@ -34,3 +34,47 @@ The color range covers the values of all visible tracks, ignoring the most extre
 Tracks and routes without the required data, like routes without times for speed, keep their own color.
 
 The gradients can be changed in the [gradients configuration](configuration.md#gradients).
+
+## Live GPS position
+
+The round button at the bottom right of the map shows the live position of a GPS receiver,
+like a handheld GPS or a GPS mouse connected by USB or Bluetooth.
+The map follows the position until it is dragged; click the button again to follow it again,
+and once more while following to turn the GPS off.
+The status bar shows the position, its estimated accuracy and the speed.
+The circle around the position shows the accuracy reported by the receiver.
+Most receivers don't report it; it is then estimated from the satellite geometry (HDOP),
+generously, as reflections near buildings or indoors cause errors the HDOP doesn't show.
+While the receiver has no fix, the last position is gray.
+
+TRAMP reads NMEA 0183, which almost all GPS receivers can send over a serial port.
+It searches the receiver on all USB and Bluetooth serial ports at common baud rates, which takes a few seconds.
+The port and baud rate can also be set in the [settings](configuration.md#settings).
+Built-in serial ports on Linux (`/dev/ttyS*`) are only used if set there.
+Some devices need to be set up to send NMEA:
+
+- **Locosys GT-31 / BGT-31** sends NMEA at 4800 baud while switched on and not in NaviLink mode.
+- **Garmin** handhelds with a serial cable: set the interface to *NMEA In/NMEA Out* in the system setup.
+  Garmin devices with USB use their own protocol; on Windows, install Garmin's *Spanner* driver,
+  set the interface to *Garmin Spanner*, and use the virtual serial port it creates.
+- **GPS mice** like GlobalSat BU-353 or u-blox receivers send NMEA right away.
+- **Bluetooth** receivers like Garmin GLO, Bad Elf or Qstarz must be paired first.
+  On Windows, use the *outgoing* serial port of the device (Bluetooth settings → More Bluetooth settings → COM Ports).
+  On Linux, bind it to a port with `rfcomm bind`.
+
+Bluetooth Low Energy devices without a serial port are not supported.
+
+### Network sources
+
+Instead of a serial port, the GPS `port` in the [settings](configuration.md#settings) can be a network source.
+Network sources are never searched automatically.
+
+- `tcp://host:port` connects to a server sending NMEA, like a phone app sharing its GPS
+  or a NMEA multiplexer on a boat (often port 10110).
+- `udp://:port` receives NMEA sent as UDP datagrams to this computer, on all network interfaces.
+  Use `udp://192.168.1.10:port` to listen on one interface only.
+- `gpsd://host` or `gpsd://host:port` connects to [gpsd](https://gpsd.io) (default port 2947) and asks it for NMEA.
+  gpsd supports many receivers, including Garmin USB devices on Linux.
+
+On a phone, use an app that shares the position as NMEA over TCP or UDP, and enter its address.
+Both devices must be in the same network, and a firewall may need to allow incoming UDP.

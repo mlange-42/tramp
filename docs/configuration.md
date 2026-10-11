@@ -23,9 +23,14 @@ style:
   symbol_size: 18          # diameter of the markers of waypoints with a symbol
   muted_color: '#808080c0' # color of the selected track outside the zoomed chart range,
                            # and of segments without value when coloring by value
+gps:
+  port: ''                 # serial port of the GPS receiver, like COM5 or /dev/ttyUSB0; empty to search;
+                           # or a network source like tcp://192.168.1.5:10110, udp://:10110 or gpsd://localhost
+  baud: 0                  # baud rate, like 4800; 0 to try common rates
 ```
 
 Sizes are in device-independent pixels.
+See [Live GPS position](usage.md#live-gps-position) for the GPS receiver.
 Colors are given like `#808080`, or with opacity like `#808080c0`.
 
 ## Maps

@@ -126,6 +126,7 @@ func (a *App) updateRowClick(gtx layout.Context, clk *widget.Clickable, sel *fil
 		}
 		if c.NumClicks >= 2 && !bounds.Empty() {
 			a.mapView.Fit(fitRect(bounds))
+			a.gps.following = false
 		}
 	}
 }

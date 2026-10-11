@@ -46,6 +46,8 @@ type Settings struct {
 	Style Style `yaml:"style"`
 	// View is the last map view, with the selected map and overlays. Nil if not known yet.
 	View *View `yaml:"view,omitempty"`
+	// GPS selects the GPS receiver for showing the live position.
+	GPS GPS `yaml:"gps"`
 	// Window is the last main window size, position and state. Nil if not known yet.
 	Window *Window `yaml:"window,omitempty"`
 	// Files are the opened track files, in panel order.
@@ -70,6 +72,15 @@ type Style struct {
 	// in the zoomed chart, and of segments without value in tracks colored by value, like gaps in the recording.
 	// Like "#808080", or with opacity like "#808080c0".
 	MutedColor string `yaml:"muted_color"`
+}
+
+// GPS selects the serial port of the GPS receiver for showing the live position.
+type GPS struct {
+	// Port is the serial port, like COM5 or /dev/ttyUSB0. If empty, the receiver is searched on all ports.
+	// It can also be a network source: tcp://host:port, udp://:port or gpsd://host[:port].
+	Port string `yaml:"port"`
+	// Baud is the baud rate of a serial port, like 4800. If 0, common baud rates are tried.
+	Baud int `yaml:"baud"`
 }
 
 // File is an opened track file.

@@ -128,6 +128,9 @@ type App struct {
 	// closeOK is set when unsaved changes were saved or discarded on closing the window.
 	closeOK bool
 
+	// gps shows the live position from a GPS receiver.
+	gps gpsView
+
 	// nextColor is the index of the default color for the next opened file.
 	nextColor int
 
@@ -167,6 +170,7 @@ func newApp(invalidate func(), opts Options) *App {
 		symbolSize:   dpOr(opts.State.Style.SymbolSize, settings.DefaultSymbolSize),
 		fileList:     widget.List{List: layout.List{Axis: layout.Vertical}},
 		pending:      map[int][]settings.File{},
+		gps:          gpsView{cfg: opts.State.GPS},
 	}
 	if opts.State.Window.Valid() {
 		a.win = *opts.State.Window
@@ -256,6 +260,7 @@ func (a *App) State() settings.Settings {
 			Zoom: a.mapView.View.Zoom,
 			Map:  a.layerNames[a.layerSelect.Selected()],
 		},
+		GPS:    a.gps.cfg,
 		Window: new(a.win),
 		Files:  a.fileState(),
 	}
@@ -275,6 +280,7 @@ func (a *App) State() settings.Settings {
 // Run processes window events until the window is closed.
 func (a *App) Run() error {
 	defer a.closeTiles()
+	defer a.stopGPS()
 
 	var ops op.Ops
 	for {
@@ -418,6 +424,7 @@ func (a *App) update(gtx layout.Context) {
 	// Double-clicking the chart moves the map to the clicked position, without zooming.
 	if a.chart.doubleClicked && a.hover.valid {
 		a.mapView.View.Center = a.hover.pos
+		a.gps.following = false
 	}
 	// Double-clicking the selected item on the map centers the zoomed chart on the position.
 	if a.mapView.DoubleClicked() && a.hover.valid && a.chart.zoomedOn(a.selected) {
@@ -426,6 +433,7 @@ func (a *App) update(gtx layout.Context) {
 		c.setRange(a.hover.x-span/2, span)
 	}
 	a.updateHighlight()
+	a.updateGPS(gtx)
 }
 
 // updateShortcuts handles the global keyboard shortcuts.
@@ -495,7 +503,9 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	a.highlight.Layout(gtx, &a.mapView.View)
 	a.layoutEditMap(gtx)
 	a.layoutHoverMap(gtx)
+	a.layoutGPSMarker(gtx)
 	a.layoutLegend(gtx)
+	a.layoutGPSButton(gtx)
 	return dims
 }
 
@@ -558,6 +568,9 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	}
 	if loading > 0 {
 		status += fmt.Sprintf("   loading %d", loading)
+	}
+	if s := a.gpsStatus(); s != "" {
+		status += "   " + s
 	}
 	if a.editing != nil {
 		status += "   " + a.editHint()
