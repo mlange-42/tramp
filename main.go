@@ -1,10 +1,6 @@
 // TRAMP - Track and Route Analysis, Mapping and Planning.
 package main
 
-// The Windows resource gives the executable, window and taskbar their icon.
-// assets/tramp.ico is assets/logo.svg exported at 16 to 256 px.
-//go:generate go run github.com/akavel/rsrc@v0.10.2 -ico assets/tramp.ico -o rsrc_windows_amd64.syso
-
 import (
 	"io"
 	"log"
@@ -14,6 +10,7 @@ import (
 	"slices"
 
 	"gioui.org/app"
+	_ "github.com/mlange-42/tramp/assets" // Windows icon
 	"github.com/mlange-42/tramp/internal/settings"
 	"github.com/mlange-42/tramp/internal/ui"
 )
