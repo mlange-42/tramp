@@ -48,6 +48,8 @@ type Settings struct {
 	View *View `yaml:"view,omitempty"`
 	// GPS selects the GPS receiver for showing the live position.
 	GPS GPS `yaml:"gps"`
+	// Search selects the service for searching places by name.
+	Search Search `yaml:"search"`
 	// Window is the last main window size, position and state. Nil if not known yet.
 	Window *Window `yaml:"window,omitempty"`
 	// Files are the opened track files, in panel order.
@@ -81,6 +83,32 @@ type GPS struct {
 	Port string `yaml:"port"`
 	// Baud is the baud rate of a serial port, like 4800. If 0, common baud rates are tried.
 	Baud int `yaml:"baud"`
+}
+
+// Search selects the service for searching places by name.
+type Search struct {
+	// Service is photon or nominatim. If empty, photon is used.
+	Service string `yaml:"service"`
+	// URL is the search endpoint of the service, for using another server.
+	// If empty, the public server of the service is used.
+	URL string `yaml:"url"`
+	// Limit is the maximum number of places listed for a search, up to [MaxSearchLimit].
+	// If 0, [DefaultSearchLimit] is used.
+	Limit int `yaml:"limit"`
+}
+
+// DefaultSearchLimit is the default for [Search.Limit].
+const DefaultSearchLimit = 10
+
+// MaxSearchLimit is the highest [Search.Limit], the most results Nominatim returns.
+const MaxSearchLimit = 40
+
+// SearchLimit returns the limit, or the default if not set, at most [MaxSearchLimit].
+func (s Search) SearchLimit() int {
+	if s.Limit <= 0 {
+		return DefaultSearchLimit
+	}
+	return min(s.Limit, MaxSearchLimit)
 }
 
 // File is an opened track file.

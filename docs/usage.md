@@ -5,6 +5,37 @@ Run `tramp` to open the map. Drag to pan, scroll to zoom.
 The background map and overlays like hillshading can be selected in the toolbar.
 Further maps can be added in the [maps configuration](configuration.md#maps).
 
+## Search
+
+The search field at the right of the toolbar (Ctrl+F) moves the map to a place or to coordinates.
+Press Enter to search; the found position is marked on the map until the field is cleared with × or Esc.
+
+Coordinates are recognized in the common formats, latitude first unless marked with N/S/E/W:
+
+```text
+51.34, 12.37
+51.34N 12.37E
+N 51° 20.4' E 12° 22.2'
+51°20'24"N 12°22'12"E
+```
+
+Anything else is searched as a place name, by default with [Photon](https://photon.komoot.io) by komoot,
+based on OpenStreetMap data.
+Places are searched while typing. Places in about the area shown on the map are preferred,
+but well-known places elsewhere are still found.
+The matching places are listed below the field, with their beeline distance from the map center.
+Click one, or select it with the arrow keys and press Enter, to show it.
+Searching place names needs an internet connection.
+
+Instead of Photon, [Nominatim](https://nominatim.org), the search service of OpenStreetMap, can be used,
+or another server of either service, see the [settings](configuration.md#settings).
+With Nominatim, places are only searched on Enter, and nearby places are not preferred.
+
+Both public servers are free, but ask for moderate use:
+Nominatim allows at most one search per second for all users of an application together,
+and forbids searching while typing; Photon throttles extensive use.
+TRAMP remembers the results of recent searches, so repeated searches don't reach the server again.
+
 ## Opening files
 
 Open GPX files with the folder button or Ctrl+O, or pass them on the command line:

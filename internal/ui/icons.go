@@ -28,6 +28,7 @@ var (
 	iconMap      = mustIcon(icons.MapsMap)
 	iconPalette  = mustIcon(icons.ImagePalette)
 	iconGradient = mustIcon(icons.ImageGradient)
+	iconSearch   = mustIcon(icons.ActionSearch)
 
 	toolIcons = [numTools]*widget.Icon{
 		mustIcon(icons.ActionTouchApp),

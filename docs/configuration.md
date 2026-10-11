@@ -27,10 +27,15 @@ gps:
   port: ''                 # serial port of the GPS receiver, like COM5 or /dev/ttyUSB0; empty to search;
                            # or a network source like tcp://192.168.1.5:10110, udp://:10110 or gpsd://localhost
   baud: 0                  # baud rate, like 4800; 0 to try common rates
+search:
+  service: photon          # search service for place names: photon or nominatim
+  url: ''                  # search endpoint of another server; empty for the public server of the service
+  limit: 10                # most places listed for a search, up to 40
 ```
 
 Sizes are in device-independent pixels.
 See [Live GPS position](usage.md#live-gps-position) for the GPS receiver.
+See [Search](usage.md#search) for the search services.
 Colors are given like `#808080`, or with opacity like `#808080c0`.
 
 ## Maps

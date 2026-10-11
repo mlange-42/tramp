@@ -25,13 +25,14 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/geo"
+	"github.com/mlange-42/tramp/internal/geocode"
 	"github.com/mlange-42/tramp/internal/mapview"
 	"github.com/mlange-42/tramp/internal/settings"
 	"github.com/mlange-42/tramp/internal/tiles"
 	"github.com/mlange-42/tramp/internal/wms"
 )
 
-// UserAgent is sent with all map requests.
+// UserAgent is sent with all map and search requests.
 const UserAgent = "TRAMP (+https://github.com/mlange-42/tramp)"
 
 // worldBounds is the area shown if no initial view is given.
@@ -131,6 +132,11 @@ type App struct {
 
 	// gps shows the live position from a GPS receiver.
 	gps gpsView
+	// search is the search field for places and coordinates, using geocoder for place names.
+	// searchCfg is the configured search service, kept for saving the settings.
+	search    searchBox
+	geocoder  geocode.Searcher
+	searchCfg settings.Search
 
 	// nextColor is the index of the default color for the next opened file.
 	nextColor int
@@ -172,6 +178,7 @@ func newApp(invalidate func(), opts Options) *App {
 		fileList:     widget.List{List: layout.List{Axis: layout.Vertical}},
 		pending:      map[int][]settings.File{},
 		gps:          gpsView{cfg: opts.State.GPS},
+		searchCfg:    opts.State.Search,
 	}
 	if opts.State.Window.Valid() {
 		a.win = *opts.State.Window
@@ -185,6 +192,7 @@ func newApp(invalidate func(), opts Options) *App {
 		Collapsed: a.win.ChartClosed,
 	}
 	a.chart.axis = chartAxisByKey(a.win.ChartAxis)
+	a.geocoder = newGeocoder(opts.State.Search)
 	if c := opts.State.Style.MutedColor; c != "" {
 		if col, err := parseColorAlpha(c); err == nil {
 			a.style.MutedTrack = col
@@ -235,6 +243,18 @@ func newApp(invalidate func(), opts Options) *App {
 	return a
 }
 
+// newGeocoder returns the searcher for the configured search service.
+// An unknown service is logged, and the default is used.
+func newGeocoder(cfg settings.Search) geocode.Searcher {
+	client := &http.Client{Timeout: 15 * time.Second}
+	g, err := geocode.New(cfg.Service, cfg.URL, client, UserAgent)
+	if err != nil {
+		log.Printf("search: %v", err)
+		g, _ = geocode.New("", "", client, UserAgent)
+	}
+	return g
+}
+
 // dpOr returns v, or def if v is not positive.
 func dpOr(v, def float32) unit.Dp {
 	if v <= 0 {
@@ -262,6 +282,7 @@ func (a *App) State() settings.Settings {
 			Map:  a.layerNames[a.layerSelect.Selected()],
 		},
 		GPS:    a.gps.cfg,
+		Search: a.searchCfg,
 		Window: new(a.win),
 		Files:  a.fileState(),
 	}
@@ -394,6 +415,7 @@ func (a *App) update(gtx layout.Context) {
 		a.newFile()
 	}
 	a.updateShortcuts(gtx)
+	a.updateSearch(gtx)
 
 	a.addLoaded()
 	a.applyColors()
@@ -439,14 +461,15 @@ func (a *App) update(gtx layout.Context) {
 
 // updateShortcuts handles the global keyboard shortcuts.
 // Key events go to the first handler asking for them, so while typing in a property field,
-// undo and redo are left to the field.
+// undo and redo are left to the field, also in the search field.
 func (a *App) updateShortcuts(gtx layout.Context) {
 	filters := []event.Filter{
 		key.Filter{Name: "O", Required: key.ModShortcut},
 		key.Filter{Name: "N", Required: key.ModShortcut},
 		key.Filter{Name: "S", Required: key.ModShortcut},
+		key.Filter{Name: "F", Required: key.ModShortcut},
 	}
-	if !a.propsFocused(gtx) {
+	if !a.propsFocused(gtx) && !a.searchFocused(gtx) {
 		filters = append(filters,
 			key.Filter{Name: "Z", Required: key.ModShortcut, Optional: key.ModShift},
 			key.Filter{Name: "Y", Required: key.ModShortcut},
@@ -468,6 +491,8 @@ func (a *App) updateShortcuts(gtx layout.Context) {
 			a.newFile()
 		case e.Name == "S":
 			a.save()
+		case e.Name == "F":
+			a.focusSearch(gtx)
 		case e.Name == "Y", e.Name == "Z" && e.Modifiers.Contain(key.ModShift):
 			a.redo()
 		case e.Name == "Z":
@@ -502,6 +527,7 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	dims := a.mapView.Layout(gtx, a.mapLayers...)
 	a.tracks.Layout(gtx, &a.mapView.View)
 	a.highlight.Layout(gtx, &a.mapView.View)
+	a.layoutSearchMarker(gtx)
 	a.layoutEditMap(gtx)
 	a.layoutHoverMap(gtx)
 	a.layoutGPSMarker(gtx)
@@ -542,6 +568,11 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 					layout.Rigid(a.layoutUndoRedo),
 				)
 			}),
+			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+				return layout.Dimensions{Size: image.Pt(gtx.Constraints.Min.X, 0)}
+			}),
+			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
+			layout.Rigid(a.layoutSearch),
 		)
 	})
 }
