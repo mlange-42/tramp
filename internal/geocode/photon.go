@@ -18,6 +18,12 @@ const PhotonURL = "https://photon.komoot.io/api"
 // PhotonAttribution is shown with search results, as required by the license of the OpenStreetMap data.
 const PhotonAttribution = "Search by Photon · © OpenStreetMap contributors"
 
+// photonBiasScale is how much the importance of places still counts against their distance
+// when searching near a position, from 0 to 1. Photon's default of 0.4 lists only streets
+// named like Berlin when searching "Berlin" in Leipzig; 0.6 lists the city first,
+// and still nearby places for common names like "Hauptbahnhof".
+const photonBiasScale = "0.6"
+
 // Photon searches places with a Photon service.
 type Photon struct {
 	// URL is the search endpoint. Empty means [PhotonURL].
@@ -74,6 +80,7 @@ func (p *Photon) Search(ctx context.Context, query Query) ([]Place, error) {
 		if query.Zoom > 0 {
 			q.Set("zoom", strconv.Itoa(query.Zoom))
 		}
+		q.Set("location_bias_scale", photonBiasScale)
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+q.Encode(), nil)
 	if err != nil {

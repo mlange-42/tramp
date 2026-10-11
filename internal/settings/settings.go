@@ -87,7 +87,7 @@ type GPS struct {
 
 // Search selects the service for searching places by name.
 type Search struct {
-	// Service is nominatim or photon. If empty, nominatim is used.
+	// Service is photon or nominatim. If empty, photon is used.
 	Service string `yaml:"service"`
 	// URL is the search endpoint of the service, for using another server.
 	// If empty, the public server of the service is used.

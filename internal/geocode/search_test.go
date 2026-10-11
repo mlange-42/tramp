@@ -82,7 +82,7 @@ func TestCache(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	for service, interactive := range map[string]bool{"": false, "Nominatim": false, "photon": true} {
+	for service, interactive := range map[string]bool{"": true, "Nominatim": false, "photon": true} {
 		s, err := New(service, "", nil, "test")
 		if err != nil {
 			t.Fatal(err)

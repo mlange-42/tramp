@@ -15,10 +15,10 @@ import (
 
 // Search services.
 const (
-	// ServiceNominatim is the search service of OpenStreetMap, the default.
-	ServiceNominatim = "nominatim"
-	// ServicePhoton is the Photon search service by komoot.
+	// ServicePhoton is the Photon search service by komoot, the default.
 	ServicePhoton = "photon"
+	// ServiceNominatim is the search service of OpenStreetMap.
+	ServiceNominatim = "nominatim"
 )
 
 // Searcher finds places by name.
@@ -67,18 +67,18 @@ type Place struct {
 	HasBounds bool
 }
 
-// New returns the searcher for a service, [ServiceNominatim] if empty, with results cached.
+// New returns the searcher for a service, [ServicePhoton] if empty, with results cached.
 // url is the search endpoint, or empty for the public server of the service.
 // userAgent identifies the application, as the services require.
 func New(service, url string, client *http.Client, userAgent string) (Searcher, error) {
 	var s Searcher
 	switch strings.ToLower(strings.TrimSpace(service)) {
-	case "", ServiceNominatim:
-		s = &Nominatim{URL: url, HTTP: client, UserAgent: userAgent}
-	case ServicePhoton:
+	case "", ServicePhoton:
 		s = &Photon{URL: url, HTTP: client, UserAgent: userAgent}
+	case ServiceNominatim:
+		s = &Nominatim{URL: url, HTTP: client, UserAgent: userAgent}
 	default:
-		return nil, fmt.Errorf("unknown search service %q, expected %s or %s", service, ServiceNominatim, ServicePhoton)
+		return nil, fmt.Errorf("unknown search service %q, expected %s or %s", service, ServicePhoton, ServiceNominatim)
 	}
 	return NewCache(s, defaultCacheSize), nil
 }

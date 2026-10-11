@@ -22,11 +22,12 @@ const photonSample = `{"type":"FeatureCollection","features":[
 ]}`
 
 func TestPhotonSearch(t *testing.T) {
-	var gotQuery, gotLimit, gotAgent, gotLat, gotLon, gotZoom string
+	var gotQuery, gotLimit, gotAgent, gotLat, gotLon, gotZoom, gotScale string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		v := r.URL.Query()
 		gotQuery, gotLimit, gotAgent = v.Get("q"), v.Get("limit"), r.UserAgent()
 		gotLat, gotLon, gotZoom = v.Get("lat"), v.Get("lon"), v.Get("zoom")
+		gotScale = v.Get("location_bias_scale")
 		_, _ = w.Write([]byte(photonSample))
 	}))
 	defer srv.Close()
@@ -37,7 +38,7 @@ func TestPhotonSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotQuery != "Thomaskirche" || gotLimit != "5" || gotAgent != "test-agent" || gotLat != "51.34000" || gotLon != "12.37000" || gotZoom != "14" {
+	if gotQuery != "Thomaskirche" || gotLimit != "5" || gotAgent != "test-agent" || gotLat != "51.34000" || gotLon != "12.37000" || gotZoom != "14" || gotScale != photonBiasScale {
 		t.Errorf("request: query %q, limit %q, agent %q, near %s %s zoom %s", gotQuery, gotLimit, gotAgent, gotLat, gotLon, gotZoom)
 	}
 	if len(places) != 2 {

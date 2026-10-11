@@ -28,7 +28,7 @@ gps:
                            # or a network source like tcp://192.168.1.5:10110, udp://:10110 or gpsd://localhost
   baud: 0                  # baud rate, like 4800; 0 to try common rates
 search:
-  service: nominatim       # search service for place names: nominatim or photon
+  service: photon          # search service for place names: photon or nominatim
   url: ''                  # search endpoint of another server; empty for the public server of the service
 ```
 

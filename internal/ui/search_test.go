@@ -184,18 +184,18 @@ func TestSearchLayout(t *testing.T) {
 }
 
 func TestSearchService(t *testing.T) {
-	cfg := settings.Search{Service: "photon", URL: "https://photon.example.org/api"}
+	cfg := settings.Search{Service: "nominatim", URL: "https://nominatim.example.org/search"}
 	a := newApp(func() {}, Options{Maps: DefaultMaps(), State: settings.Settings{View: &settings.View{Map: "None"}, Search: cfg}})
 	defer a.closeTiles()
-	if a.geocoder.Attribution() != geocode.PhotonAttribution {
-		t.Errorf("expected Photon, got %q", a.geocoder.Attribution())
+	if a.geocoder.Attribution() != geocode.NominatimAttribution {
+		t.Errorf("expected Nominatim, got %q", a.geocoder.Attribution())
 	}
 	if a.State().Search != cfg {
 		t.Errorf("search settings not kept: %+v", a.State().Search)
 	}
-	// An unknown service falls back to Nominatim.
-	if g := newGeocoder(settings.Search{Service: "unknown"}); g.Attribution() != geocode.NominatimAttribution {
-		t.Errorf("expected Nominatim, got %q", g.Attribution())
+	// An unknown service falls back to the default, Photon.
+	if g := newGeocoder(settings.Search{Service: "unknown"}); g.Attribution() != geocode.PhotonAttribution {
+		t.Errorf("expected Photon, got %q", g.Attribution())
 	}
 }
 
