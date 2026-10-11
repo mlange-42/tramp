@@ -21,6 +21,9 @@ import (
 // The tints, neutral colors and the text color are derived from it.
 var brandBlue = color.NRGBA{R: 0x27, G: 0x4a, B: 0x6d, A: 0xff}
 
+// brandYellow is the yellow of the boot print in the logo, for markers on the map.
+var brandYellow = color.NRGBA{R: 0xf2, G: 0xc2, B: 0x30, A: 0xff}
+
 // Style collects the theme and all sizes and colors of the UI, to tune the look in one place.
 type Style struct {
 	// Theme provides fonts and the base palette for Gio's material widgets.
@@ -117,6 +120,11 @@ type Style struct {
 	GPSDotSize unit.Dp
 	// GPSButtonSize is the diameter of the round GPS button on the map, GPSIconSize that of its icon.
 	GPSButtonSize, GPSIconSize unit.Dp
+	// SearchWidth is the width of the search field in the toolbar.
+	SearchWidth unit.Dp
+	// SearchMarker is the color of the marker of a found place, SearchMarkerSize its diameter without the ring.
+	SearchMarker     color.NRGBA
+	SearchMarkerSize unit.Dp
 }
 
 // DefaultStyle returns a compact style.
@@ -176,6 +184,9 @@ func DefaultStyle() *Style {
 		GPSDotSize:       14,
 		GPSButtonSize:    36,
 		GPSIconSize:      22,
+		SearchWidth:      280,
+		SearchMarker:     brandYellow,
+		SearchMarkerSize: 12,
 
 		EditHandleFill: color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
 		EditHandleRing: color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xff},

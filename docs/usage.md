@@ -5,6 +5,24 @@ Run `tramp` to open the map. Drag to pan, scroll to zoom.
 The background map and overlays like hillshading can be selected in the toolbar.
 Further maps can be added in the [maps configuration](configuration.md#maps).
 
+## Search
+
+The search field at the right of the toolbar (Ctrl+F) moves the map to a place or to coordinates.
+Press Enter to search; the found position is marked on the map until the field is cleared with × or Esc.
+
+Coordinates are recognized in the common formats, latitude first unless marked with N/S/E/W:
+
+```text
+51.34, 12.37
+51.34N 12.37E
+N 51° 20.4' E 12° 22.2'
+51°20'24"N 12°22'12"E
+```
+
+Anything else is searched as a place name with [Nominatim](https://nominatim.org), the search service of OpenStreetMap.
+The matching places are listed below the field; click one to show it.
+Searching place names needs an internet connection.
+
 ## Opening files
 
 Open GPX files with the folder button or Ctrl+O, or pass them on the command line:

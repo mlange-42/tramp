@@ -276,14 +276,16 @@ func (a *App) validateEditor() {
 
 // updateEditKeys handles the keys for editing.
 // Key events go to the first handler asking for them, so while typing in a property field,
-// only Esc is taken, for reverting the field.
+// only Esc is taken, for reverting the field. While typing in the search field, none are taken.
 func (a *App) updateEditKeys(gtx layout.Context) {
-	filters := []event.Filter{
-		key.Filter{Name: key.NameEscape},
-		key.Filter{Name: key.NameShift, Optional: key.ModShift},
+	filters := []event.Filter{key.Filter{Name: key.NameShift, Optional: key.ModShift}}
+	// The search field handles Esc itself, and takes all other keys.
+	searching := a.searchFocused(gtx)
+	if !searching {
+		filters = append(filters, key.Filter{Name: key.NameEscape})
 	}
 	typing := a.propsFocused(gtx)
-	if !typing {
+	if !typing && !searching {
 		filters = append(filters,
 			key.Filter{Name: key.NameReturn},
 			key.Filter{Name: key.NameDeleteForward},
