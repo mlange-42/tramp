@@ -42,6 +42,9 @@ like a handheld GPS or a GPS mouse connected by USB or Bluetooth.
 The map follows the position until it is dragged; click the button again to follow it again,
 and once more while following to turn the GPS off.
 The status bar shows the position, its estimated accuracy and the speed.
+The circle around the position shows the accuracy reported by the receiver.
+Most receivers don't report it; it is then estimated from the satellite geometry (HDOP),
+generously, as reflections near buildings or indoors cause errors the HDOP doesn't show.
 While the receiver has no fix, the last position is gray.
 
 TRAMP reads NMEA 0183, which almost all GPS receivers can send over a serial port.

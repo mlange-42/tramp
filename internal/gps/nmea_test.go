@@ -50,7 +50,7 @@ func TestParserGT31(t *testing.T) {
 	if !near(f.Pos.Lat, 51+19.7613/60) || !near(f.Pos.Lon, 12+24.5324/60) {
 		t.Errorf("position %v", f.Pos)
 	}
-	if f.Sats != 3 || f.HDOP != 9.9 || !f.HasAlt || f.Alt != 107.17 || !near(f.Accuracy, 9.9*uere) {
+	if f.Sats != 3 || f.HDOP != 9.9 || !f.HasAlt || f.Alt != 107.17 || !near(f.Accuracy, 9.9*uere*hdopScale) {
 		t.Errorf("fix %+v", f)
 	}
 	if !f.Time.Equal(now) {
@@ -82,6 +82,11 @@ func TestParserLost(t *testing.T) {
 func TestParserAccuracy(t *testing.T) {
 	var p parser
 	now := time.Now()
+	// A small HDOP, as from a phone (NetGPS), gives the minimum.
+	p.parse(sentence("GPGGA,102332,5119.75635,N,01224.52799,E,1,14,0.6,171.000,M,,M,,"), now)
+	if p.fix.Accuracy != minHDOPAccuracy {
+		t.Errorf("accuracy %v", p.fix.Accuracy)
+	}
 	// Garmin's estimated position error.
 	p.parse(sentence("PGRME,15.0,M,45.0,M,25.0,M"), now)
 	p.parse(sentence("GPGLL,5119.7613,N,01224.5324,E,085309.00,A,A"), now)

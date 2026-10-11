@@ -15,6 +15,12 @@ const (
 	knots = 1852.0 / 3600
 	// uere is the user equivalent range error in meters, for estimating the accuracy from the HDOP.
 	uere = 5
+	// hdopScale scales HDOP × UERE, about one standard deviation, to a radius containing about 95% of fixes.
+	hdopScale = 2
+	// minHDOPAccuracy is the smallest accuracy estimated from the HDOP, in meters.
+	// The HDOP only reflects the satellite geometry, not errors from reflections near buildings,
+	// so it can be very small with many satellites, like 0.6 on phones.
+	minHDOPAccuracy = 10
 )
 
 // Fix is a position reported by a receiver.
@@ -35,7 +41,8 @@ type Fix struct {
 	// HDOP is the horizontal dilution of precision, or 0 if not known.
 	HDOP float64
 	// Accuracy is the estimated horizontal error in meters, or 0 if not known.
-	// It is reported by some receivers, and otherwise estimated from the HDOP.
+	// It is reported by some receivers, and otherwise estimated from the HDOP,
+	// cautiously, as a radius containing about 95% of fixes and at least [minHDOPAccuracy].
 	Accuracy float64
 }
 
@@ -154,7 +161,7 @@ func (p *parser) update(now time.Time) bool {
 	case p.errEst > 0:
 		p.fix.Accuracy = p.errEst
 	case p.fix.HDOP > 0:
-		p.fix.Accuracy = p.fix.HDOP * uere
+		p.fix.Accuracy = max(p.fix.HDOP*uere*hdopScale, minHDOPAccuracy)
 	default:
 		p.fix.Accuracy = 0
 	}
