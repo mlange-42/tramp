@@ -63,7 +63,9 @@ type Map struct {
 	pressPos       f32.Point
 	panned         bool
 	secondaryClick bool
-	wanted         []geo.TileKey
+	// dragged is set when the map was panned by dragging, until [Map.Dragged] is called.
+	dragged bool
+	wanted  []geo.TileKey
 
 	clicks      DoubleClick
 	doubleClick bool
@@ -171,6 +173,7 @@ func (m *Map) Update(gtx layout.Context) {
 			if m.dragging && e.PointerID == m.dragID {
 				d := e.Position.Sub(m.last)
 				m.View.Pan(float64(d.X), float64(d.Y))
+				m.dragged = m.dragged || d != (f32.Point{})
 				m.last = e.Position
 				d = e.Position.Sub(m.pressPos)
 				m.panned = m.panned || d.X*d.X+d.Y*d.Y > clickSlop*clickSlop
@@ -242,6 +245,13 @@ func (m *Map) Primary() []PointerEvent {
 func (m *Map) DoubleClicked() bool {
 	d := m.doubleClick
 	m.doubleClick = false
+	return d
+}
+
+// Dragged reports whether the map was panned by dragging since the last call.
+func (m *Map) Dragged() bool {
+	d := m.dragged
+	m.dragged = false
 	return d
 }
 

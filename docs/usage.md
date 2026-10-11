@@ -34,3 +34,29 @@ The color range covers the values of all visible tracks, ignoring the most extre
 Tracks and routes without the required data, like routes without times for speed, keep their own color.
 
 The gradients can be changed in the [gradients configuration](configuration.md#gradients).
+
+## Live GPS position
+
+The round button at the bottom right of the map shows the live position of a GPS receiver,
+like a handheld GPS or a GPS mouse connected by USB or Bluetooth.
+The map follows the position until it is dragged; click the button again to follow it again,
+and once more while following to turn the GPS off.
+The status bar shows the position, its estimated accuracy and the speed.
+While the receiver has no fix, the last position is gray.
+
+TRAMP reads NMEA 0183, which almost all GPS receivers can send over a serial port.
+It searches the receiver on all USB and Bluetooth serial ports at common baud rates, which takes a few seconds.
+The port and baud rate can also be set in the [settings](configuration.md#settings).
+Built-in serial ports on Linux (`/dev/ttyS*`) are only used if set there.
+Some devices need to be set up to send NMEA:
+
+- **Locosys GT-31** sends NMEA at 4800 baud while switched on and not in NaviLink mode.
+- **Garmin** handhelds with a serial cable: set the interface to *NMEA In/NMEA Out* in the system setup.
+  Garmin devices with USB use their own protocol; on Windows, install Garmin's *Spanner* driver,
+  set the interface to *Garmin Spanner*, and use the virtual serial port it creates.
+- **GPS mice** like GlobalSat BU-353 or u-blox receivers send NMEA right away.
+- **Bluetooth** receivers like Garmin GLO, Bad Elf or Qstarz must be paired first.
+  On Windows, use the *outgoing* serial port of the device (Bluetooth settings → More Bluetooth settings → COM Ports).
+  On Linux, bind it to a port with `rfcomm bind`.
+
+Bluetooth Low Energy devices without a serial port, and smartphones, are not supported.

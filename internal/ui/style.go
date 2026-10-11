@@ -105,6 +105,14 @@ type Style struct {
 	LegendBg color.NRGBA
 	// LegendWidth is the width of the color bar, and the maximum width of the scale bar, in the legend.
 	LegendWidth unit.Dp
+	// GPSColor is the color of the live GPS position, and of the GPS button while following it.
+	// GPSStale is the color of the position while the receiver has no fix.
+	// GPSAccuracy is the fill of the circle showing the accuracy of the position.
+	GPSColor, GPSStale, GPSAccuracy color.NRGBA
+	// GPSDotSize is the diameter of the dot of the live GPS position, without its ring.
+	GPSDotSize unit.Dp
+	// GPSButtonSize is the diameter of the round GPS button on the map, GPSIconSize that of its icon.
+	GPSButtonSize, GPSIconSize unit.Dp
 }
 
 // DefaultStyle returns a compact style.
@@ -156,6 +164,12 @@ func DefaultStyle() *Style {
 		HoverRadius:      12,
 		LegendBg:         color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xe0},
 		LegendWidth:      180,
+		GPSColor:         color.NRGBA{R: 0x1a, G: 0x73, B: 0xe8, A: 0xff},
+		GPSStale:         color.NRGBA{R: 0x90, G: 0x90, B: 0x90, A: 0xff},
+		GPSAccuracy:      color.NRGBA{R: 0x1a, G: 0x73, B: 0xe8, A: 0x30},
+		GPSDotSize:       14,
+		GPSButtonSize:    36,
+		GPSIconSize:      22,
 
 		EditHandleFill: color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
 		EditHandleRing: color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xff},

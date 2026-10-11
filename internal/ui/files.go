@@ -596,6 +596,7 @@ func (a *App) addLoaded() {
 		}
 		if b.fit && !fit.Empty() {
 			a.mapView.Fit(fitRect(fit))
+			a.gps.following = false
 		}
 		a.tracksChanged = true
 	}

@@ -14,6 +14,7 @@ A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Wr
 - [x] Coloring by speed, elevation or slope
 - [x] Profile chart, linked to the map
 - [x] Route and waypoint editing
+- [x] Live GPS position from USB and Bluetooth receivers
 - [ ] FIT and KML/KMZ files
 - [ ] Elevation for routes
 - [ ] Waypoint symbols
@@ -50,7 +51,7 @@ tramp morning.gpx evening.gpx
 
 ## Documentation
 
-- [Usage](docs/usage.md): map, opening files, coloring tracks
+- [Usage](docs/usage.md): map, opening files, coloring tracks, live GPS position
 - [Editing](docs/editing.md): creating and editing routes and waypoints
 - [Configuration](docs/configuration.md): settings, maps and color gradients
 
