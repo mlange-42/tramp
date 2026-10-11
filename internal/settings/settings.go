@@ -77,8 +77,9 @@ type Style struct {
 // GPS selects the serial port of the GPS receiver for showing the live position.
 type GPS struct {
 	// Port is the serial port, like COM5 or /dev/ttyUSB0. If empty, the receiver is searched on all ports.
+	// It can also be a network source: tcp://host:port, udp://:port or gpsd://host[:port].
 	Port string `yaml:"port"`
-	// Baud is the baud rate, like 4800. If 0, common baud rates are tried.
+	// Baud is the baud rate of a serial port, like 4800. If 0, common baud rates are tried.
 	Baud int `yaml:"baud"`
 }
 

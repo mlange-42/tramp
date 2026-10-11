@@ -133,7 +133,7 @@ func (a *App) gpsStatus() string {
 func (a *App) layoutGPSButton(gtx layout.Context) {
 	g := &a.gps
 	st := a.style
-	ic, col, tip := iconGPSOff, st.Theme.Fg, "Show the live position of a GPS receiver connected by USB or Bluetooth"
+	ic, col, tip := iconGPSOff, st.Theme.Fg, "Show the live position of a GPS receiver, connected by USB, Bluetooth or network"
 	switch {
 	case g.rec == nil:
 	case g.following && g.status.Valid:

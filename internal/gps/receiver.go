@@ -37,8 +37,10 @@ var bauds = []int{4800, 9600, 38400, 115200, 57600, 19200}
 // Config selects the serial port of the receiver.
 type Config struct {
 	// Port is the serial port, like COM5 or /dev/ttyUSB0. If empty, the receiver is searched on all ports.
+	// It can also be a network source: tcp://host:port for a TCP server sending NMEA,
+	// udp://:port for receiving NMEA datagrams, or gpsd://host[:port] for gpsd.
 	Port string
-	// Baud is the baud rate. If 0, common baud rates are tried.
+	// Baud is the baud rate of a serial port. If 0, common baud rates are tried.
 	Baud int
 }
 
@@ -169,6 +171,12 @@ func (r *Receiver) run(ctx context.Context) {
 // candidates returns the ports and baud rates to try, in order.
 func (r *Receiver) candidates() ([]candidate, error) {
 	var ports []port
+	if network, addr, ok, err := parseNetwork(r.cfg.Port); ok {
+		if err != nil {
+			return nil, err
+		}
+		return []candidate{{port: port{Name: r.cfg.Port, Kind: kindNetwork, network: network, addr: addr}}}, nil
+	}
 	if r.cfg.Port != "" {
 		ports = []port{findPort(r.cfg.Port)}
 	} else {
@@ -229,8 +237,11 @@ func (r *Receiver) connect(ctx context.Context) (*conn, error) {
 			silent[c.port.Name] = true
 		}
 	}
-	if r.cfg.Port != "" && lastErr != nil {
-		return nil, lastErr
+	if r.cfg.Port != "" {
+		if lastErr != nil {
+			return nil, lastErr
+		}
+		return nil, fmt.Errorf("no NMEA data from %s", r.cfg.Port)
 	}
 	return nil, ErrNotFound
 }
@@ -243,8 +254,11 @@ func probe(ctx context.Context, c candidate) (cn *conn, got bool, err error) {
 		return nil, false, err
 	}
 	listen, silence := probeTime, silentTime
-	if c.port.Kind == kindBluetooth {
+	switch c.port.Kind {
+	case kindBluetooth:
 		listen, silence = bluetoothProbeTime, bluetoothProbeTime
+	case kindNetwork:
+		listen, silence = networkProbeTime, networkProbeTime
 	}
 	start := time.Now()
 	for ctx.Err() == nil && time.Since(start) < listen {
@@ -310,7 +324,7 @@ func (r *Receiver) read(ctx context.Context, cn *conn) error {
 // conn is an open serial port with a line buffer.
 type conn struct {
 	cand candidate
-	port serial.Port
+	port stream
 	buf  []byte
 	tmp  []byte
 	// received counts the bytes received.
@@ -319,10 +333,24 @@ type conn struct {
 	pending string
 }
 
-// open opens a port, giving up after [openTimeout].
+// stream is an open serial port or network connection.
+// A read that times out after [readTimeout] returns no data and no error.
+type stream interface {
+	Read(b []byte) (int, error)
+	Close() error
+}
+
+// open opens a port or network source, giving up after [openTimeout].
 func open(ctx context.Context, c candidate) (*conn, error) {
+	if c.port.Kind == kindNetwork {
+		s, err := openNetwork(ctx, c.port)
+		if err != nil {
+			return nil, fmt.Errorf("connecting to %s: %w", c.port.Name, err)
+		}
+		return newConn(c, s), nil
+	}
 	type result struct {
-		port serial.Port
+		port stream
 		err  error
 	}
 	ch := make(chan result, 1)
@@ -336,7 +364,11 @@ func open(ctx context.Context, c candidate) (*conn, error) {
 				p = nil
 			}
 		}
-		ch <- result{p, err}
+		if err != nil {
+			ch <- result{nil, err}
+			return
+		}
+		ch <- result{p, nil}
 	}()
 	// Close the port when it opens too late.
 	abandon := func() {
@@ -353,7 +385,7 @@ func open(ctx context.Context, c candidate) (*conn, error) {
 		if res.err != nil {
 			return nil, fmt.Errorf("opening %s: %w", c.port.Name, res.err)
 		}
-		return &conn{cand: c, port: res.port, tmp: make([]byte, 256)}, nil
+		return newConn(c, res.port), nil
 	case <-timer.C:
 		abandon()
 		return nil, fmt.Errorf("opening %s: timeout", c.port.Name)
@@ -361,6 +393,11 @@ func open(ctx context.Context, c candidate) (*conn, error) {
 		abandon()
 		return nil, ctx.Err()
 	}
+}
+
+func newConn(c candidate, s stream) *conn {
+	// Large enough for a UDP datagram with several sentences.
+	return &conn{cand: c, port: s, tmp: make([]byte, 4096)}
 }
 
 // readLine returns the next line, or an empty string if none was completed before the read timeout.

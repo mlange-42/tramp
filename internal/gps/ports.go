@@ -25,6 +25,8 @@ const (
 	// kindOther is any other port, like a built-in serial port or a virtual port of a driver,
 	// like Garmin Spanner.
 	kindOther
+	// kindNetwork is a network source, like an app on a phone or gpsd. It is never searched.
+	kindNetwork
 )
 
 // gpsVendors are the USB vendor IDs of GPS receivers and the USB-serial chips they use.
@@ -43,6 +45,8 @@ type port struct {
 	Kind portKind
 	// Desc describes the port for the status, like "USB 067B:2303".
 	Desc string
+	// network and addr are the network ("tcp", "udp" or "gpsd") and address of a network source.
+	network, addr string
 }
 
 func (p port) String() string {

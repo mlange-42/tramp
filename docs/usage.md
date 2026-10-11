@@ -50,7 +50,7 @@ The port and baud rate can also be set in the [settings](configuration.md#settin
 Built-in serial ports on Linux (`/dev/ttyS*`) are only used if set there.
 Some devices need to be set up to send NMEA:
 
-- **Locosys GT-31** sends NMEA at 4800 baud while switched on and not in NaviLink mode.
+- **Locosys GT-31 / BGT-31** sends NMEA at 4800 baud while switched on and not in NaviLink mode.
 - **Garmin** handhelds with a serial cable: set the interface to *NMEA In/NMEA Out* in the system setup.
   Garmin devices with USB use their own protocol; on Windows, install Garmin's *Spanner* driver,
   set the interface to *Garmin Spanner*, and use the virtual serial port it creates.
@@ -59,4 +59,19 @@ Some devices need to be set up to send NMEA:
   On Windows, use the *outgoing* serial port of the device (Bluetooth settings → More Bluetooth settings → COM Ports).
   On Linux, bind it to a port with `rfcomm bind`.
 
-Bluetooth Low Energy devices without a serial port, and smartphones, are not supported.
+Bluetooth Low Energy devices without a serial port are not supported.
+
+### Network sources
+
+Instead of a serial port, the GPS `port` in the [settings](configuration.md#settings) can be a network source.
+Network sources are never searched automatically.
+
+- `tcp://host:port` connects to a server sending NMEA, like a phone app sharing its GPS
+  or a NMEA multiplexer on a boat (often port 10110).
+- `udp://:port` receives NMEA sent as UDP datagrams to this computer, on all network interfaces.
+  Use `udp://192.168.1.10:port` to listen on one interface only.
+- `gpsd://host` or `gpsd://host:port` connects to [gpsd](https://gpsd.io) (default port 2947) and asks it for NMEA.
+  gpsd supports many receivers, including Garmin USB devices on Linux.
+
+On a phone, use an app that shares the position as NMEA over TCP or UDP, and enter its address.
+Both devices must be in the same network, and a firewall may need to allow incoming UDP.
