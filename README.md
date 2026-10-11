@@ -17,7 +17,6 @@ A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Wr
 - [x] Live GPS position from USB and Bluetooth receivers
 - [ ] FIT and KML/KMZ files
 - [ ] Elevation for routes
-- [ ] Waypoint symbols
 - [ ] Weather overlays
 - [ ] Offline tile cache
 
