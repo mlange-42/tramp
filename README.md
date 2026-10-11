@@ -3,11 +3,9 @@
   <img alt="TRAMP – Track and Route Analysis, Mapping and Planning" src="assets/logo-title-light.svg">
 </picture>
 
-<br />
+A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Written in [Go](https://go.dev), for Linux, Windows and MacOS.
 
 [![Tests](https://github.com/mlange-42/tramp/actions/workflows/tests.yml/badge.svg)](https://github.com/mlange-42/tramp/actions/workflows/tests.yml)
-
-A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Written in [Go](https://go.dev), for Linux, Windows and MacOS.
 
 > **Status:** early development. Viewing GPX tracks and editing routes and waypoints work, but there is no release yet and things may change.
 
