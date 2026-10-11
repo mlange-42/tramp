@@ -332,7 +332,7 @@ func open(ctx context.Context, c candidate) (*conn, error) {
 		})
 		if err == nil {
 			if err = p.SetReadTimeout(readTimeout); err != nil {
-				p.Close()
+				_ = p.Close()
 				p = nil
 			}
 		}
@@ -342,7 +342,7 @@ func open(ctx context.Context, c candidate) (*conn, error) {
 	abandon := func() {
 		go func() {
 			if res := <-ch; res.port != nil {
-				res.port.Close()
+				_ = res.port.Close()
 			}
 		}()
 	}
@@ -396,7 +396,7 @@ func (c *conn) nextLine() (string, bool) {
 }
 
 func (c *conn) close() {
-	c.port.Close()
+	_ = c.port.Close()
 }
 
 // sleep waits for d or until ctx is done.
