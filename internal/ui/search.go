@@ -3,7 +3,11 @@ package ui
 import (
 	"context"
 	"image"
+	"math"
+	"regexp"
 	"strings"
+	"time"
+	"unicode/utf8"
 
 	"gioui.org/f32"
 	"gioui.org/font"
@@ -28,15 +32,18 @@ const (
 	placeZoom = 15
 	// placeMaxZoom is the highest zoom level for showing the extent of a found place, like a building.
 	placeMaxZoom = 17
+	// typeDelay is how long typing must pause before searching while typing,
+	// typeMinLen the shortest text searched while typing.
+	typeDelay  = 500 * time.Millisecond
+	typeMinLen = 3
 )
 
-// placeSearcher finds places by name.
-type placeSearcher interface {
-	Search(ctx context.Context, query string, limit int) ([]geocode.Place, error)
-}
+// coordLike matches text that may become coordinates, which is not searched while typing.
+var coordLike = regexp.MustCompile(`^[\d\s.,;:/+\-°º'′’"″”NSEWnsew]*$`)
 
 // searchBox is the search field in the toolbar. Enter jumps to typed coordinates,
 // or searches places by name and lists them in a panel below the field.
+// With a service that allows it, places are also searched while typing.
 // The found position is marked on the map until the field is cleared.
 type searchBox struct {
 	ed    widget.Editor
@@ -45,6 +52,8 @@ type searchBox struct {
 	open bool
 	// panel is the event tag for the panel background.
 	panel int
+	// due is when to search the typed text, or zero.
+	due time.Time
 	// seq numbers the searches, so that results of an outdated search are dropped.
 	seq    int
 	cancel context.CancelFunc
@@ -52,6 +61,8 @@ type searchBox struct {
 	err    error
 	places []geocode.Place
 	rows   []widget.Clickable
+	// sel is the place chosen by Enter, selected with the arrow keys.
+	sel int
 	// marker is the found position, if hasMarker.
 	marker    geo.LonLat
 	hasMarker bool
@@ -61,6 +72,38 @@ type searchBox struct {
 func (a *App) updateSearch(gtx layout.Context) {
 	s := &a.search
 	s.ed.SingleLine, s.ed.Submit = true, true
+	// The arrow keys and Enter choose from the list, before the field takes them.
+	if s.open && len(s.places) > 0 {
+		for {
+			ev, ok := gtx.Event(
+				key.Filter{Focus: &s.ed, Name: key.NameUpArrow},
+				key.Filter{Focus: &s.ed, Name: key.NameDownArrow},
+				key.Filter{Focus: &s.ed, Name: key.NameReturn},
+				key.Filter{Focus: &s.ed, Name: key.NameEnter},
+			)
+			if !ok {
+				break
+			}
+			e, ok := ev.(key.Event)
+			if !ok || e.State != key.Press {
+				continue
+			}
+			switch e.Name {
+			case key.NameUpArrow:
+				a.moveSearchSel(-1)
+			case key.NameDownArrow:
+				a.moveSearchSel(1)
+			default:
+				// While typed text is not searched yet, Enter searches it.
+				if s.busy || !s.due.IsZero() {
+					a.submitSearch(gtx)
+				} else {
+					a.gotoPlace(s.places[s.sel])
+					gtx.Execute(key.FocusCmd{})
+				}
+			}
+		}
+	}
 	for {
 		ev, ok := s.ed.Update(gtx)
 		if !ok {
@@ -70,9 +113,7 @@ func (a *App) updateSearch(gtx layout.Context) {
 		case widget.SubmitEvent:
 			a.submitSearch(gtx)
 		case widget.ChangeEvent:
-			if strings.TrimSpace(s.ed.Text()) == "" {
-				a.clearSearch()
-			}
+			a.typedSearch(gtx)
 		}
 	}
 	for {
@@ -109,6 +150,10 @@ func (a *App) updateSearch(gtx layout.Context) {
 			gtx.Execute(key.FocusCmd{})
 		}
 	}
+	if !s.due.IsZero() && !gtx.Now.Before(s.due) {
+		s.due = time.Time{}
+		a.startSearch(strings.TrimSpace(s.ed.Text()), true)
+	}
 }
 
 // focusSearch moves the focus to the search field and selects its text.
@@ -122,37 +167,81 @@ func (a *App) searchFocused(gtx layout.Context) bool {
 	return gtx.Focused(&a.search.ed)
 }
 
-// submitSearch jumps to typed coordinates, or starts searching places by name in the background.
+// moveSearchSel moves the selection in the result list by d places.
+func (a *App) moveSearchSel(d int) {
+	s := &a.search
+	s.sel = max(0, min(len(s.places)-1, s.sel+d))
+}
+
+// searchWhileTyping reports whether text is searched while typing:
+// if the service allows it, and the text is long enough and can't become coordinates.
+func (a *App) searchWhileTyping(text string) bool {
+	return a.geocoder != nil && a.geocoder.Interactive() &&
+		utf8.RuneCountInString(text) >= typeMinLen && !coordLike.MatchString(text)
+}
+
+// typedSearch handles a change of the text: it schedules searching it, if searched while typing,
+// and otherwise drops the results, which no longer match.
+func (a *App) typedSearch(gtx layout.Context) {
+	s := &a.search
+	text := strings.TrimSpace(s.ed.Text())
+	if text == "" {
+		a.clearSearch()
+		return
+	}
+	if !a.searchWhileTyping(text) {
+		a.stopSearch()
+		s.open, s.err, s.places = false, nil, nil
+		return
+	}
+	s.due = gtx.Now.Add(typeDelay)
+	gtx.Execute(op.InvalidateCmd{At: s.due})
+}
+
+// submitSearch jumps to typed coordinates, or searches places by name.
 func (a *App) submitSearch(gtx layout.Context) {
 	s := &a.search
 	q := strings.TrimSpace(s.ed.Text())
 	if q == "" {
 		return
 	}
-	a.stopSearch()
 	if ll, ok := geocode.ParseCoords(q); ok {
+		a.stopSearch()
 		s.open = false
 		a.gotoPlace(geocode.Place{Pos: ll})
 		gtx.Execute(key.FocusCmd{})
 		return
 	}
-	if a.geocoder == nil {
+	a.startSearch(q, false)
+}
+
+// startSearch searches places by name in the background, preferring places in about the area of the map.
+// keep keeps showing the previous results until the new ones arrive, while typing.
+func (a *App) startSearch(text string, keep bool) {
+	a.stopSearch()
+	s := &a.search
+	if a.geocoder == nil || text == "" {
 		return
 	}
 	s.seq++
 	seq := s.seq
 	ctx, cancel := context.WithCancel(context.Background())
 	s.cancel = cancel
-	s.open, s.busy, s.err, s.places = true, true, nil, nil
+	s.open, s.busy, s.err = true, true, nil
+	if !keep {
+		s.places = nil
+	}
+	v := &a.mapView.View
+	q := geocode.Query{Text: text, Limit: searchLimit, Near: geo.ToLonLat(v.Center), HasNear: true, Zoom: int(math.Round(v.Zoom))}
 	go func() {
-		places, err := a.geocoder.Search(ctx, q, searchLimit)
+		places, err := a.geocoder.Search(ctx, q)
 		a.runOnUI(func() {
 			if seq != s.seq {
 				return
 			}
 			cancel()
 			s.cancel = nil
-			s.busy, s.err, s.places = false, err, places
+			s.busy, s.err, s.places, s.sel = false, err, places, 0
 			if len(s.rows) < len(places) {
 				s.rows = make([]widget.Clickable, len(places))
 			}
@@ -160,7 +249,7 @@ func (a *App) submitSearch(gtx layout.Context) {
 	}()
 }
 
-// stopSearch cancels a running search and drops its results.
+// stopSearch cancels a running or scheduled search and drops its results.
 func (a *App) stopSearch() {
 	s := &a.search
 	if s.cancel != nil {
@@ -168,7 +257,7 @@ func (a *App) stopSearch() {
 		s.cancel = nil
 	}
 	s.seq++
-	s.busy = false
+	s.busy, s.due = false, time.Time{}
 }
 
 // clearSearch removes the results and the marker.
@@ -185,6 +274,7 @@ func (a *App) gotoPlace(p geocode.Place) {
 	s.open = false
 	s.marker, s.hasMarker = p.Pos, true
 	a.gps.following = false
+	a.stopSearch()
 	m := a.mapView
 	if p.HasBounds && (p.Min.Lon < p.Max.Lon || p.Min.Lat < p.Max.Lat) {
 		m.Fit(geo.EmptyRect().Extend(geo.ToMercator(p.Min)).Extend(geo.ToMercator(p.Max)))
@@ -277,26 +367,27 @@ func (a *App) layoutSearchResults(gtx layout.Context) layout.Dimensions {
 	}
 	var children []layout.FlexChild
 	switch {
-	case s.busy:
+	case s.busy && len(s.places) == 0:
 		children = append(children, hint("Searching…"))
 	case s.err != nil:
 		children = append(children, hint("Search failed: "+s.err.Error()))
-	case len(s.places) == 0:
+	case !s.busy && len(s.places) == 0:
 		children = append(children, hint("No places found"))
 	}
 	for i, p := range s.places {
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.layoutPlace(gtx, &s.rows[i], p)
+			return a.layoutPlace(gtx, &s.rows[i], p, i == s.sel)
 		}))
 	}
-	if !s.busy && s.err == nil {
-		children = append(children, hint(geocode.NominatimAttribution))
+	if !s.busy && s.err == nil && a.geocoder != nil {
+		children = append(children, hint(a.geocoder.Attribution()))
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
 // layoutPlace draws a found place as a clickable row: its name, and its kind below.
-func (a *App) layoutPlace(gtx layout.Context, btn *widget.Clickable, p geocode.Place) layout.Dimensions {
+// The selected place is highlighted.
+func (a *App) layoutPlace(gtx layout.Context, btn *widget.Clickable, p geocode.Place, selected bool) layout.Dimensions {
 	st := a.style
 	return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		macro := op.Record(gtx.Ops)
@@ -317,7 +408,10 @@ func (a *App) layoutPlace(gtx layout.Context, btn *widget.Clickable, p geocode.P
 			)
 		})
 		call := macro.Stop()
-		if btn.Hovered() {
+		switch {
+		case selected:
+			paint.FillShape(gtx.Ops, st.SelectedBg, clip.Rect{Max: dims.Size}.Op())
+		case btn.Hovered():
 			paint.FillShape(gtx.Ops, st.DragBg, clip.Rect{Max: dims.Size}.Op())
 		}
 		call.Add(gtx.Ops)

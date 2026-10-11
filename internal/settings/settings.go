@@ -48,6 +48,8 @@ type Settings struct {
 	View *View `yaml:"view,omitempty"`
 	// GPS selects the GPS receiver for showing the live position.
 	GPS GPS `yaml:"gps"`
+	// Search selects the service for searching places by name.
+	Search Search `yaml:"search"`
 	// Window is the last main window size, position and state. Nil if not known yet.
 	Window *Window `yaml:"window,omitempty"`
 	// Files are the opened track files, in panel order.
@@ -81,6 +83,15 @@ type GPS struct {
 	Port string `yaml:"port"`
 	// Baud is the baud rate of a serial port, like 4800. If 0, common baud rates are tried.
 	Baud int `yaml:"baud"`
+}
+
+// Search selects the service for searching places by name.
+type Search struct {
+	// Service is nominatim or photon. If empty, nominatim is used.
+	Service string `yaml:"service"`
+	// URL is the search endpoint of the service, for using another server.
+	// If empty, the public server of the service is used.
+	URL string `yaml:"url"`
 }
 
 // File is an opened track file.

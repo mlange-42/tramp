@@ -133,8 +133,10 @@ type App struct {
 	// gps shows the live position from a GPS receiver.
 	gps gpsView
 	// search is the search field for places and coordinates, using geocoder for place names.
-	search   searchBox
-	geocoder placeSearcher
+	// searchCfg is the configured search service, kept for saving the settings.
+	search    searchBox
+	geocoder  geocode.Searcher
+	searchCfg settings.Search
 
 	// nextColor is the index of the default color for the next opened file.
 	nextColor int
@@ -176,7 +178,7 @@ func newApp(invalidate func(), opts Options) *App {
 		fileList:     widget.List{List: layout.List{Axis: layout.Vertical}},
 		pending:      map[int][]settings.File{},
 		gps:          gpsView{cfg: opts.State.GPS},
-		geocoder:     &geocode.Nominatim{HTTP: &http.Client{Timeout: 15 * time.Second}, UserAgent: UserAgent},
+		searchCfg:    opts.State.Search,
 	}
 	if opts.State.Window.Valid() {
 		a.win = *opts.State.Window
@@ -190,6 +192,7 @@ func newApp(invalidate func(), opts Options) *App {
 		Collapsed: a.win.ChartClosed,
 	}
 	a.chart.axis = chartAxisByKey(a.win.ChartAxis)
+	a.geocoder = newGeocoder(opts.State.Search)
 	if c := opts.State.Style.MutedColor; c != "" {
 		if col, err := parseColorAlpha(c); err == nil {
 			a.style.MutedTrack = col
@@ -240,6 +243,18 @@ func newApp(invalidate func(), opts Options) *App {
 	return a
 }
 
+// newGeocoder returns the searcher for the configured search service.
+// An unknown service is logged, and the default is used.
+func newGeocoder(cfg settings.Search) geocode.Searcher {
+	client := &http.Client{Timeout: 15 * time.Second}
+	g, err := geocode.New(cfg.Service, cfg.URL, client, UserAgent)
+	if err != nil {
+		log.Printf("search: %v", err)
+		g, _ = geocode.New("", "", client, UserAgent)
+	}
+	return g
+}
+
 // dpOr returns v, or def if v is not positive.
 func dpOr(v, def float32) unit.Dp {
 	if v <= 0 {
@@ -267,6 +282,7 @@ func (a *App) State() settings.Settings {
 			Map:  a.layerNames[a.layerSelect.Selected()],
 		},
 		GPS:    a.gps.cfg,
+		Search: a.searchCfg,
 		Window: new(a.win),
 		Files:  a.fileState(),
 	}

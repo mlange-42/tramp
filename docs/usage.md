@@ -19,9 +19,21 @@ N 51° 20.4' E 12° 22.2'
 51°20'24"N 12°22'12"E
 ```
 
-Anything else is searched as a place name with [Nominatim](https://nominatim.org), the search service of OpenStreetMap.
-The matching places are listed below the field; click one to show it.
+Anything else is searched as a place name, by default with [Nominatim](https://nominatim.org), the search service of OpenStreetMap.
+The matching places are listed below the field.
+Click one, or select it with the arrow keys and press Enter, to show it.
 Searching place names needs an internet connection.
+
+Instead of Nominatim, [Photon](https://photon.komoot.io) by komoot can be used,
+or another server of either service, see the [settings](configuration.md#settings).
+With Photon, places are also searched while typing, after a pause of half a second,
+and places in about the area shown on the map come first.
+Text of less than three characters, or that may become coordinates, is only searched on Enter.
+
+Both public servers are free, but ask for moderate use:
+Nominatim allows at most one search per second for all users of an application together,
+and forbids searching while typing; Photon throttles extensive use.
+TRAMP remembers the results of recent searches, so repeated searches don't reach the server again.
 
 ## Opening files
 

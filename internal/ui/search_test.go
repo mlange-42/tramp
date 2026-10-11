@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"gioui.org/io/input"
+	"gioui.org/io/key"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/unit"
@@ -21,13 +22,18 @@ import (
 
 // fakeSearcher returns fixed places, and records the queries.
 type fakeSearcher struct {
-	places  []geocode.Place
-	err     error
-	queries []string
+	places      []geocode.Place
+	err         error
+	interactive bool
+	queries     []geocode.Query
 }
 
-func (f *fakeSearcher) Search(_ context.Context, query string, _ int) ([]geocode.Place, error) {
-	f.queries = append(f.queries, query)
+func (f *fakeSearcher) Attribution() string { return "test" }
+
+func (f *fakeSearcher) Interactive() bool { return f.interactive }
+
+func (f *fakeSearcher) Search(_ context.Context, q geocode.Query) ([]geocode.Place, error) {
+	f.queries = append(f.queries, q)
 	return f.places, f.err
 }
 
@@ -97,7 +103,7 @@ func TestSearchPlaces(t *testing.T) {
 		t.Fatalf("expected a running search with open panel")
 	}
 	waitSearch(a)
-	if len(f.queries) != 1 || f.queries[0] != "Leipzig" {
+	if len(f.queries) != 1 || f.queries[0].Text != "Leipzig" || !f.queries[0].HasNear {
 		t.Errorf("unexpected queries %v", f.queries)
 	}
 	if len(a.search.places) != 2 || len(a.search.rows) < 2 || a.search.err != nil {
@@ -175,4 +181,139 @@ func TestSearchLayout(t *testing.T) {
 	a.search.hasMarker = true
 	frame()
 	frame()
+}
+
+func TestSearchService(t *testing.T) {
+	cfg := settings.Search{Service: "photon", URL: "https://photon.example.org/api"}
+	a := newApp(func() {}, Options{Maps: DefaultMaps(), State: settings.Settings{View: &settings.View{Map: "None"}, Search: cfg}})
+	defer a.closeTiles()
+	if a.geocoder.Attribution() != geocode.PhotonAttribution {
+		t.Errorf("expected Photon, got %q", a.geocoder.Attribution())
+	}
+	if a.State().Search != cfg {
+		t.Errorf("search settings not kept: %+v", a.State().Search)
+	}
+	// An unknown service falls back to Nominatim.
+	if g := newGeocoder(settings.Search{Service: "unknown"}); g.Attribution() != geocode.NominatimAttribution {
+		t.Errorf("expected Nominatim, got %q", g.Attribution())
+	}
+}
+
+func TestSearchWhileTyping(t *testing.T) {
+	places := []geocode.Place{{Name: "Leipzig"}, {Name: "Leipzig, Ohio"}, {Name: "Leipe"}}
+	a, f, gtx := searchApp(places, nil)
+	f.interactive = true
+	t0 := time.Now()
+	// Setting the text reports a change on the next update, like typing.
+	typeText := func(text string) {
+		a.search.ed.SetText(text)
+		gtx.Now = t0
+		a.updateSearch(gtx)
+	}
+	at := func(d time.Duration) {
+		gtx.Now = t0.Add(d)
+		a.updateSearch(gtx)
+	}
+
+	// Short text and coordinates are not searched while typing.
+	for _, text := range []string{"Le", "51.3", "N 51 20.4 E", "51°20'"} {
+		typeText(text)
+		if !a.search.due.IsZero() {
+			t.Errorf("%q: expected no search scheduled", text)
+		}
+	}
+
+	typeText("Leip")
+	at(typeDelay - time.Millisecond)
+	if a.search.busy || len(f.queries) != 0 {
+		t.Fatal("searched before the typing delay")
+	}
+	at(typeDelay)
+	if !a.search.busy || !a.search.open {
+		t.Fatal("expected a search after the typing delay")
+	}
+	waitSearch(a)
+	if len(f.queries) != 1 || f.queries[0].Text != "Leip" || len(a.search.places) != 3 || a.search.sel != 0 {
+		t.Fatalf("unexpected search %v, places %v", f.queries, a.search.places)
+	}
+
+	// The arrow keys select a place.
+	a.moveSearchSel(1)
+	a.moveSearchSel(1)
+	a.moveSearchSel(1)
+	if a.search.sel != 2 {
+		t.Errorf("expected the last place selected, got %d", a.search.sel)
+	}
+	a.moveSearchSel(-5)
+	if a.search.sel != 0 {
+		t.Errorf("expected the first place selected, got %d", a.search.sel)
+	}
+
+	// Typing on keeps the results until the new ones arrive.
+	typeText("Leipz")
+	at(typeDelay)
+	if !a.search.busy || len(a.search.places) != 3 {
+		t.Errorf("expected the old results kept while searching")
+	}
+	waitSearch(a)
+
+	// Text that can't be searched while typing drops the results.
+	typeText("51")
+	if a.search.open || len(a.search.places) != 0 {
+		t.Errorf("expected results dropped")
+	}
+}
+
+func TestSearchOnEnterOnly(t *testing.T) {
+	a, f, gtx := searchApp(nil, nil)
+	a.search.ed.SetText("Leipzig")
+	gtx.Now = time.Now()
+	a.updateSearch(gtx)
+	if !a.search.due.IsZero() {
+		t.Error("a service that is not interactive should not be searched while typing")
+	}
+	gtx.Now = gtx.Now.Add(time.Second)
+	a.updateSearch(gtx)
+	if a.search.busy || len(f.queries) != 0 {
+		t.Error("unexpected search")
+	}
+}
+
+func TestSearchKeys(t *testing.T) {
+	a := newApp(func() {}, Options{Maps: DefaultMaps(), State: settings.Settings{View: &settings.View{Map: "None", Zoom: 5}}})
+	defer a.closeTiles()
+	places := []geocode.Place{{Name: "A", Pos: geo.LonLat{Lon: 1, Lat: 1}}, {Name: "B", Pos: geo.LonLat{Lon: 2, Lat: 2}}}
+	a.geocoder = &fakeSearcher{places: places}
+
+	var r input.Router
+	var ops op.Ops
+	frame := func() {
+		ops.Reset()
+		gtx := layout.Context{Ops: &ops, Source: r.Source(), Now: time.Now(), Constraints: layout.Exact(image.Pt(1000, 700))}
+		gtx.Metric.PxPerDp, gtx.Metric.PxPerSp = 1, 1
+		a.layout(gtx)
+		r.Frame(&ops)
+	}
+	press := func(name key.Name) {
+		r.Queue(key.Event{Name: name, State: key.Press})
+		frame()
+	}
+	frame()
+	r.Source().Execute(key.FocusCmd{Tag: &a.search.ed})
+	frame()
+	a.search.ed.SetText("x")
+	press(key.NameReturn)
+	waitSearch(a)
+	frame()
+	if !a.search.open || len(a.search.places) != 2 {
+		t.Fatalf("expected the results listed, got %+v", a.search)
+	}
+	press(key.NameDownArrow)
+	if a.search.sel != 1 {
+		t.Fatalf("expected the second place selected, got %d", a.search.sel)
+	}
+	press(key.NameReturn)
+	if a.search.open || !a.search.hasMarker || a.search.marker != places[1].Pos {
+		t.Errorf("expected the second place shown, got %+v", a.search)
+	}
 }

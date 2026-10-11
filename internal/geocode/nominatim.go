@@ -2,8 +2,6 @@ package geocode
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -24,21 +22,10 @@ const NominatimAttribution = "Search by Nominatim · © OpenStreetMap contributo
 // nominatimInterval is the shortest time between two requests.
 const nominatimInterval = time.Second
 
-// Place is a search result.
-type Place struct {
-	// Name is the full name of the place, like "Leipzig, Sachsen, Deutschland".
-	Name string
-	// Kind is the type of the place, like "city" or "peak".
-	Kind string
-	// Pos is the position of the place.
-	Pos geo.LonLat
-	// Min and Max are the south-west and north-east corners of the extent of the place, if HasBounds.
-	Min, Max  geo.LonLat
-	HasBounds bool
-}
-
 // Nominatim searches places with a Nominatim service.
 // It is safe for concurrent use, and waits between requests as required by the usage policy.
+// The policy also requires caching results, see [Cache], and switching the server without
+// a software update, which the configurable URL allows.
 type Nominatim struct {
 	// URL is the search endpoint. Empty means [NominatimURL].
 	URL string
@@ -61,8 +48,15 @@ type nominatimPlace struct {
 	BoundingBox []string `json:"boundingbox"`
 }
 
-// Search returns up to limit places matching the query, best matches first.
-func (n *Nominatim) Search(ctx context.Context, query string, limit int) ([]Place, error) {
+// Attribution returns [NominatimAttribution].
+func (n *Nominatim) Attribution() string { return NominatimAttribution }
+
+// Interactive returns false: the usage policy forbids searching while the user types.
+func (n *Nominatim) Interactive() bool { return false }
+
+// Search returns up to q.Limit places matching the query, best matches first.
+// q.Near is not used.
+func (n *Nominatim) Search(ctx context.Context, query Query) ([]Place, error) {
 	if err := n.wait(ctx); err != nil {
 		return nil, err
 	}
@@ -70,29 +64,14 @@ func (n *Nominatim) Search(ctx context.Context, query string, limit int) ([]Plac
 	if endpoint == "" {
 		endpoint = NominatimURL
 	}
-	q := url.Values{"q": {query}, "format": {"jsonv2"}, "limit": {strconv.Itoa(limit)}}
+	q := url.Values{"q": {query.Text}, "format": {"jsonv2"}, "limit": {strconv.Itoa(query.Limit)}}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+q.Encode(), nil)
 	if err != nil {
 		return nil, err
 	}
-	if n.UserAgent != "" {
-		req.Header.Set("User-Agent", n.UserAgent)
-	}
-	client := n.HTTP
-	if client == nil {
-		client = http.DefaultClient
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("search failed: %s", resp.Status)
-	}
 	var raw []nominatimPlace
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		return nil, fmt.Errorf("search failed: %w", err)
+	if err := getJSON(n.HTTP, req, n.UserAgent, &raw); err != nil {
+		return nil, err
 	}
 	places := make([]Place, 0, len(raw))
 	for _, r := range raw {

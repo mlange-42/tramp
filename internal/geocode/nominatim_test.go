@@ -22,7 +22,7 @@ func TestNominatimSearch(t *testing.T) {
 	defer srv.Close()
 
 	n := &Nominatim{URL: srv.URL, UserAgent: "test-agent"}
-	places, err := n.Search(context.Background(), "Leipzig", 5)
+	places, err := n.Search(context.Background(), Query{Text: "Leipzig", Limit: 5})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -50,7 +50,7 @@ func TestNominatimError(t *testing.T) {
 	}))
 	defer srv.Close()
 	n := &Nominatim{URL: srv.URL}
-	if _, err := n.Search(context.Background(), "x", 5); err == nil {
+	if _, err := n.Search(context.Background(), Query{Text: "x", Limit: 5}); err == nil {
 		t.Error("expected an error")
 	}
 }
