@@ -111,10 +111,10 @@ func (a *App) gpsStatus() string {
 		f := s.Fix
 		str := "GPS " + f.Pos.String()
 		if f.Accuracy > 0 {
-			str += fmt.Sprintf(" ±%.0f m", f.Accuracy)
+			str += fmt.Sprintf(" ±%3.0f m", f.Accuracy)
 		}
 		if f.HasCourse {
-			str += fmt.Sprintf(" %.1f km/h", f.Speed*3.6)
+			str += fmt.Sprintf(" %5.1f km/h", f.Speed*3.6)
 		}
 		return str
 	case s.State == gps.Connected:
