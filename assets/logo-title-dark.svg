@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 545 120" width="545" height="120">
+  <title>TRAMP – Track and Route Analysis, Mapping and Planning</title>
+  <g transform="scale(1.2)">
+    <defs>
+      <linearGradient id="tile" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="100">
+        <stop offset="0" stop-color="#305a84"/>
+        <stop offset="1" stop-color="#1e3a56"/>
+      </linearGradient>
+    </defs>
+    <rect width="100" height="100" rx="22" fill="url(#tile)"/>
+    <path d="M72.03 10.73C82.44 17.24 85.69 31.34 77.02 45.22C69.43 57.36 58.8 62.79 52.08 65.82L36.46 56.07C36.25 48.69 35.81 33.94 43.4 21.8C50.99 9.65 63.35 5.31 72.03 10.73ZM32.13 63.01L46.01 71.68C48.61 73.31 48.39 75.59 46.23 79.06L42.43 85.13C39.18 90.33 32.67 91.09 27.47 87.84L25.73 86.76C20.52 83.5 18.36 77.32 21.61 72.12L25.4 66.04C27.57 62.57 29.52 61.38 32.13 63.01Z" fill="#f2c230"/>
+    <path d="M30.6 77.76C33.54 66.51 40.17 71.98 44.02 62.36C47.99 52.45 42.38 42.13 57.07 40.91C66.44 40.13 74.79 36.59 65.66 20.72" fill="none" stroke="url(#tile)" stroke-width="4.88" stroke-linecap="round"/>
+    <circle cx="30.6" cy="77.76" r="4.85" fill="url(#tile)"/>
+    <circle cx="65.66" cy="20.72" r="4.85" fill="url(#tile)"/>
+  </g>
+  <text x="140" y="70" font-size="64" font-weight="700" letter-spacing="4" fill="#fff6ee" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif">TRAMP</text>
+  <text x="142" y="100" font-size="17" fill="#a9b6c3" font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif">Track and Route Analysis, Mapping and Planning</text>
+</svg>
