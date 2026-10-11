@@ -119,6 +119,8 @@ type Style struct {
 func DefaultStyle() *Style {
 	th := material.NewTheme()
 	th.TextSize = 14
+	// The middle of the logo's blue gradient, for buttons and drop-downs.
+	th.ContrastBg = color.NRGBA{R: 0x27, G: 0x4a, B: 0x6d, A: 0xff}
 	// A monospaced font keeps changing numbers, like coordinates, from moving around.
 	// System fonts remain as a fallback for glyphs that Go Mono lacks.
 	faces := monoFaces()
