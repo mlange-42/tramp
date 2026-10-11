@@ -20,26 +20,34 @@ import (
 var sizes = []int{16, 20, 24, 32, 40, 48, 64, 256}
 
 func main() {
-	dir, err := os.MkdirTemp("", "tramp-icon")
-	if err != nil {
+	if err := run(); err != nil {
 		log.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
+}
+
+func run() (err error) {
+	dir, err := os.MkdirTemp("", "tramp-icon")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if rmErr := os.RemoveAll(dir); err == nil {
+			err = rmErr
+		}
+	}()
 
 	if err := render("logo.svg", dir); err != nil {
-		log.Fatal(err)
+		return err
 	}
 	var images [][]byte
 	for _, s := range sizes {
 		data, err := os.ReadFile(pngPath(dir, s))
 		if err != nil {
-			log.Fatal(err)
+			return err
 		}
 		images = append(images, data)
 	}
-	if err := os.WriteFile("tramp.ico", encodeICO(images), 0o644); err != nil {
-		log.Fatal(err)
-	}
+	return os.WriteFile("tramp.ico", encodeICO(images), 0o644)
 }
 
 func pngPath(dir string, size int) string {
