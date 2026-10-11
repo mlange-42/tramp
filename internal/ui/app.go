@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"gioui.org/app"
 	"gioui.org/io/event"
@@ -545,12 +546,24 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 	})
 }
 
+// hoverPlaceholder is shown in the status bar instead of the position while the pointer is not on the map,
+// as wide as a position.
+var hoverPlaceholder = fmt.Sprintf("%-*s", utf8.RuneCountInString(geo.LonLat{}.String()), "-")
+
 func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
-	pos := "-"
+	// The parts have a fixed width where possible, and the changing ones come last,
+	// so that the others don't move. The font is monospaced.
+	pos := hoverPlaceholder
 	if a.mapView.HoverValid {
 		pos = geo.ToLonLat(a.mapView.Hover).String()
 	}
-	status := fmt.Sprintf("%s   zoom %.1f (tiles %d)", pos, a.mapView.View.Zoom, a.mapView.TileLevel())
+	status := fmt.Sprintf("%s   zoom %4.1f (tiles %2d)", pos, a.mapView.View.Zoom, a.mapView.TileLevel())
+	if s := a.gpsStatus(); s != "" {
+		status += "   " + s
+	}
+	if a.editing != nil {
+		status += "   " + a.editHint()
+	}
 
 	var loading int
 	var attribution []string
@@ -568,12 +581,6 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	}
 	if loading > 0 {
 		status += fmt.Sprintf("   loading %d", loading)
-	}
-	if s := a.gpsStatus(); s != "" {
-		status += "   " + s
-	}
-	if a.editing != nil {
-		status += "   " + a.editHint()
 	}
 
 	st := a.style
