@@ -10,6 +10,7 @@ import (
 	"slices"
 
 	"gioui.org/app"
+	_ "github.com/mlange-42/tramp/assets" // Windows icon
 	"github.com/mlange-42/tramp/internal/settings"
 	"github.com/mlange-42/tramp/internal/ui"
 )

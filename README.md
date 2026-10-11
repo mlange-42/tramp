@@ -1,10 +1,11 @@
-# TRAMP
-
-[![Tests](https://github.com/mlange-42/tramp/actions/workflows/tests.yml/badge.svg)](https://github.com/mlange-42/tramp/actions/workflows/tests.yml)
-
-**Track and Route Analysis, Mapping and Planning**
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-title-dark.svg">
+  <img alt="TRAMP – Track and Route Analysis, Mapping and Planning" src="assets/logo-title-light.svg">
+</picture>
 
 A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Written in [Go](https://go.dev), for Linux, Windows and MacOS.
+
+[![Tests](https://github.com/mlange-42/tramp/actions/workflows/tests.yml/badge.svg)](https://github.com/mlange-42/tramp/actions/workflows/tests.yml)
 
 > **Status:** early development. Viewing GPX tracks and editing routes and waypoints work, but there is no release yet and things may change.
 
@@ -17,7 +18,6 @@ A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Wr
 - [x] Live GPS position from USB and Bluetooth receivers
 - [ ] FIT and KML/KMZ files
 - [ ] Elevation for routes
-- [ ] Waypoint symbols
 - [ ] Weather overlays
 - [ ] Offline tile cache
 
