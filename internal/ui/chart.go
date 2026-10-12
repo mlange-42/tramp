@@ -137,6 +137,9 @@ func (a *App) updateChart() {
 	c.vals = it.lineValues(info.metric)
 	if c.vals == nil {
 		c.hint = fmt.Sprintf("No %s data", info.key)
+		if it.profile == profileLoading {
+			c.hint = "Loading elevations…"
+		}
 		return
 	}
 	c.info = info

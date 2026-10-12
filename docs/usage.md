@@ -103,6 +103,12 @@ like `Summit`, `Campground` or `Flag, Blue`, and some aliases like `Peak` or `Hu
 Unknown symbols are drawn with a generic pin icon, waypoints without symbol as plain dots.
 Route points are drawn only if they have a symbol.
 
+The profile of a route is taken from the terrain elevation along its lines, sampled every 20 m,
+rather than from its points, which rarely have elevations.
+It is shown in the chart, and its ascent and descent in the side panel, like ↑420 m ↓380 m.
+The elevations are downloaded in the background when the file is opened or the route is changed,
+see the [settings](configuration.md#settings) for the elevation source.
+
 ## Coloring
 
 Use the palette drop-down in the toolbar to color all tracks by speed, elevation or slope, with a choice of color gradients.

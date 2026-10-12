@@ -434,6 +434,7 @@ func (a *App) update(gtx layout.Context) {
 
 	a.updateColoring(gtx)
 	a.updateFiles(gtx)
+	a.updateProfiles()
 	// The map's hover position is needed before the map is drawn.
 	a.mapView.Update(gtx)
 	// The route takes the map clicks on its ends, and while picking them, before the editor.

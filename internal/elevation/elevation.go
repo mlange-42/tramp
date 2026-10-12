@@ -123,7 +123,7 @@ func (s *Source) tileURL(k geo.TileKey) string {
 
 // ZoomFor returns the lowest tile level with pixels no larger than resolution meters at latitude lat,
 // at most [Source.MaxZoom].
-func (s *Source) ZoomFor(resolution, lat float64) int {
+func (s Source) ZoomFor(resolution, lat float64) int {
 	size := s.TileSize
 	if size <= 0 {
 		size = geo.TileSize

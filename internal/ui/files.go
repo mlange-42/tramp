@@ -79,9 +79,11 @@ type fileItem struct {
 	// gapCache caches the result of [fileItem.gaps], if gapsDone.
 	gapCache [][]bool
 	gapsDone bool
-	dots     []mapview.Dot
-	bounds   geo.Rect
-	color    color.NRGBA
+	// profile is the state of the elevation profile of a route from the elevation service, see [App.updateProfiles].
+	profile profileState
+	dots    []mapview.Dot
+	bounds  geo.Rect
+	color   color.NRGBA
 	// index is the position of the item in the file, independent of the panel order.
 	index int
 	// nth is the position of the item among the items of its kind in the file.
@@ -250,9 +252,16 @@ func (f *openFile) waypointsFirst() {
 }
 
 // setContent replaces the content of the item with that of n, and clears the caches.
+// A route gets a new elevation profile.
 func (it *fileItem) setContent(n *fileItem) {
 	it.name, it.summary = n.name, n.summary
 	it.lines, it.points, it.dots, it.bounds = n.lines, n.points, n.dots, n.bounds
+	it.profile = profileNone
+	it.clearCaches()
+}
+
+// clearCaches clears the values computed from the points of the item.
+func (it *fileItem) clearCaches() {
 	it.values, it.dist = nil, nil
 	it.timeCache, it.start, it.timesDone = nil, time.Time{}, false
 	it.gapCache, it.gapsDone = nil, false
