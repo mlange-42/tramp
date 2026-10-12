@@ -522,7 +522,6 @@ type loadResult struct {
 
 // openFiles reads the files in the background and adds them to the panel when done,
 // in the given order. If fit is set, the map then shows them.
-// Safe for concurrent use.
 func (a *App) openFiles(files []settings.File, fit bool) {
 	if len(files) == 0 {
 		return
@@ -532,11 +531,9 @@ func (a *App) openFiles(files []settings.File, fit bool) {
 			files[i].Path = abs
 		}
 	}
-	a.bgMu.Lock()
 	id := a.nextBatch
 	a.nextBatch++
 	a.pending[id] = files
-	a.bgMu.Unlock()
 
 	go func() {
 		b := loadBatch{id: id, fit: fit}
@@ -549,10 +546,7 @@ func (a *App) openFiles(files []settings.File, fit bool) {
 			}
 			b.results = append(b.results, loadResult{File: f, file: data, err: err})
 		}
-		a.bgMu.Lock()
-		a.loaded = append(a.loaded, b)
-		a.bgMu.Unlock()
-		a.invalidate()
+		a.runOnUI(func() { a.addLoaded(b) })
 
 		// Missing files on restore are only logged.
 		if fit && len(failed) > 0 {
@@ -562,51 +556,39 @@ func (a *App) openFiles(files []settings.File, fit bool) {
 }
 
 // addLoaded adds files read in the background to the panel.
-func (a *App) addLoaded() {
-	a.bgMu.Lock()
-	batches := a.loaded
-	a.loaded = nil
-	for _, b := range batches {
-		delete(a.pending, b.id)
-	}
-	a.bgMu.Unlock()
-
-	for _, b := range batches {
-		fit := geo.EmptyRect()
-		for _, r := range b.results {
-			if r.err != nil {
-				continue
-			}
-			i := slices.IndexFunc(a.files, func(f *openFile) bool { return f.path == r.Path })
-			if i < 0 {
-				f := newOpenFile(r.Path, r.file)
-				f.visible.Value = !r.Hidden
-				f.setColors(r.Colors, trackColors[a.nextColor%len(trackColors)])
-				f.setOrder(r.Order)
-				if len(r.Colors) == 0 {
-					a.nextColor++
-				}
-				a.files = append(a.files, f)
-				i = len(a.files) - 1
-				if a.selected == nil {
-					a.selected = f.firstChartable()
-				}
-			}
-			fit = fit.Union(a.files[i].bounds)
+func (a *App) addLoaded(b loadBatch) {
+	delete(a.pending, b.id)
+	fit := geo.EmptyRect()
+	for _, r := range b.results {
+		if r.err != nil {
+			continue
 		}
-		if b.fit && !fit.Empty() {
-			a.mapView.Fit(fitRect(fit))
-			a.gps.following = false
+		i := slices.IndexFunc(a.files, func(f *openFile) bool { return f.path == r.Path })
+		if i < 0 {
+			f := newOpenFile(r.Path, r.file)
+			f.visible.Value = !r.Hidden
+			f.setColors(r.Colors, trackColors[a.nextColor%len(trackColors)])
+			f.setOrder(r.Order)
+			if len(r.Colors) == 0 {
+				a.nextColor++
+			}
+			a.files = append(a.files, f)
+			i = len(a.files) - 1
+			if a.selected == nil {
+				a.selected = f.firstChartable()
+			}
 		}
-		a.tracksChanged = true
+		fit = fit.Union(a.files[i].bounds)
 	}
+	if b.fit && !fit.Empty() {
+		a.mapView.Fit(fitRect(fit))
+		a.gps.following = false
+	}
+	a.tracksChanged = true
 }
 
 // showOpenDialog lets the user choose files to open, without blocking the UI.
 func (a *App) showOpenDialog() {
-	if !a.dialogOpen.CompareAndSwap(false, true) {
-		return
-	}
 	opts := append([]zenity.Option{
 		zenity.Title("Open tracks"),
 		zenity.FileFilters{
@@ -614,21 +596,20 @@ func (a *App) showOpenDialog() {
 			{Name: "All files", Patterns: []string{"*"}},
 		},
 	}, a.plat.dialogOptions()...)
-	go func() {
-		defer a.dialogOpen.Store(false)
+	a.dialog(func() func() {
 		paths, err := zenity.SelectFileMultiple(opts...)
 		if err != nil {
 			if !errors.Is(err, zenity.ErrCanceled) {
 				log.Printf("open dialog: %v", err)
 			}
-			return
+			return nil
 		}
 		files := make([]settings.File, len(paths))
 		for i, p := range paths {
 			files[i].Path = p
 		}
-		a.openFiles(files, true)
-	}()
+		return func() { a.openFiles(files, true) }
+	})
 }
 
 // fileState returns the opened files for saving, including those still being read.
@@ -641,8 +622,6 @@ func (a *App) fileState() []settings.File {
 		}
 		files = append(files, settings.File{Path: f.path, Hidden: !f.visible.Value, Colors: cols, Order: f.order()})
 	}
-	a.bgMu.Lock()
-	defer a.bgMu.Unlock()
 	ids := make([]int, 0, len(a.pending))
 	for id := range a.pending {
 		ids = append(ids, id)

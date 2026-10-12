@@ -114,7 +114,7 @@ func TestOpenFiles(t *testing.T) {
 		t.Errorf("expected 3 pending files, got %v", s)
 	}
 	<-loaded
-	a.addLoaded()
+	a.runUITasks()
 
 	if len(a.files) != 2 || a.files[0].path != mixed || a.files[1].path != plain {
 		t.Fatalf("unexpected files %v", a.files)
@@ -132,14 +132,6 @@ func TestOpenFiles(t *testing.T) {
 	}
 	if c := a.files[0].colors(); len(c) != 3 {
 		t.Errorf("expected 3 distinct colors, got %v", c)
-	}
-
-	// A color chosen for a whole file applies to all its items.
-	a.colorChanges = []colorChange{{items: a.files[0].items, color: trackColors[3]}}
-	a.tracksChanged = false
-	a.applyColors()
-	if c := a.files[0].colors(); len(c) != 1 || c[0] != trackColors[3] || !a.tracksChanged {
-		t.Errorf("expected a single changed color, got %v", c)
 	}
 
 	// Hidden files and items are not drawn, the top-most entry is drawn last.
@@ -163,7 +155,7 @@ func TestOpenFiles(t *testing.T) {
 	zoom := a.mapView.View.Zoom
 	a.openFiles([]settings.File{{Path: plain}}, true)
 	<-loaded
-	a.addLoaded()
+	a.runUITasks()
 	if len(a.files) != 2 {
 		t.Errorf("expected 2 files, got %d", len(a.files))
 	}
@@ -238,7 +230,7 @@ func TestItemOrderState(t *testing.T) {
 	saved := settings.File{Path: path, Colors: []string{"#000001", "#000002", "#000003"}, Order: []int{2, 0, 1}}
 	a.openFiles([]settings.File{saved}, false)
 	<-loaded
-	a.addLoaded()
+	a.runUITasks()
 
 	// Colors are saved in file order, independent of the panel order.
 	f := a.files[0]

@@ -30,7 +30,7 @@ func editApp(t *testing.T, content string) (*App, *openFile) {
 	}
 	a.openFiles([]settings.File{{Path: writeTemp(t, "test.gpx", content)}}, false)
 	<-loaded
-	a.addLoaded()
+	a.runUITasks()
 	return a, a.files[0]
 }
 
