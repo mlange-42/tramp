@@ -61,13 +61,17 @@ func waitRoute(a *App) {
 }
 
 // navClick clicks the map at a position, moving the pointer by drag pixels between press and release.
-func navClick(a *App, ll geo.LonLat, drag float32) {
+// It returns the events the route didn't use.
+func navClick(a *App, ll geo.LonLat, drag float32) []mapview.PointerEvent {
+	gtx := layout.Context{Metric: unit.Metric{PxPerDp: 1, PxPerSp: 1}}
 	ev := at(a, pointer.Press, ll)
-	a.navPointer(ev)
+	evs := []mapview.PointerEvent{ev}
 	ev.Kind, ev.Screen = pointer.Drag, ev.Screen.Add(f32.Pt(drag, 0))
-	a.navPointer(ev)
+	ev.Pos = a.mapView.View.ToMap(float64(ev.Screen.X), float64(ev.Screen.Y))
+	evs = append(evs, ev)
 	ev.Kind = pointer.Release
-	a.navPointer(ev)
+	evs = append(evs, ev)
+	return a.updateNav(gtx, evs)
 }
 
 func TestNavPicking(t *testing.T) {
@@ -81,7 +85,7 @@ func TestNavPicking(t *testing.T) {
 	if a.nav.has[0] {
 		t.Fatal("a drag set the start")
 	}
-	navClick(a, start, 1)
+	navClick(a, start, 0)
 	if !a.nav.has[0] || !near(a.nav.ends[0], start) || a.nav.busy || a.navStatus() != "Click the map to set the target" {
 		t.Fatalf("expected the start set, got %+v", a.nav)
 	}
@@ -100,8 +104,10 @@ func TestNavPicking(t *testing.T) {
 		t.Errorf("unexpected requests %+v", f.requests)
 	}
 
-	// Further clicks are not taken.
-	navClick(a, geo.LonLat{Lon: 12.3, Lat: 51.3}, 0)
+	// Further clicks are left to the editor.
+	if rest := navClick(a, geo.LonLat{Lon: 12.3, Lat: 51.3}, 0); len(rest) != 3 {
+		t.Errorf("expected the click passed on, got %v", rest)
+	}
 	if !near(a.nav.ends[0], start) || !near(a.nav.ends[1], target) {
 		t.Errorf("ends changed: %v", a.nav.ends)
 	}
@@ -121,14 +127,14 @@ func TestNavProfileAndSwap(t *testing.T) {
 
 	// Clicking a profile button routes again with that profile, and keeps it for the settings.
 	a.nav.profileBtns[1].btn.Click()
-	a.updateNav(gtx)
+	a.updateNav(gtx, nil)
 	waitRoute(a)
 	if len(f.requests) != 2 || f.requests[1].Profile != routing.ProfileBike || a.routingCfg.Profile != routing.ProfileBike {
 		t.Errorf("expected routing by bike, got %+v, settings %+v", f.requests, a.routingCfg)
 	}
 
 	a.nav.swapBtn.btn.Click()
-	a.updateNav(gtx)
+	a.updateNav(gtx, nil)
 	waitRoute(a)
 	if !near(a.nav.ends[0], target) || !near(a.nav.ends[1], start) || len(f.requests) != 3 ||
 		!near(f.requests[2].Points[0], target) {
@@ -179,5 +185,62 @@ func TestProfileIndex(t *testing.T) {
 	a := newApp(func() {}, Options{Maps: DefaultMaps(), State: settings.Settings{Routing: settings.Routing{Profile: "car"}}})
 	if a.nav.profile != 2 || a.State().Routing.Profile != "car" {
 		t.Errorf("expected the car profile from the settings, got %d, %+v", a.nav.profile, a.State().Routing)
+	}
+}
+
+func TestNavDragEnds(t *testing.T) {
+	a, f, gtx := navApp()
+	start, target := geo.LonLat{Lon: 12.2, Lat: 51.2}, geo.LonLat{Lon: 12.4, Lat: 51.4}
+	navClick(a, start, 0)
+	navClick(a, target, 0)
+	waitRoute(a)
+
+	// Dragging the target moves it, and routes again on release.
+	if rest := navClick(a, target, 40); len(rest) != 0 {
+		t.Errorf("expected the drag taken, got %v", rest)
+	}
+	moved := geo.ToLonLat(a.mapView.View.ToMap(float64(screenPos(&a.mapView.View, target).X+40), float64(screenPos(&a.mapView.View, target).Y)))
+	if !near(a.nav.ends[1], moved) || !near(a.nav.ends[0], start) || !a.nav.busy {
+		t.Fatalf("expected the target moved and routing, got %+v", a.nav)
+	}
+	waitRoute(a)
+	if len(f.requests) != 2 || !near(f.requests[1].Points[1], moved) {
+		t.Errorf("unexpected requests %+v", f.requests)
+	}
+
+	// Clicking an end without moving it doesn't route again.
+	navClick(a, start, 1)
+	if a.nav.busy || len(f.requests) != 2 || !near(a.nav.ends[0], start) {
+		t.Errorf("expected nothing changed, got %+v", a.nav)
+	}
+
+	// A canceled drag puts the end back.
+	p := at(a, pointer.Press, start)
+	d := p
+	d.Kind, d.Screen = pointer.Drag, p.Screen.Add(f32.Pt(30, 30))
+	d.Pos = a.mapView.View.ToMap(float64(d.Screen.X), float64(d.Screen.Y))
+	c := d
+	c.Kind = pointer.Cancel
+	a.updateNav(gtx, []mapview.PointerEvent{p, d})
+	if near(a.nav.ends[0], start) || !a.nav.dragging {
+		t.Fatalf("expected the start dragged, got %+v", a.nav)
+	}
+	if cur, ok := a.navCursor(gtx); !ok || cur != pointer.CursorGrabbing {
+		t.Errorf("expected the grabbing cursor, got %v", cur)
+	}
+	a.updateNav(gtx, []mapview.PointerEvent{c})
+	if !near(a.nav.ends[0], start) || a.nav.dragging || a.nav.busy {
+		t.Errorf("expected the start back, got %+v", a.nav)
+	}
+}
+
+func TestNavDragWhilePicking(t *testing.T) {
+	a, f, _ := navApp()
+	start := geo.LonLat{Lon: 12.2, Lat: 51.2}
+	navClick(a, start, 0)
+	// Dragging the start while the target is missing moves the start, and doesn't route.
+	navClick(a, start, 40)
+	if a.nav.has[1] || near(a.nav.ends[0], start) || a.nav.busy || len(f.requests) != 0 {
+		t.Errorf("expected only the start moved, got %+v", a.nav)
 	}
 }

@@ -16,7 +16,6 @@ import (
 	"gioui.org/app"
 	"gioui.org/io/event"
 	"gioui.org/io/key"
-	"gioui.org/io/pointer"
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -434,10 +433,11 @@ func (a *App) update(gtx layout.Context) {
 	a.updateFiles(gtx)
 	// The map's hover position is needed before the map is drawn.
 	a.mapView.Update(gtx)
-	a.updateNav(gtx)
-	a.updateEditor(gtx)
-	if a.nav.picking() {
-		a.mapView.Cursor = pointer.CursorCrosshair
+	// The route takes the map clicks on its ends, and while picking them, before the editor.
+	events := a.updateNav(gtx, a.mapView.Primary())
+	a.updateEditor(gtx, events)
+	if c, ok := a.navCursor(gtx); ok {
+		a.mapView.Cursor = c
 	}
 	a.updateProps(gtx)
 	// The selected item is muted on the map while the chart is zoomed in.

@@ -59,8 +59,15 @@ type navigator struct {
 	ends [2]geo.LonLat
 	has  [2]bool
 	// pressing is set from a press on the map while picking an end, until the pointer moves too far for a click.
+	// pressAt is where the press was, also for dragging an end.
 	pressing bool
 	pressAt  f32.Point
+	// dragging is set while the end dragEnd is dragged, which was at dragFrom.
+	// dragMoved is set once the pointer moved farther than for a click.
+	dragging  bool
+	dragEnd   int
+	dragFrom  geo.LonLat
+	dragMoved bool
 
 	// seq numbers the routing requests, so that results of an outdated request are dropped.
 	seq    int
@@ -93,9 +100,10 @@ func (n *navigator) picking() bool {
 	return n.open && (!n.has[0] || !n.has[1])
 }
 
-// updateNav handles the panel, and clicks on the map while picking the start or the target.
-// It runs before the editor, which gets no map clicks while picking.
-func (a *App) updateNav(gtx layout.Context) {
+// updateNav handles the panel, clicks on the map while picking the start or the target,
+// and dragging them. It takes the primary button events on the map, and returns those it didn't use,
+// for the editor.
+func (a *App) updateNav(gtx layout.Context, events []mapview.PointerEvent) []mapview.PointerEvent {
 	n := &a.nav
 	if n.btn.Clicked(gtx) {
 		a.toggleNav()
@@ -130,7 +138,7 @@ func (a *App) updateNav(gtx layout.Context) {
 		}
 	}
 	if !n.open {
-		return
+		return events
 	}
 	// Esc closes the panel, unless the editor or a text field takes it.
 	if a.editing == nil && !a.searchFocused(gtx) {
@@ -144,17 +152,48 @@ func (a *App) updateNav(gtx layout.Context) {
 			}
 		}
 	}
-	if n.picking() {
-		for _, ev := range a.mapView.Primary() {
-			a.navPointer(ev)
-		}
-	}
+	return slices.DeleteFunc(events, func(ev mapview.PointerEvent) bool {
+		return a.navPointer(gtx, ev)
+	})
 }
 
-// navPointer handles a primary button event on the map while picking:
-// a click without moving sets the start, or the target if the start is set.
-func (a *App) navPointer(ev mapview.PointerEvent) {
+// navPointer handles a primary button event on the map, and reports whether it used it.
+// Pressing on the marker of the start or the target drags it, and the route is found again when released.
+// While picking, a click without moving sets the start, or the target if the start is set.
+func (a *App) navPointer(gtx layout.Context, ev mapview.PointerEvent) bool {
 	n := &a.nav
+	if !n.open {
+		return false
+	}
+	if n.dragging {
+		i := n.dragEnd
+		switch ev.Kind {
+		case pointer.Drag:
+			n.dragMoved = n.dragMoved || dist2(ev.Screen, n.pressAt) > dragSlop*dragSlop
+			if n.dragMoved {
+				n.ends[i] = geo.ToLonLat(ev.Pos)
+			}
+		case pointer.Release:
+			n.dragging = false
+			if n.dragMoved {
+				n.ends[i] = geo.ToLonLat(ev.Pos)
+				a.startRoute()
+			}
+		case pointer.Cancel:
+			n.dragging, n.ends[i] = false, n.dragFrom
+		}
+		return true
+	}
+	if ev.Kind == pointer.Press {
+		if i, ok := a.navHit(gtx, ev.Screen); ok {
+			n.dragging, n.dragEnd, n.dragFrom, n.dragMoved = true, i, n.ends[i], false
+			n.pressAt = ev.Screen
+			return true
+		}
+	}
+	if !n.picking() {
+		return false
+	}
 	switch ev.Kind {
 	case pointer.Press:
 		n.pressing, n.pressAt = true, ev.Screen
@@ -173,6 +212,45 @@ func (a *App) navPointer(ev mapview.PointerEvent) {
 	case pointer.Cancel:
 		n.pressing = false
 	}
+	return true
+}
+
+// navHit returns the end whose marker is at the screen position, the target first, as it is drawn on top.
+func (a *App) navHit(gtx layout.Context, p f32.Point) (int, bool) {
+	n := &a.nav
+	r := float32(gtx.Dp(a.style.NavMarkerSize))/2 + float32(gtx.Dp(2)) + dragSlop
+	for i := 1; i >= 0; i-- {
+		if !n.has[i] {
+			continue
+		}
+		if dist2(screenPos(&a.mapView.View, n.ends[i]), p) <= r*r {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+// navCursor returns the pointer cursor for the route on the map: for dragging an end,
+// over an end, or for picking one. It returns false if the route doesn't set the cursor.
+func (a *App) navCursor(gtx layout.Context) (pointer.Cursor, bool) {
+	n := &a.nav
+	m := a.mapView
+	switch {
+	case !n.open:
+		return pointer.CursorDefault, false
+	case n.dragging:
+		return pointer.CursorGrabbing, true
+	}
+	if m.HoverValid {
+		x, y := m.View.ToScreen(m.Hover)
+		if _, ok := a.navHit(gtx, f32.Pt(float32(x), float32(y))); ok {
+			return pointer.CursorGrab, true
+		}
+	}
+	if n.picking() {
+		return pointer.CursorCrosshair, true
+	}
+	return pointer.CursorDefault, false
 }
 
 // toggleNav opens or closes the panel.
@@ -192,7 +270,7 @@ func (a *App) toggleNav() {
 func (a *App) closeNav() {
 	a.stopRoute()
 	n := &a.nav
-	n.open, n.has, n.pressing = false, [2]bool{}, false
+	n.open, n.has, n.pressing, n.dragging = false, [2]bool{}, false, false
 	n.err = nil
 	a.setNavRoute(nil)
 }

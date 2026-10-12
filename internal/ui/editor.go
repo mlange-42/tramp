@@ -184,10 +184,10 @@ func (a *App) handleRadius(gtx layout.Context) float32 {
 	return float32(gtx.Dp(a.style.HoverRadius))
 }
 
-// updateEditor handles the tools, keys and map input for editing.
-func (a *App) updateEditor(gtx layout.Context) {
+// updateEditor handles the tools, keys and map input for editing,
+// with the primary button events on the map.
+func (a *App) updateEditor(gtx layout.Context, events []mapview.PointerEvent) {
 	e := &a.editor
-	events := a.mapView.Primary()
 	secondary := a.mapView.SecondaryClicked()
 	for i := range e.toolBtns {
 		if e.toolBtns[i].Clicked(gtx) {

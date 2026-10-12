@@ -41,6 +41,7 @@ TRAMP remembers the results of recent searches, so repeated searches don't reach
 The directions button left of the search field (Ctrl+D) opens a panel for finding a route between two points.
 Click the map to set the start (A), and again to set the target (B).
 The route is shown on the map, with its length and the estimated travel time.
+Drag A or B to move them; the route is found again when released.
 Select the means of travel in the panel: on foot, by bike or by car.
 The swap button reverses the route. Close the panel with × or Esc to remove the route.
 
