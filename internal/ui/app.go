@@ -33,8 +33,9 @@ import (
 	"github.com/mlange-42/tramp/internal/wms"
 )
 
-// UserAgent is sent with all map and search requests.
-const UserAgent = "TRAMP (+https://github.com/mlange-42/tramp)"
+// UserAgent is sent with all map, search and routing requests.
+// It names the website and the contact address, as the usage policies of the services ask for.
+const UserAgent = "TRAMP (+https://github.com/mlange-42/tramp; tramp@mlange.dev)"
 
 // worldBounds is the area shown if no initial view is given.
 var worldBounds = geo.Rect{

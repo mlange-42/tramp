@@ -63,6 +63,11 @@ Architecture, feature design, and technology choices are mine;
 every change is reviewed, tested against real-world data,
 and merged by me via pull request.
 
+## Contact
+
+For questions about TRAMP, and for operators of the map, search and routing services it uses:
+[tramp@mlange.dev](mailto:tramp@mlange.dev)
+
 ## License
 
 TRAMP and all its sources and documentation are distributed under the [MIT license](https://github.com/mlange-42/tramp/blob/main/LICENSE).
