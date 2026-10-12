@@ -38,7 +38,7 @@ func TestSaveLoad(t *testing.T) {
 			Overlays: []string{"Hillshade (SRTM)", "Labels & roads"},
 		},
 		Routing: Routing{Tolerance: 50, SlightAngle: 30},
-		Window: &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true, PanelWidth: 300, ChartHeight: 150, ChartClosed: true, ChartAxis: "clock_time"},
+		Window:  &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true, PanelWidth: 300, ChartHeight: 150, ChartClosed: true, ChartAxis: "clock_time"},
 	}
 	if err := save(path, &s); err != nil {
 		t.Fatal(err)
