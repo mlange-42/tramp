@@ -137,19 +137,25 @@ func (k TurnKind) String() string {
 // fixTurns sorts the turns by index, and makes sure that they start with a [TurnStart] at the first point
 // and end with a [TurnEnd] at the last point, as services may leave them out.
 func (r *Route) fixTurns() {
-	last := len(r.Points) - 1
-	for i := range r.Turns {
-		r.Turns[i].Index = min(max(r.Turns[i].Index, 0), last)
+	r.Turns = fixTurns(r.Turns, len(r.Points))
+}
+
+// fixTurns does the work of [Route.fixTurns], for a route with n points. It changes turns in place.
+func fixTurns(turns []Turn, n int) []Turn {
+	last := n - 1
+	for i := range turns {
+		turns[i].Index = min(max(turns[i].Index, 0), last)
 	}
-	slices.SortStableFunc(r.Turns, func(a, b Turn) int { return a.Index - b.Index })
-	if len(r.Turns) == 0 || r.Turns[0].Kind != TurnStart {
-		r.Turns = slices.Insert(r.Turns, 0, Turn{Kind: TurnStart})
+	slices.SortStableFunc(turns, func(a, b Turn) int { return a.Index - b.Index })
+	if len(turns) == 0 || turns[0].Kind != TurnStart {
+		turns = slices.Insert(turns, 0, Turn{Kind: TurnStart})
 	}
-	r.Turns[0].Index = 0
-	if r.Turns[len(r.Turns)-1].Kind != TurnEnd {
-		r.Turns = append(r.Turns, Turn{Kind: TurnEnd})
+	turns[0].Index = 0
+	if turns[len(turns)-1].Kind != TurnEnd {
+		turns = append(turns, Turn{Kind: TurnEnd})
 	}
-	r.Turns[len(r.Turns)-1].Index = last
+	turns[len(turns)-1].Index = last
+	return turns
 }
 
 // New returns the router for a service, [ServiceValhalla] if empty, with requests throttled

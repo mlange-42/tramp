@@ -59,7 +59,19 @@ see the [settings](configuration.md#settings). Routing needs an internet connect
 The Valhalla server finds routes up to 100 km on foot and 150 km by bike.
 Found an error in the route? *Report a map error* in the panel leads to OpenStreetMap, where anyone can fix the map.
 
-The route is independent of the routes in GPX files.
+The route is independent of the routes in GPX files, but the save button stores it as a GPX route:
+in the file being edited, where it can be undone, or otherwise in a new file, which is opened for editing.
+The saved route has points only where needed for navigating with a handheld device:
+the start, the via points and the target, and turns, forks and roundabouts.
+Turns closer than 30 m, like crossing a road with a small offset, become one point.
+Where the straight lines between these points would stray from the route by more than 100 m,
+points are added in between. The distance can be changed with `tolerance` in the [settings](configuration.md#settings).
+Points are named with a number, a short code of the turn and the street, like `03 L Waldweg`,
+and their description spells out the turn.
+The codes are L and R for left and right, SL and SR for sharp turns, U for a U-turn,
+KL and KR for keeping left or right at a fork, and RB2 for the second exit of a roundabout.
+All names in a file are unique, as devices merge points with the same name.
+The button's tooltip shows the number of points. The panel warns when the route has more than 250, as many devices take no more.
 
 ## Opening files
 

@@ -3,6 +3,7 @@ package routing
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/mlange-42/tramp/internal/geo"
@@ -53,8 +54,9 @@ func isStop(k TurnKind) bool {
 // stops are the names of the start, the via points and the destination, in route order.
 // Missing or empty names become "Start", "Via 1", ... and "End". The other points are named with a number,
 // a short code of the turn and the street, like "03 L Waldweg", and describe the turn in full.
-// All names are unique, as devices merge points with the same name.
-func RoutePoints(r *Route, stops []string, tolerance float64) []track.Waypoint {
+// All names are unique, as devices merge points with the same name. used are the names taken already,
+// like those of other routes in the same file. Names are added to it. It may be nil.
+func RoutePoints(r *Route, stops []string, tolerance float64, used map[string]bool) []track.Waypoint {
 	if len(r.Points) < 2 {
 		return nil
 	}
@@ -65,7 +67,8 @@ func RoutePoints(r *Route, stops []string, tolerance float64) []track.Waypoint {
 
 	var points []routePoint
 	nStops := 0
-	for _, t := range r.Turns {
+	// The turns are fixed on a copy, for routes not made by a router.
+	for _, t := range fixTurns(slices.Clone(r.Turns), len(r.Points)) {
 		if !keepTurn(t.Kind) {
 			continue
 		}
@@ -104,7 +107,7 @@ func RoutePoints(r *Route, stops []string, tolerance float64) []track.Waypoint {
 		}
 		points = all
 	}
-	return namePoints(r, points, stops, nStops)
+	return namePoints(r, points, stops, nStops, used)
 }
 
 // refine returns points between the points at indices from and to, so that the straight lines between them
@@ -158,12 +161,14 @@ func streetAt(r *Route, i int) string {
 }
 
 // namePoints converts the selected points to waypoints with unique names and descriptions.
-func namePoints(r *Route, points []routePoint, stops []string, nStops int) []track.Waypoint {
+func namePoints(r *Route, points []routePoint, stops []string, nStops int, used map[string]bool) []track.Waypoint {
 	width := len(fmt.Sprint(len(points)))
 	if width < 2 {
 		width = 2
 	}
-	used := map[string]bool{}
+	if used == nil {
+		used = map[string]bool{}
+	}
 	wps := make([]track.Waypoint, len(points))
 	for i, p := range points {
 		w := track.Waypoint{Pos: r.Points[p.index], Ele: math.NaN()}

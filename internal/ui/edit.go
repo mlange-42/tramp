@@ -363,12 +363,17 @@ func (a *App) askSavePath(title, path string) (string, bool) {
 
 // newFile asks for a file name, creates an empty GPX file and opens it for editing.
 func (a *App) newFile() {
+	a.createFile("New file", "", &track.File{Format: track.FormatGPX, Creator: track.Creator}, nil)
+}
+
+// createFile asks for a file name, suggesting name if not empty, writes data to it and opens it for editing.
+// then, if not nil, is called with the opened file.
+func (a *App) createFile(title, name string, data *track.File, then func(f *openFile)) {
 	a.dialog(func() func() {
-		path, ok := a.askSavePath("New file", "")
+		path, ok := a.askSavePath(title, name)
 		if !ok {
 			return nil
 		}
-		data := &track.File{Format: track.FormatGPX, Creator: track.Creator}
 		if err := track.WriteFile(path, data); err != nil {
 			log.Printf("creating file: %v", err)
 			_ = zenity.Error(err.Error(), append([]zenity.Option{zenity.Title("Creating file failed")}, a.plat.dialogOptions()...)...)
@@ -388,6 +393,9 @@ func (a *App) newFile() {
 			a.files = append([]*openFile{f}, a.files...)
 			a.changed()
 			a.toggleEdit(f)
+			if then != nil {
+				then(f)
+			}
 		}
 	})
 }
