@@ -2,6 +2,7 @@ package ui
 
 import (
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"log"
@@ -17,6 +18,7 @@ import (
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/geo"
@@ -45,7 +47,7 @@ type navigator struct {
 	open bool
 	// btn opens and closes the panel, from the toolbar.
 	btn iconButton
-	// closeBtn closes the panel, swapBtn swaps start and target, profileBtns select the profile.
+	// closeBtn closes the panel, swapBtn reverses the route, profileBtns select the profile.
 	closeBtn, swapBtn iconButton
 	profileBtns       []iconButton
 	// profile is the index of the selected profile in [routing.Profiles].
@@ -55,19 +57,20 @@ type navigator struct {
 	// panel is the event tag for the panel background.
 	panel int
 
-	// ends are the start and the target, each if has.
-	ends [2]geo.LonLat
-	has  [2]bool
+	// points are the start, the via points, and the target, in route order.
+	// While picking, there is only the start, or nothing.
+	points []geo.LonLat
 	// pressing is set from a press on the map while picking an end, until the pointer moves too far for a click.
-	// pressAt is where the press was, also for dragging an end.
+	// pressAt is where the press was, also for dragging a point.
 	pressing bool
 	pressAt  f32.Point
-	// dragging is set while the end dragEnd is dragged, which was at dragFrom.
-	// dragMoved is set once the pointer moved farther than for a click.
-	dragging  bool
-	dragEnd   int
-	dragFrom  geo.LonLat
-	dragMoved bool
+	// drag is the point being dragged, if dragging. dragNew is set for a via point inserted by dragging the route,
+	// and dragFrom is the position before for others. moved is set once the pointer moved farther than for a click.
+	dragging bool
+	drag     int
+	dragNew  bool
+	dragFrom geo.LonLat
+	moved    bool
 
 	// seq numbers the routing requests, so that results of an outdated request are dropped.
 	seq    int
@@ -75,7 +78,9 @@ type navigator struct {
 	busy   bool
 	err    error
 	route  *routing.Route
-	lines  mapview.Lines
+	// line is the route in map coordinates, for hitting it with the pointer.
+	line  []mapview.Polyline
+	lines mapview.Lines
 }
 
 // newRouter returns the router for the configured routing service.
@@ -97,12 +102,17 @@ func profileIndex(p string) int {
 
 // picking reports whether the next click on the map sets the start or the target.
 func (n *navigator) picking() bool {
-	return n.open && (!n.has[0] || !n.has[1])
+	return n.open && len(n.points) < 2
+}
+
+// isVia reports whether point i is a via point, not the start or the target.
+func (n *navigator) isVia(i int) bool {
+	return i > 0 && i < len(n.points)-1
 }
 
 // updateNav handles the panel, clicks on the map while picking the start or the target,
-// and dragging them. It takes the primary button events on the map, and returns those it didn't use,
-// for the editor.
+// and dragging the points and the route. It takes the primary button events on the map,
+// and returns those it didn't use, for the editor.
 func (a *App) updateNav(gtx layout.Context, events []mapview.PointerEvent) []mapview.PointerEvent {
 	n := &a.nav
 	if n.btn.Clicked(gtx) {
@@ -118,9 +128,8 @@ func (a *App) updateNav(gtx layout.Context, events []mapview.PointerEvent) []map
 			a.startRoute()
 		}
 	}
-	if n.swapBtn.Clicked(gtx) {
-		n.ends[0], n.ends[1] = n.ends[1], n.ends[0]
-		n.has[0], n.has[1] = n.has[1], n.has[0]
+	if n.swapBtn.Clicked(gtx) && !n.dragging {
+		slices.Reverse(n.points)
 		a.startRoute()
 	}
 	if n.report.Clicked(gtx) {
@@ -158,7 +167,9 @@ func (a *App) updateNav(gtx layout.Context, events []mapview.PointerEvent) []map
 }
 
 // navPointer handles a primary button event on the map, and reports whether it used it.
-// Pressing on the marker of the start or the target drags it, and the route is found again when released.
+//
+// Pressing on a point drags it, and pressing on the route drags a new via point from there.
+// The route is found again when released. Clicking a via point without moving it removes it.
 // While picking, a click without moving sets the start, or the target if the start is set.
 func (a *App) navPointer(gtx layout.Context, ev mapview.PointerEvent) bool {
 	n := &a.nav
@@ -166,27 +177,18 @@ func (a *App) navPointer(gtx layout.Context, ev mapview.PointerEvent) bool {
 		return false
 	}
 	if n.dragging {
-		i := n.dragEnd
-		switch ev.Kind {
-		case pointer.Drag:
-			n.dragMoved = n.dragMoved || dist2(ev.Screen, n.pressAt) > dragSlop*dragSlop
-			if n.dragMoved {
-				n.ends[i] = geo.ToLonLat(ev.Pos)
-			}
-		case pointer.Release:
-			n.dragging = false
-			if n.dragMoved {
-				n.ends[i] = geo.ToLonLat(ev.Pos)
-				a.startRoute()
-			}
-		case pointer.Cancel:
-			n.dragging, n.ends[i] = false, n.dragFrom
-		}
+		a.navDrag(ev)
 		return true
 	}
 	if ev.Kind == pointer.Press {
 		if i, ok := a.navHit(gtx, ev.Screen); ok {
-			n.dragging, n.dragEnd, n.dragFrom, n.dragMoved = true, i, n.ends[i], false
+			n.dragging, n.drag, n.dragNew, n.dragFrom, n.moved = true, i, false, n.points[i], false
+			n.pressAt = ev.Screen
+			return true
+		}
+		if i, ok := a.navHitLine(gtx, ev.Pos); ok {
+			n.points = slices.Insert(n.points, i, geo.ToLonLat(ev.Pos))
+			n.dragging, n.drag, n.dragNew, n.moved = true, i, true, false
 			n.pressAt = ev.Screen
 			return true
 		}
@@ -201,11 +203,7 @@ func (a *App) navPointer(gtx layout.Context, ev mapview.PointerEvent) bool {
 		n.pressing = n.pressing && dist2(ev.Screen, n.pressAt) <= dragSlop*dragSlop
 	case pointer.Release:
 		if n.pressing && n.picking() {
-			i := 0
-			if n.has[0] {
-				i = 1
-			}
-			n.ends[i], n.has[i] = geo.ToLonLat(ev.Pos), true
+			n.points = append(n.points, geo.ToLonLat(ev.Pos))
 			a.startRoute()
 		}
 		n.pressing = false
@@ -215,23 +213,111 @@ func (a *App) navPointer(gtx layout.Context, ev mapview.PointerEvent) bool {
 	return true
 }
 
-// navHit returns the end whose marker is at the screen position, the target first, as it is drawn on top.
+// navDrag handles a pointer event while dragging a point.
+func (a *App) navDrag(ev mapview.PointerEvent) {
+	n := &a.nav
+	i := n.drag
+	switch ev.Kind {
+	case pointer.Drag:
+		n.moved = n.moved || dist2(ev.Screen, n.pressAt) > dragSlop*dragSlop
+		if n.moved {
+			n.points[i] = geo.ToLonLat(ev.Pos)
+		}
+	case pointer.Release:
+		n.dragging = false
+		switch {
+		case n.moved:
+			n.points[i] = geo.ToLonLat(ev.Pos)
+			a.startRoute()
+		case n.dragNew:
+			// A click on the route adds nothing.
+			n.points = slices.Delete(n.points, i, i+1)
+		case n.isVia(i):
+			// A click on a via point removes it.
+			n.points = slices.Delete(n.points, i, i+1)
+			a.startRoute()
+		}
+	case pointer.Cancel:
+		n.dragging = false
+		if n.dragNew {
+			n.points = slices.Delete(n.points, i, i+1)
+		} else {
+			n.points[i] = n.dragFrom
+		}
+	}
+}
+
+// navHit returns the point whose marker is at the screen position.
+// The markers drawn on top are checked first: the target, the start, and the via points from last to first.
 func (a *App) navHit(gtx layout.Context, p f32.Point) (int, bool) {
 	n := &a.nav
-	r := float32(gtx.Dp(a.style.NavMarkerSize))/2 + float32(gtx.Dp(2)) + dragSlop
-	for i := 1; i >= 0; i-- {
-		if !n.has[i] {
-			continue
+	view := &a.mapView.View
+	ring := float32(gtx.Dp(2)) + dragSlop
+	endR := float32(gtx.Dp(a.style.NavMarkerSize))/2 + ring
+	viaR := float32(gtx.Dp(a.style.NavViaSize))/2 + ring
+	last := len(n.points) - 1
+	order := make([]int, 0, len(n.points))
+	if last > 0 {
+		order = append(order, last)
+	}
+	if last >= 0 {
+		order = append(order, 0)
+	}
+	for i := last - 1; i > 0; i-- {
+		order = append(order, i)
+	}
+	for _, i := range order {
+		r := endR
+		if n.isVia(i) {
+			r = viaR
 		}
-		if dist2(screenPos(&a.mapView.View, n.ends[i]), p) <= r*r {
+		if dist2(screenPos(view, n.points[i]), p) <= r*r {
 			return i, true
 		}
 	}
 	return 0, false
 }
 
-// navCursor returns the pointer cursor for the route on the map: for dragging an end,
-// over an end, or for picking one. It returns false if the route doesn't set the cursor.
+// navHitLine reports whether the route passes near the map position, and returns the index in the points
+// at which a via point at the position is inserted: after the via points the route passes before it.
+func (a *App) navHitLine(gtx layout.Context, p geo.Point) (int, bool) {
+	n := &a.nav
+	if len(n.points) < 2 || len(n.line) == 0 || n.busy {
+		return 0, false
+	}
+	radius := float64(gtx.Dp(a.style.HoverRadius)) * a.mapView.View.Resolution()
+	_, seg, _, ok := nearestSegment(n.line, p, radius)
+	if !ok {
+		return 0, false
+	}
+	return viaInsertIndex(n.line[0].Points, n.points, seg), true
+}
+
+// viaInsertIndex returns the index in points at which a new via point on segment seg of the route line is inserted.
+// Each via point is located on the line as the nearest line point after the one of the previous via point,
+// and the new point goes after those located before the segment.
+func viaInsertIndex(line []geo.Point, points []geo.LonLat, seg int) int {
+	from := 0
+	i := 1
+	for ; i < len(points)-1; i++ {
+		v := geo.ToMercator(points[i])
+		best, bestD := from, math.Inf(1)
+		for k := from; k < len(line); k++ {
+			dx, dy := line[k].X-v.X, line[k].Y-v.Y
+			if d := dx*dx + dy*dy; d < bestD {
+				best, bestD = k, d
+			}
+		}
+		if best > seg {
+			break
+		}
+		from = best
+	}
+	return i
+}
+
+// navCursor returns the pointer cursor for the route on the map: for dragging a point,
+// over a point or the route, or for picking an end. It returns false if the route doesn't set the cursor.
 func (a *App) navCursor(gtx layout.Context) (pointer.Cursor, bool) {
 	n := &a.nav
 	m := a.mapView
@@ -244,6 +330,9 @@ func (a *App) navCursor(gtx layout.Context) (pointer.Cursor, bool) {
 	if m.HoverValid {
 		x, y := m.View.ToScreen(m.Hover)
 		if _, ok := a.navHit(gtx, f32.Pt(float32(x), float32(y))); ok {
+			return pointer.CursorGrab, true
+		}
+		if _, ok := a.navHitLine(gtx, m.Hover); ok {
 			return pointer.CursorGrab, true
 		}
 	}
@@ -266,22 +355,22 @@ func (a *App) toggleNav() {
 	}
 }
 
-// closeNav closes the panel, and removes the route and its ends.
+// closeNav closes the panel, and removes the route and its points.
 func (a *App) closeNav() {
 	a.stopRoute()
 	n := &a.nav
-	n.open, n.has, n.pressing, n.dragging = false, [2]bool{}, false, false
+	n.open, n.points, n.pressing, n.dragging = false, nil, false, false
 	n.err = nil
 	a.setNavRoute(nil)
 }
 
-// startRoute finds the route between start and target in the background, if both are set.
+// startRoute finds the route through the points in the background, if start and target are set.
 // The previous route stays shown until the new one arrives.
 func (a *App) startRoute() {
 	a.stopRoute()
 	n := &a.nav
 	n.err = nil
-	if !n.has[0] || !n.has[1] || a.router == nil {
+	if len(n.points) < 2 || a.router == nil {
 		a.setNavRoute(nil)
 		return
 	}
@@ -289,7 +378,7 @@ func (a *App) startRoute() {
 	seq := n.seq
 	ctx, cancel := context.WithCancel(context.Background())
 	n.cancel, n.busy = cancel, true
-	req := routing.Request{Points: slices.Clone(n.ends[:]), Profile: routing.Profiles[n.profile]}
+	req := routing.Request{Points: slices.Clone(n.points), Profile: routing.Profiles[n.profile]}
 	router := a.router
 	go func() {
 		route, err := router.Route(ctx, req)
@@ -320,6 +409,7 @@ func (a *App) setNavRoute(r *routing.Route) {
 	n := &a.nav
 	n.route = r
 	if r == nil {
+		n.line = nil
 		n.lines.Set(nil, nil)
 		return
 	}
@@ -327,11 +417,11 @@ func (a *App) setNavRoute(r *routing.Route) {
 	for i, p := range r.Points {
 		pts[i] = geo.ToMercator(p)
 	}
-	line := []mapview.Polyline{mapview.NewPolyline(pts)}
+	n.line = []mapview.Polyline{mapview.NewPolyline(pts)}
 	st := a.style
 	n.lines.Set([]mapview.LineGroup{
-		{Color: st.NavCasing, Width: st.NavLineWidth + 2*st.NavCasingWidth, Lines: line},
-		{Color: st.NavLine, Width: st.NavLineWidth, Lines: line},
+		{Color: st.NavCasing, Width: st.NavLineWidth + 2*st.NavCasingWidth, Lines: n.line},
+		{Color: st.NavLine, Width: st.NavLineWidth, Lines: n.line},
 	}, nil)
 }
 
@@ -340,9 +430,9 @@ func (a *App) setNavRoute(r *routing.Route) {
 func (a *App) navStatus() string {
 	n := &a.nav
 	switch {
-	case !n.has[0]:
+	case len(n.points) == 0:
 		return "Click the map to set the start"
-	case !n.has[1]:
+	case len(n.points) == 1:
 		return "Click the map to set the target"
 	case n.busy:
 		return "Routing…"
@@ -359,30 +449,63 @@ func (a *App) navStatus() string {
 	return ""
 }
 
-// layoutNavMap draws the route and its ends on the map.
+// layoutNavMap draws the route and its points on the map.
 func (a *App) layoutNavMap(gtx layout.Context) {
 	n := &a.nav
 	if !n.open {
 		return
 	}
+	st := a.style
 	n.lines.Layout(gtx, &a.mapView.View)
-	for i, label := range []string{"A", "B"} {
-		if !n.has[i] {
-			continue
-		}
-		col := a.style.NavStart
-		if i == 1 {
-			col = a.style.NavTarget
-		}
-		a.drawNavEnd(gtx, n.ends[i], label, col)
+	a.drawNavBand(gtx)
+	last := len(n.points) - 1
+	for i := 1; i < last; i++ {
+		a.drawNavVia(gtx, n.points[i])
 	}
+	if last > 0 {
+		a.drawNavEnd(gtx, n.points[last], "B", st.NavTarget)
+	}
+	if last >= 0 {
+		a.drawNavEnd(gtx, n.points[0], "A", st.NavStart)
+	}
+}
+
+// drawNavBand draws straight lines from a dragged point to its neighbors, while dragging.
+func (a *App) drawNavBand(gtx layout.Context) {
+	n := &a.nav
+	if !n.dragging || !n.moved {
+		return
+	}
+	view := &a.mapView.View
+	i := n.drag
+	var path clip.Path
+	path.Begin(gtx.Ops)
+	if i > 0 {
+		path.MoveTo(screenPos(view, n.points[i-1]))
+		path.LineTo(screenPos(view, n.points[i]))
+	} else {
+		path.MoveTo(screenPos(view, n.points[i]))
+	}
+	if i < len(n.points)-1 {
+		path.LineTo(screenPos(view, n.points[i+1]))
+	}
+	paint.FillShape(gtx.Ops, a.style.NavBand, clip.Stroke{Path: path.End(), Width: float32(gtx.Dp(2))}.Op())
+}
+
+// drawNavVia draws the marker of a via point: a white dot with a ring in the color of the route.
+func (a *App) drawNavVia(gtx layout.Context, ll geo.LonLat) {
+	st := a.style
+	c := screenPos(&a.mapView.View, ll)
+	r := float32(gtx.Dp(st.NavViaSize)) / 2
+	ring := float32(max(1, gtx.Dp(2)))
+	paint.FillShape(gtx.Ops, st.NavLine, circle(c, r+ring).Op(gtx.Ops))
+	paint.FillShape(gtx.Ops, st.HoverRing, circle(c, r).Op(gtx.Ops))
 }
 
 // drawNavEnd draws the marker of the start or the target: a dot with a letter.
 func (a *App) drawNavEnd(gtx layout.Context, ll geo.LonLat, label string, col color.NRGBA) {
 	st := a.style
-	x, y := a.mapView.View.ToScreen(geo.ToMercator(ll))
-	c := f32.Pt(float32(x), float32(y))
+	c := screenPos(&a.mapView.View, ll)
 	r := float32(gtx.Dp(st.NavMarkerSize)) / 2
 	ring := float32(max(1, gtx.Dp(2)))
 	paint.FillShape(gtx.Ops, color.NRGBA{A: 0x40}, circle(c.Add(f32.Pt(0, 1)), r+ring+1).Op(gtx.Ops))
@@ -419,7 +542,7 @@ func (a *App) layoutNavPanel(gtx layout.Context) {
 	})
 }
 
-// layoutNavContent draws the content of the panel: the profiles and buttons, the ends, the route and the attribution.
+// layoutNavContent draws the content of the panel: the profiles and buttons, the points, the route and the attribution.
 func (a *App) layoutNavContent(gtx layout.Context) layout.Dimensions {
 	st, n := a.style, &a.nav
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
@@ -427,6 +550,7 @@ func (a *App) layoutNavContent(gtx layout.Context) layout.Dimensions {
 		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			l := st.SmallLabel(txt)
 			l.Color = col
+			l.MaxLines = 1
 			return l.Layout(gtx)
 		})
 	}
@@ -445,7 +569,7 @@ func (a *App) layoutNavContent(gtx layout.Context) layout.Dimensions {
 		children = append(children,
 			layout.Flexed(1, layout.Spacer{}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return n.swapBtn.Layout(gtx, st, iconSwap, "Swap start and target", n.has[0] || n.has[1], false)
+				return n.swapBtn.Layout(gtx, st, iconSwap, "Reverse the route", len(n.points) > 0, false)
 			}),
 			layout.Rigid(layout.Spacer{Width: 1}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -455,28 +579,33 @@ func (a *App) layoutNavContent(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
 	})
 
-	end := func(i int, label, unset string) layout.FlexChild {
-		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			txt, col := unset, st.HintFg
-			if n.has[i] {
-				txt, col = n.ends[i].String(), st.Theme.Fg
-			}
-			l := st.SmallLabel(label + "  " + txt)
-			l.Color = col
-			l.MaxLines = 1
-			return l.Layout(gtx)
-		})
+	end := func(label, unset string, i int) layout.FlexChild {
+		if i < 0 {
+			return small(label+"  "+unset, st.HintFg)
+		}
+		return small(label+"  "+n.points[i].String(), st.Theme.Fg)
+	}
+	start, target := end("A", "Start", -1), end("B", "Target", -1)
+	if len(n.points) > 0 {
+		start = end("A", "", 0)
+	}
+	if len(n.points) > 1 {
+		target = end("B", "", len(n.points)-1)
+	}
+	children := []layout.FlexChild{header, gap, start}
+	if vias := len(n.points) - 2; vias > 0 {
+		txt := "1 via point"
+		if vias > 1 {
+			txt = fmt.Sprintf("%d via points", vias)
+		}
+		children = append(children, small("   "+txt, st.HintFg))
 	}
 
 	statusCol := st.Theme.Fg
 	if n.err != nil {
 		statusCol = st.EditActive
 	}
-	children := []layout.FlexChild{
-		header, gap,
-		end(0, "A", "Start"),
-		end(1, "B", "Target"),
-		gap,
+	children = append(children, target, gap,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			l := st.Label(a.navStatus())
 			l.Color = statusCol
@@ -485,9 +614,16 @@ func (a *App) layoutNavContent(gtx layout.Context) layout.Dimensions {
 			}
 			return l.Layout(gtx)
 		}),
+	)
+	if n.route != nil && !n.busy {
+		children = append(children, small("Drag the route to change it", st.HintFg))
 	}
 	if a.router != nil {
-		children = append(children, gap, small(a.router.Attribution(), st.HintFg),
+		children = append(children, gap, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			l := st.SmallLabel(a.router.Attribution())
+			l.Color = st.HintFg
+			return l.Layout(gtx)
+		}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return n.report.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 					l := st.SmallLabel("Report a map error")

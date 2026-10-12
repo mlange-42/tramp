@@ -132,6 +132,10 @@ type Style struct {
 	// NavStart and NavTarget are the colors of the markers of start and target, NavMarkerSize their diameter without the ring.
 	NavStart, NavTarget color.NRGBA
 	NavMarkerSize       unit.Dp
+	// NavViaSize is the diameter of the markers of via points without the ring.
+	NavViaSize unit.Dp
+	// NavBand is the color of the lines from a dragged point of a found route to its neighbors.
+	NavBand color.NRGBA
 	// NavWidth is the width of the route panel.
 	NavWidth unit.Dp
 }
@@ -203,6 +207,8 @@ func DefaultStyle() *Style {
 		NavStart:         color.NRGBA{R: 0x2a, G: 0x9d, B: 0x48, A: 0xff},
 		NavTarget:        color.NRGBA{R: 0xc8, G: 0x37, B: 0x2d, A: 0xff},
 		NavMarkerSize:    16,
+		NavViaSize:       8,
+		NavBand:          color.NRGBA{R: 0x1f, G: 0x5f, B: 0xb0, A: 0xa0},
 		NavWidth:         260,
 
 		EditHandleFill: color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
