@@ -15,6 +15,7 @@ import (
 	"gioui.org/layout"
 	"gioui.org/unit"
 	"github.com/mlange-42/tramp/internal/geo"
+	"github.com/mlange-42/tramp/internal/geocode"
 	"github.com/mlange-42/tramp/internal/mapview"
 	"github.com/mlange-42/tramp/internal/routing"
 	"github.com/mlange-42/tramp/internal/settings"
@@ -49,6 +50,12 @@ func navApp() (*App, *fakeRouter, layout.Context) {
 	return a, f, layout.Context{Metric: unit.Metric{PxPerDp: 1, PxPerSp: 1}}
 }
 
+// navPts returns the positions of the stops of the route that are set.
+func navPts(a *App) []geo.LonLat {
+	pts, _ := a.nav.points()
+	return pts
+}
+
 // waitRoute waits for the background routing to finish, and applies its result.
 func waitRoute(a *App) {
 	for a.nav.busy {
@@ -78,20 +85,20 @@ func navClick(a *App, ll geo.LonLat, drag float32) []mapview.PointerEvent {
 func TestNavPicking(t *testing.T) {
 	a, f, _ := navApp()
 	start, target := geo.LonLat{Lon: 12.2, Lat: 51.2}, geo.LonLat{Lon: 12.4, Lat: 51.4}
-	if !a.nav.picking() || a.navStatus() != "Click the map to set the start" {
+	if !a.nav.picking() || a.navStatus() != "Click the map to set the start, or search it" {
 		t.Fatalf("expected picking the start, got %q", a.navStatus())
 	}
 	// Dragging doesn't set a point.
 	navClick(a, start, 10)
-	if len(a.nav.points) != 0 {
+	if len(navPts(a)) != 0 {
 		t.Fatal("a drag set the start")
 	}
 	navClick(a, start, 0)
-	if len(a.nav.points) != 1 || !near(a.nav.points[0], start) || a.nav.busy || a.navStatus() != "Click the map to set the target" {
+	if len(navPts(a)) != 1 || !near(navPts(a)[0], start) || a.nav.busy || a.navStatus() != "Click the map to set the target, or search it" {
 		t.Fatalf("expected the start set, got %+v", a.nav)
 	}
 	navClick(a, target, 0)
-	if len(a.nav.points) != 2 || !near(a.nav.points[1], target) || !a.nav.busy || a.navStatus() != "Routing…" {
+	if len(navPts(a)) != 2 || !near(navPts(a)[1], target) || !a.nav.busy || a.navStatus() != "Routing…" {
 		t.Fatalf("expected routing, got %+v", a.nav)
 	}
 	waitRoute(a)
@@ -109,13 +116,13 @@ func TestNavPicking(t *testing.T) {
 	if rest := navClick(a, geo.LonLat{Lon: 12.4, Lat: 51.2}, 0); len(rest) != 3 {
 		t.Errorf("expected the click passed on, got %v", rest)
 	}
-	if len(a.nav.points) != 2 || !near(a.nav.points[0], start) || !near(a.nav.points[1], target) {
-		t.Errorf("points changed: %v", a.nav.points)
+	if len(navPts(a)) != 2 || !near(navPts(a)[0], start) || !near(navPts(a)[1], target) {
+		t.Errorf("points changed: %v", navPts(a))
 	}
 
 	// Closing keeps the route, and opening shows it again without routing.
 	a.closeNav()
-	if a.nav.open || len(a.nav.points) != 2 || a.nav.route == nil {
+	if a.nav.open || len(navPts(a)) != 2 || a.nav.route == nil {
 		t.Errorf("expected the route kept, got %+v", a.nav)
 	}
 	if rest := navClick(a, start, 40); len(rest) != 3 {
@@ -127,7 +134,7 @@ func TestNavPicking(t *testing.T) {
 	}
 
 	a.clearNav()
-	if !a.nav.open || len(a.nav.points) != 0 || a.nav.route != nil || !a.nav.picking() {
+	if !a.nav.open || len(navPts(a)) != 0 || a.nav.route != nil || !a.nav.picking() {
 		t.Errorf("expected everything cleared, got %+v", a.nav)
 	}
 }
@@ -150,9 +157,9 @@ func TestNavProfileAndSwap(t *testing.T) {
 	a.nav.swapBtn.btn.Click()
 	a.updateNav(gtx, nil)
 	waitRoute(a)
-	if !near(a.nav.points[0], target) || !near(a.nav.points[1], start) || len(f.requests) != 3 ||
+	if !near(navPts(a)[0], target) || !near(navPts(a)[1], start) || len(f.requests) != 3 ||
 		!near(f.requests[2].Points[0], target) {
-		t.Errorf("expected swapped ends, got %v, requests %+v", a.nav.points, f.requests)
+		t.Errorf("expected swapped ends, got %v, requests %+v", navPts(a), f.requests)
 	}
 }
 
@@ -214,7 +221,7 @@ func TestNavDragEnds(t *testing.T) {
 		t.Errorf("expected the drag taken, got %v", rest)
 	}
 	moved := geo.ToLonLat(a.mapView.View.ToMap(float64(screenPos(&a.mapView.View, target).X+40), float64(screenPos(&a.mapView.View, target).Y)))
-	if !near(a.nav.points[1], moved) || !near(a.nav.points[0], start) || !a.nav.busy {
+	if !near(navPts(a)[1], moved) || !near(navPts(a)[0], start) || !a.nav.busy {
 		t.Fatalf("expected the target moved and routing, got %+v", a.nav)
 	}
 	waitRoute(a)
@@ -224,7 +231,7 @@ func TestNavDragEnds(t *testing.T) {
 
 	// Clicking an end without moving it doesn't route again.
 	navClick(a, start, 1)
-	if a.nav.busy || len(f.requests) != 2 || !near(a.nav.points[0], start) {
+	if a.nav.busy || len(f.requests) != 2 || !near(navPts(a)[0], start) {
 		t.Errorf("expected nothing changed, got %+v", a.nav)
 	}
 
@@ -236,14 +243,14 @@ func TestNavDragEnds(t *testing.T) {
 	c := d
 	c.Kind = pointer.Cancel
 	a.updateNav(gtx, []mapview.PointerEvent{p, d})
-	if near(a.nav.points[0], start) || !a.nav.dragging {
+	if near(navPts(a)[0], start) || !a.nav.dragging {
 		t.Fatalf("expected the start dragged, got %+v", a.nav)
 	}
 	if cur, ok := a.navCursor(gtx); !ok || cur != pointer.CursorGrabbing {
 		t.Errorf("expected the grabbing cursor, got %v", cur)
 	}
 	a.updateNav(gtx, []mapview.PointerEvent{c})
-	if !near(a.nav.points[0], start) || a.nav.dragging || a.nav.busy {
+	if !near(navPts(a)[0], start) || a.nav.dragging || a.nav.busy {
 		t.Errorf("expected the start back, got %+v", a.nav)
 	}
 }
@@ -254,7 +261,7 @@ func TestNavDragWhilePicking(t *testing.T) {
 	navClick(a, start, 0)
 	// Dragging the start while the target is missing moves the start, and doesn't route.
 	navClick(a, start, 40)
-	if len(a.nav.points) != 1 || near(a.nav.points[0], start) || a.nav.busy || len(f.requests) != 0 {
+	if len(navPts(a)) != 1 || near(navPts(a)[0], start) || a.nav.busy || len(f.requests) != 0 {
 		t.Errorf("expected only the start moved, got %+v", a.nav)
 	}
 }
@@ -268,16 +275,16 @@ func TestNavVia(t *testing.T) {
 
 	// A click on the route adds nothing.
 	mid := geo.LonLat{Lon: 12.3, Lat: 51.3}
-	if rest := navClick(a, mid, 0); len(rest) != 0 || len(a.nav.points) != 2 || a.nav.busy {
-		t.Fatalf("expected the click taken without change, got %v, %+v", rest, a.nav.points)
+	if rest := navClick(a, mid, 0); len(rest) != 0 || len(navPts(a)) != 2 || a.nav.busy {
+		t.Fatalf("expected the click taken without change, got %v, %+v", rest, navPts(a))
 	}
 	// Dragging the route adds a via point where it is released, and routes through it.
 	navClick(a, mid, 0)
 	navClick(a, geo.LonLat{Lon: 12.3, Lat: 51.3}, -40)
-	if len(a.nav.points) != 3 || !a.nav.busy || a.nav.isVia(0) || !a.nav.isVia(1) {
-		t.Fatalf("expected a via point, got %v", a.nav.points)
+	if len(navPts(a)) != 3 || !a.nav.busy || a.nav.isVia(0) || !a.nav.isVia(1) {
+		t.Fatalf("expected a via point, got %v", navPts(a))
 	}
-	via := a.nav.points[1]
+	via := navPts(a)[1]
 	waitRoute(a)
 	if len(f.requests) != 2 || len(f.requests[1].Points) != 3 || !near(f.requests[1].Points[1], via) {
 		t.Errorf("expected routing through the via point, got %+v", f.requests)
@@ -290,22 +297,22 @@ func TestNavVia(t *testing.T) {
 	})
 	navClick(a, leg2, 40)
 	waitRoute(a)
-	if len(a.nav.points) != 4 || !near(a.nav.points[1], via) || a.navStatus() == "" {
-		t.Fatalf("expected a second via point after the first, got %v", a.nav.points)
+	if len(navPts(a)) != 4 || !near(navPts(a)[1], via) || a.navStatus() == "" {
+		t.Fatalf("expected a second via point after the first, got %v", navPts(a))
 	}
 
 	// Clicking a via point removes it.
 	navClick(a, via, 0)
-	if len(a.nav.points) != 3 || near(a.nav.points[1], via) || !a.nav.busy {
-		t.Errorf("expected the first via point removed, got %v", a.nav.points)
+	if len(navPts(a)) != 3 || near(navPts(a)[1], via) || !a.nav.busy {
+		t.Errorf("expected the first via point removed, got %v", navPts(a))
 	}
 	waitRoute(a)
 
 	// Reversing keeps the via points in route order.
-	second := a.nav.points[1]
-	slices.Reverse(a.nav.points)
-	if !near(a.nav.points[1], second) || !near(a.nav.points[0], target) {
-		t.Errorf("unexpected reversed points %v", a.nav.points)
+	second := navPts(a)[1]
+	slices.Reverse(a.nav.stops)
+	if !near(navPts(a)[1], second) || !near(navPts(a)[0], target) {
+		t.Errorf("unexpected reversed points %v", navPts(a))
 	}
 }
 
@@ -330,22 +337,22 @@ func TestViaInsertIndex(t *testing.T) {
 func TestNavSettings(t *testing.T) {
 	a, f, _ := navApp()
 	start, via, target := geo.LonLat{Lon: 12.2, Lat: 51.3}, geo.LonLat{Lon: 12.3, Lat: 51.2}, geo.LonLat{Lon: 12.4, Lat: 51.3}
-	a.nav.points = []geo.LonLat{start, via, target}
+	a.nav.setPoints([]geo.LonLat{start, via, target})
 	cfg := a.navState()
 	if len(cfg.Points) != 3 || cfg.Points[1] != (settings.LonLat{Lon: 12.3, Lat: 51.2}) {
 		t.Fatalf("unexpected saved points %+v", cfg.Points)
 	}
 	// Saved points are rounded to about a meter.
-	a.nav.points[0] = geo.LonLat{Lon: 12.373114999, Lat: -51.339741234}
+	a.nav.stops[0].pos = geo.LonLat{Lon: 12.373114999, Lat: -51.339741234}
 	if p := a.navState().Points[0]; p != (settings.LonLat{Lon: 12.37311, Lat: -51.33974}) {
 		t.Errorf("expected rounded coordinates, got %+v", p)
 	}
-	a.nav.points[0] = start
+	a.nav.stops[0].pos = start
 
 	// Loaded points are routed when the panel is opened.
 	a.closeNav()
 	a.loadNav(cfg)
-	if len(a.nav.points) != 3 || !a.nav.stale || len(f.requests) != 0 {
+	if len(navPts(a)) != 3 || !a.nav.stale || len(f.requests) != 0 {
 		t.Fatalf("expected the points loaded without routing, got %+v", a.nav)
 	}
 	a.toggleNav()
@@ -358,7 +365,129 @@ func TestNavSettings(t *testing.T) {
 	a.closeNav()
 	a.loadNav(settings.Routing{Points: cfg.Points[:1]})
 	a.toggleNav()
-	if len(a.nav.points) != 1 || a.nav.busy || !a.nav.picking() {
+	if len(navPts(a)) != 1 || a.nav.busy || !a.nav.picking() {
 		t.Errorf("expected picking the target, got %+v", a.nav)
+	}
+}
+
+func TestNavSearch(t *testing.T) {
+	a, f, gtx := navApp()
+	a.search = searchBox{}
+	leipzig := geocode.Place{Name: "Leipzig", Pos: geo.LonLat{Lon: 12.37, Lat: 51.34}}
+	a.geocoder = &fakeSearcher{places: []geocode.Place{leipzig}}
+
+	// Searching the target first leaves the start to be clicked.
+	a.setNavStop(1, leipzig)
+	if !a.nav.stops[1].set || a.nav.stops[0].set || !a.nav.picking() || a.nav.busy {
+		t.Fatalf("expected only the target set, got %+v", a.nav.stops)
+	}
+	a.updateNavFields(gtx)
+	if txt := a.nav.stops[1].field.ed.Text(); txt != "Leipzig" {
+		t.Errorf("expected the name in the field, got %q", txt)
+	}
+	start := geo.LonLat{Lon: 12.2, Lat: 51.3}
+	navClick(a, start, 0)
+	waitRoute(a)
+	if !near(a.nav.stops[0].pos, start) || len(f.requests) != 1 || !near(f.requests[0].Points[1], leipzig.Pos) {
+		t.Fatalf("expected a route from the click to the place, got %+v", f.requests)
+	}
+	a.updateNavFields(gtx)
+	if txt := a.nav.stops[0].field.ed.Text(); txt != "51.30000, 12.20000" {
+		t.Errorf("expected the coordinates in the field, got %q", txt)
+	}
+
+	// Typed coordinates set a stop.
+	a.nav.stops[0].field.ed.SetText("51.25, 12.25")
+	p, ok := a.nav.stops[0].field.submit(gtx, a)
+	if !ok {
+		t.Fatal("expected coordinates")
+	}
+	a.setNavStop(0, p)
+	waitRoute(a)
+	if !near(a.nav.stops[0].pos, geo.LonLat{Lon: 12.25, Lat: 51.25}) || len(f.requests) != 2 {
+		t.Errorf("expected the typed start, got %+v", a.nav.stops[0])
+	}
+
+	// A stop outside the view shows all stops.
+	far := geocode.Place{Name: "Dresden", Pos: geo.LonLat{Lon: 13.74, Lat: 51.05}}
+	a.setNavStop(1, far)
+	waitRoute(a)
+	b := a.mapView.View.Bounds()
+	for _, p := range navPts(a) {
+		if !b.Contains(geo.EmptyRect().Extend(geo.ToMercator(p))) {
+			t.Errorf("expected %v in the view %v", p, b)
+		}
+	}
+	a.setNavStop(1, leipzig)
+	waitRoute(a)
+
+	// Searching a place by name lists it for picking.
+	fld := &a.nav.stops[1].field
+	fld.ed.SetText("Leipzig")
+	if _, ok := fld.submit(gtx, a); ok {
+		t.Fatal("a name is no coordinates")
+	}
+	for fld.busy {
+		a.bgMu.Lock()
+		n := len(a.uiTasks)
+		a.bgMu.Unlock()
+		if n > 0 {
+			a.runUITasks()
+		}
+	}
+	if len(fld.places) != 1 || !fld.open {
+		t.Errorf("expected the place listed, got %+v", fld.places)
+	}
+	fld.clear()
+
+	// A dragged stop loses its name.
+	a.mapView.View.Center, a.mapView.View.Zoom = geo.ToMercator(leipzig.Pos), 12
+	navClick(a, leipzig.Pos, 40)
+	waitRoute(a)
+	if a.nav.stops[1].name != "" || near(a.nav.stops[1].pos, leipzig.Pos) {
+		t.Errorf("expected the target moved without name, got %+v", a.nav.stops[1])
+	}
+
+	// Clearing a field unsets its stop, and removes the route.
+	a.unsetNavStop(0)
+	if a.nav.stops[0].set || a.nav.route != nil || !a.nav.picking() {
+		t.Errorf("expected the start unset, got %+v", a.nav.stops[0])
+	}
+}
+
+func TestNavAddVia(t *testing.T) {
+	a, f, gtx := navApp()
+	navClick(a, geo.LonLat{Lon: 12.2, Lat: 51.3}, 0)
+	navClick(a, geo.LonLat{Lon: 12.4, Lat: 51.3}, 0)
+	waitRoute(a)
+
+	// An added via point goes before the target, and is set by the next click.
+	a.nav.viaBtn.btn.Click()
+	a.updateNav(gtx, nil)
+	if len(a.nav.stops) != 3 || a.nav.stops[1].set || !a.nav.picking() || !a.nav.routable() {
+		t.Fatalf("expected an empty via point, got %+v", a.nav.stops)
+	}
+	via := geo.LonLat{Lon: 12.3, Lat: 51.2}
+	navClick(a, via, 0)
+	waitRoute(a)
+	if !near(a.nav.stops[1].pos, via) || len(f.requests) != 2 || len(f.requests[1].Points) != 3 {
+		t.Fatalf("expected routing through the via point, got %+v", f.requests)
+	}
+
+	// Its button removes it.
+	a.nav.stops[1].removeBtn.btn.Click()
+	a.updateNav(gtx, nil)
+	waitRoute(a)
+	if len(a.nav.stops) != 2 || len(f.requests) != 3 || len(f.requests[2].Points) != 2 {
+		t.Errorf("expected the via point removed, got %+v", a.nav.stops)
+	}
+
+	// An empty via point is left out of the route.
+	a.nav.viaBtn.btn.Click()
+	a.updateNav(gtx, nil)
+	a.startRoute()
+	waitRoute(a)
+	if n := len(f.requests); n != 4 || len(f.requests[3].Points) != 2 {
+		t.Errorf("expected routing without the empty via point, got %+v", f.requests)
 	}
 }

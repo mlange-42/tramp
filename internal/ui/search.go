@@ -45,13 +45,14 @@ const (
 // coordLike matches text that may become coordinates, which is not searched while typing.
 var coordLike = regexp.MustCompile(`^[\d\s.,;:/+\-°º'′’"″”NSEWnsew]*$`)
 
-// searchBox is the search field in the toolbar. Enter jumps to typed coordinates,
+// searchBox is a search field for places and coordinates. Enter takes typed coordinates,
 // or searches places by name and lists them in a panel below the field.
 // With a service that allows it, places are also searched while typing.
-// The found position is marked on the map until the field is cleared.
+// It is used for the search field in the toolbar, where the found position is marked on the map
+// until the field is cleared, and for the points of a route.
 type searchBox struct {
-	ed    widget.Editor
-	clear iconButton
+	ed       widget.Editor
+	clearBtn iconButton
 	// open shows the panel with the state of the search and the results.
 	open bool
 	// panel is the event tag for the panel background.
@@ -69,14 +70,52 @@ type searchBox struct {
 	list widget.List
 	// sel is the place chosen by Enter, selected with the arrow keys.
 	sel int
-	// marker is the found position, if hasMarker.
+	// marker is the found position, if hasMarker. Only used by the search field in the toolbar.
 	marker    geo.LonLat
 	hasMarker bool
 }
 
-// updateSearch processes input on the search field and the result list.
+// searchAction is what happened in a search field.
+type searchAction int
+
+const (
+	searchNone searchAction = iota
+	// searchPicked is a chosen place, or typed coordinates.
+	searchPicked
+	// searchCleared is a cleared field.
+	searchCleared
+)
+
+// updateSearch processes input on the search field in the toolbar and its result list.
 func (a *App) updateSearch(gtx layout.Context) {
-	s := &a.search
+	switch p, act := a.search.update(gtx, a); act {
+	case searchPicked:
+		a.gotoPlace(p)
+	case searchCleared:
+		a.search.hasMarker = false
+	}
+}
+
+// submitSearch jumps to typed coordinates, or searches places by name, in the toolbar.
+func (a *App) submitSearch(gtx layout.Context) {
+	if p, ok := a.search.submit(gtx, a); ok {
+		a.gotoPlace(p)
+	}
+}
+
+// clearSearch removes the results and the marker of the search in the toolbar.
+func (a *App) clearSearch() {
+	a.search.clear()
+	a.search.hasMarker = false
+}
+
+// moveSearchSel moves the selection in the result list of the search in the toolbar.
+func (a *App) moveSearchSel(d int) {
+	a.search.moveSel(d)
+}
+
+// update processes input on the search field and the result list, and returns a chosen place.
+func (s *searchBox) update(gtx layout.Context, a *App) (geocode.Place, searchAction) {
 	s.ed.SingleLine, s.ed.Submit = true, true
 	// The arrow keys and Enter choose from the list, before the field takes them.
 	if s.open && len(s.places) > 0 {
@@ -96,16 +135,18 @@ func (a *App) updateSearch(gtx layout.Context) {
 			}
 			switch e.Name {
 			case key.NameUpArrow:
-				a.moveSearchSel(-1)
+				s.moveSel(-1)
 			case key.NameDownArrow:
-				a.moveSearchSel(1)
+				s.moveSel(1)
 			default:
 				// While typed text is not searched yet, Enter searches it.
 				if s.busy || !s.due.IsZero() {
-					a.submitSearch(gtx)
+					if p, ok := s.submit(gtx, a); ok {
+						return p, searchPicked
+					}
 				} else {
-					a.gotoPlace(s.places[s.sel])
 					gtx.Execute(key.FocusCmd{})
+					return s.pick(s.places[s.sel])
 				}
 			}
 		}
@@ -117,9 +158,13 @@ func (a *App) updateSearch(gtx layout.Context) {
 		}
 		switch ev.(type) {
 		case widget.SubmitEvent:
-			a.submitSearch(gtx)
+			if p, ok := s.submit(gtx, a); ok {
+				return p, searchPicked
+			}
 		case widget.ChangeEvent:
-			a.typedSearch(gtx)
+			if s.typed(gtx, a) {
+				return geocode.Place{}, searchCleared
+			}
 		}
 	}
 	for {
@@ -133,14 +178,16 @@ func (a *App) updateSearch(gtx layout.Context) {
 				s.open = false
 			} else {
 				s.ed.SetText("")
-				a.clearSearch()
+				s.clear()
 				gtx.Execute(key.FocusCmd{})
+				return geocode.Place{}, searchCleared
 			}
 		}
 	}
-	if s.clear.Clicked(gtx) {
+	if s.clearBtn.Clicked(gtx) {
 		s.ed.SetText("")
-		a.clearSearch()
+		s.clear()
+		return geocode.Place{}, searchCleared
 	}
 	// Clicking outside of the panel closes it.
 	for {
@@ -152,30 +199,45 @@ func (a *App) updateSearch(gtx layout.Context) {
 	}
 	for i := range s.rows {
 		if s.rows[i].Clicked(gtx) && i < len(s.places) {
-			a.gotoPlace(s.places[i])
 			gtx.Execute(key.FocusCmd{})
+			return s.pick(s.places[i])
 		}
 	}
 	if !s.due.IsZero() && !gtx.Now.Before(s.due) {
 		s.due = time.Time{}
-		a.startSearch(strings.TrimSpace(s.ed.Text()), true)
+		s.start(a, strings.TrimSpace(s.ed.Text()), true)
 	}
+	return geocode.Place{}, searchNone
 }
 
-// focusSearch moves the focus to the search field and selects its text.
+// pick closes the result list, and returns the chosen place.
+func (s *searchBox) pick(p geocode.Place) (geocode.Place, searchAction) {
+	s.open = false
+	s.stop()
+	return p, searchPicked
+}
+
+// focusSearch moves the focus to the search field in the toolbar and selects its text.
 func (a *App) focusSearch(gtx layout.Context) {
 	gtx.Execute(key.FocusCmd{Tag: &a.search.ed})
 	a.search.ed.SetCaret(a.search.ed.Len(), 0)
 }
 
-// searchFocused reports whether the search field has the focus.
+// searchFocused reports whether a search field has the focus: in the toolbar, or for a point of the route.
 func (a *App) searchFocused(gtx layout.Context) bool {
-	return gtx.Focused(&a.search.ed)
+	if gtx.Focused(&a.search.ed) {
+		return true
+	}
+	for _, st := range a.nav.stops {
+		if gtx.Focused(&st.field.ed) {
+			return true
+		}
+	}
+	return false
 }
 
-// moveSearchSel moves the selection in the result list by d places, and scrolls it into view.
-func (a *App) moveSearchSel(d int) {
-	s := &a.search
+// moveSel moves the selection in the result list by d places, and scrolls it into view.
+func (s *searchBox) moveSel(d int) {
 	s.sel = max(0, min(len(s.places)-1, s.sel+d))
 	pos := &s.list.Position
 	switch {
@@ -194,46 +256,44 @@ func (a *App) searchWhileTyping(text string) bool {
 		utf8.RuneCountInString(text) >= typeMinLen && !coordLike.MatchString(text)
 }
 
-// typedSearch handles a change of the text: it schedules searching it, if searched while typing,
-// and otherwise drops the results, which no longer match.
-func (a *App) typedSearch(gtx layout.Context) {
-	s := &a.search
+// typed handles a change of the text: it schedules searching it, if searched while typing,
+// and otherwise drops the results, which no longer match. It reports whether the field was emptied.
+func (s *searchBox) typed(gtx layout.Context, a *App) bool {
 	text := strings.TrimSpace(s.ed.Text())
 	if text == "" {
-		a.clearSearch()
-		return
+		s.clear()
+		return true
 	}
 	if !a.searchWhileTyping(text) {
-		a.stopSearch()
+		s.stop()
 		s.open, s.err, s.places = false, nil, nil
-		return
+		return false
 	}
 	s.due = gtx.Now.Add(typeDelay)
 	gtx.Execute(op.InvalidateCmd{At: s.due})
+	return false
 }
 
-// submitSearch jumps to typed coordinates, or searches places by name.
-func (a *App) submitSearch(gtx layout.Context) {
-	s := &a.search
+// submit returns typed coordinates, or searches places by name.
+func (s *searchBox) submit(gtx layout.Context, a *App) (geocode.Place, bool) {
 	q := strings.TrimSpace(s.ed.Text())
 	if q == "" {
-		return
+		return geocode.Place{}, false
 	}
 	if ll, ok := geocode.ParseCoords(q); ok {
-		a.stopSearch()
+		s.stop()
 		s.open = false
-		a.gotoPlace(geocode.Place{Pos: ll})
 		gtx.Execute(key.FocusCmd{})
-		return
+		return geocode.Place{Pos: ll}, true
 	}
-	a.startSearch(q, false)
+	s.start(a, q, false)
+	return geocode.Place{}, false
 }
 
-// startSearch searches places by name in the background, preferring places in about the area of the map.
+// start searches places by name in the background, preferring places in about the area of the map.
 // keep keeps showing the previous results until the new ones arrive, while typing.
-func (a *App) startSearch(text string, keep bool) {
-	a.stopSearch()
-	s := &a.search
+func (s *searchBox) start(a *App, text string, keep bool) {
+	s.stop()
 	if a.geocoder == nil || text == "" {
 		return
 	}
@@ -264,9 +324,8 @@ func (a *App) startSearch(text string, keep bool) {
 	}()
 }
 
-// stopSearch cancels a running or scheduled search and drops its results.
-func (a *App) stopSearch() {
-	s := &a.search
+// stop cancels a running or scheduled search and drops its results.
+func (s *searchBox) stop() {
 	if s.cancel != nil {
 		s.cancel()
 		s.cancel = nil
@@ -275,21 +334,25 @@ func (a *App) stopSearch() {
 	s.busy, s.due = false, time.Time{}
 }
 
-// clearSearch removes the results and the marker.
-func (a *App) clearSearch() {
-	a.stopSearch()
-	s := &a.search
-	s.open, s.err, s.places, s.hasMarker = false, nil, nil, false
+// clear removes the results.
+func (s *searchBox) clear() {
+	s.stop()
+	s.open, s.err, s.places = false, nil, nil
 }
 
 // gotoPlace shows a found place on the map and marks its position.
-// A place with an extent is shown fully, others at [placeZoom] or closer.
 func (a *App) gotoPlace(p geocode.Place) {
 	s := &a.search
 	s.open = false
 	s.marker, s.hasMarker = p.Pos, true
+	s.stop()
+	a.showPlace(p)
+}
+
+// showPlace shows a place on the map.
+// A place with an extent is shown fully, others at [placeZoom] or closer.
+func (a *App) showPlace(p geocode.Place) {
 	a.gps.following = false
-	a.stopSearch()
 	m := a.mapView
 	if p.HasBounds && (p.Min.Lon < p.Max.Lon || p.Min.Lat < p.Max.Lat) {
 		m.Fit(geo.EmptyRect().Extend(geo.ToMercator(p.Min)).Extend(geo.ToMercator(p.Max)))
@@ -304,22 +367,34 @@ func (a *App) gotoPlace(p geocode.Place) {
 	}
 }
 
-// layoutSearch draws the search field, and the result panel below it if open.
+// layoutSearch draws the search field in the toolbar, and the result panel below it if open.
+// The toolbar gets the height of the window, which limits the height of the result panel.
 func (a *App) layoutSearch(gtx layout.Context) layout.Dimensions {
-	st, s := a.style, &a.search
-	// The toolbar gets the height of the window, which limits the height of the result panel.
-	availY := gtx.Constraints.Max.Y
+	st := a.style
 	gtx.Constraints.Min.X = min(gtx.Dp(st.SearchWidth), gtx.Constraints.Max.X)
 	gtx.Constraints.Max.X = gtx.Constraints.Min.X
-	dims := layoutFieldBox(gtx, st, a.searchFocused(gtx), func(gtx layout.Context) layout.Dimensions {
+	return a.search.layout(gtx, a, "Place or coordinates (Ctrl+F)", "Clear the search and its marker on the map", true)
+}
+
+// layout draws the search field with the hint while empty, as wide as the constraints, and the result panel below it if open.
+// The panel is as high as the remaining height of the constraints allows. icon shows a search icon in the field.
+// clearTip is the tooltip of the button for clearing the field.
+func (s *searchBox) layout(gtx layout.Context, a *App, hint, clearTip string, icon bool) layout.Dimensions {
+	st := a.style
+	availY := gtx.Constraints.Max.Y
+	gtx.Constraints.Min.X = gtx.Constraints.Max.X
+	dims := layoutFieldBox(gtx, st, gtx.Focused(&s.ed), func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if !icon {
+					return layout.Dimensions{}
+				}
 				size := gtx.Sp(st.TextSize) * 5 / 4
 				layoutIcon(gtx, iconSearch, image.Point{}, size, st.HintFg)
 				return layout.Dimensions{Size: image.Pt(size+gtx.Dp(st.Spacing/2), size)}
 			}),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				ed := material.Editor(st.Theme, &s.ed, "Place or coordinates (Ctrl+F)")
+				ed := material.Editor(st.Theme, &s.ed, hint)
 				ed.TextSize = st.TextSize
 				ed.HintColor = st.HintFg
 				return ed.Layout(gtx)
@@ -328,7 +403,7 @@ func (a *App) layoutSearch(gtx layout.Context) layout.Dimensions {
 				if s.ed.Len() == 0 {
 					return layout.Dimensions{}
 				}
-				return a.layoutSearchClear(gtx)
+				return s.layoutClear(gtx, st, clearTip)
 			}),
 		)
 	})
@@ -346,15 +421,15 @@ func (a *App) layoutSearch(gtx layout.Context) layout.Dimensions {
 	// Keep the status bar visible below the panel.
 	gtx.Constraints.Max.Y = max(0, min(gtx.Dp(600), availY-dims.Size.Y-gtx.Dp(searchBottomMargin)))
 	layoutPanel(gtx, st, &s.panel, func(gtx layout.Context) layout.Dimensions {
-		return a.layoutSearchResults(gtx)
+		return s.layoutResults(gtx, a)
 	})
 	op.Defer(gtx.Ops, macro.Stop())
 	return dims
 }
 
-// layoutSearchClear draws the button for clearing the search, as high as the text so that the field keeps its height.
-func (a *App) layoutSearchClear(gtx layout.Context) layout.Dimensions {
-	st, b := a.style, &a.search.clear
+// layoutClear draws the button for clearing the field, as high as the text so that the field keeps its height.
+func (s *searchBox) layoutClear(gtx layout.Context, st *Style, tip string) layout.Dimensions {
+	b := &s.clearBtn
 	avail := gtx.Constraints.Max.X
 	dims := b.btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		size := gtx.Sp(st.TextSize) * 5 / 4
@@ -366,13 +441,13 @@ func (a *App) layoutSearchClear(gtx layout.Context) layout.Dimensions {
 		pointer.CursorPointer.Add(gtx.Ops)
 		return layout.Dimensions{Size: image.Pt(size, size)}
 	})
-	b.tip.Layout(gtx, st, b.btn.Hovered(), dims.Size, avail, "Clear the search and its marker on the map")
+	b.tip.Layout(gtx, st, b.btn.Hovered(), dims.Size, avail, tip)
 	return dims
 }
 
-// layoutSearchResults draws the state of the search, or the found places.
-func (a *App) layoutSearchResults(gtx layout.Context) layout.Dimensions {
-	st, s := a.style, &a.search
+// layoutResults draws the state of the search, or the found places.
+func (s *searchBox) layoutResults(gtx layout.Context, a *App) layout.Dimensions {
+	st := a.style
 	gtx.Constraints.Min.X = gtx.Constraints.Max.X
 	hint := func(txt string) layout.FlexChild {
 		return layout.Rigid(func(gtx layout.Context) layout.Dimensions {

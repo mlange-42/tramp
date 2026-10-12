@@ -39,11 +39,14 @@ TRAMP remembers the results of recent searches, so repeated searches don't reach
 ## Routing
 
 The directions button left of the search field (Ctrl+D) opens a panel for finding a route between two points.
-Click the map to set the start (A), and again to set the target (B).
+Click the map to set the start (A), and again to set the target (B),
+or type a place or coordinates in their fields, like in the [search](#search).
 The route is shown on the map, with its length and the estimated travel time.
 Drag A or B to move them; the route is found again when released.
 Drag the route itself to add a via point there, to make the route pass through another place.
-Via points can be dragged as well, and a click on a via point removes it.
+The ⊕ button adds a via point before the target, set by the next click on the map or by searching it.
+Via points are listed between A and B. They can be dragged as well, and ⊖ or a click on the map removes them.
+Clearing a field with × sets its point again by the next click on the map.
 Select the means of travel in the panel: on foot, by bike or by car.
 The swap button reverses the route, with its via points, and the bin button removes it to start a new one.
 Close the panel with × or Esc. The route is kept, also when TRAMP is closed, and shown again when the panel is opened.
