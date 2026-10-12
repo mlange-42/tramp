@@ -38,17 +38,19 @@ type OSRM struct {
 }
 
 type osrmResponse struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Routes  []struct {
-		Geometry struct {
-			// Coordinates are longitude and latitude.
-			Coordinates [][]float64 `json:"coordinates"`
-		} `json:"geometry"`
-		// Distance is in meters, and Duration in seconds.
-		Distance float64 `json:"distance"`
-		Duration float64 `json:"duration"`
-	} `json:"routes"`
+	Code    string      `json:"code"`
+	Message string      `json:"message"`
+	Routes  []osrmRoute `json:"routes"`
+}
+
+type osrmRoute struct {
+	Geometry struct {
+		// Coordinates are longitude and latitude.
+		Coordinates [][]float64 `json:"coordinates"`
+	} `json:"geometry"`
+	// Distance is in meters, and Duration in seconds.
+	Distance float64 `json:"distance"`
+	Duration float64 `json:"duration"`
 }
 
 // Attribution returns [OSRMAttribution].
@@ -75,6 +77,9 @@ func (o *OSRM) Route(ctx context.Context, r Request) (*Route, error) {
 	}
 	// The profile in the path is ignored by OSRM, which serves the profile it was set up with.
 	endpoint := base + "/route/v1/driving/" + strings.Join(coords, ";") + "?overview=full&geometries=geojson&steps=false"
+	if n := r.alternatives(); n > 0 {
+		endpoint += "&alternatives=" + strconv.Itoa(n)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
@@ -89,12 +94,26 @@ func (o *OSRM) Route(ctx context.Context, r Request) (*Route, error) {
 	if len(res.Routes) == 0 {
 		return nil, errors.New("routing failed: no route found")
 	}
-	best := res.Routes[0]
-	route := &Route{
-		Distance: best.Distance,
-		Duration: time.Duration(best.Duration * float64(time.Second)),
+	route, err := res.Routes[0].route()
+	if err != nil {
+		return nil, err
 	}
-	for _, c := range best.Geometry.Coordinates {
+	for _, alt := range res.Routes[1:] {
+		// A broken alternative doesn't spoil the route.
+		if a, err := alt.route(); err == nil {
+			route.Alternatives = append(route.Alternatives, a)
+		}
+	}
+	return route, nil
+}
+
+// route converts a route of the response.
+func (or *osrmRoute) route() (*Route, error) {
+	route := &Route{
+		Distance: or.Distance,
+		Duration: time.Duration(or.Duration * float64(time.Second)),
+	}
+	for _, c := range or.Geometry.Coordinates {
 		if len(c) >= 2 {
 			route.Points = append(route.Points, geo.LonLat{Lon: c[0], Lat: c[1]})
 		}

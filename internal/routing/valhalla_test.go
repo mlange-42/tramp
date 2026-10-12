@@ -104,3 +104,36 @@ func TestValhallaErrors(t *testing.T) {
 func near(a, b geo.LonLat) bool {
 	return math.Abs(a.Lon-b.Lon) < 1e-7 && math.Abs(a.Lat-b.Lat) < 1e-7
 }
+
+func TestValhallaAlternatives(t *testing.T) {
+	var got valhallaRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got = valhallaRequest{}
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		// The main route from (0, 0) to (0, 1), and alternatives over (1, 0) and a broken one.
+		_, _ = w.Write([]byte(`{"trip":{"legs":[{"shape":"??_c` + "`" + `|@?"}],"summary":{"length":111,"time":3600}},
+			"alternates":[{"trip":{"legs":[{"shape":"??_c` + "`" + `|@?"}],"summary":{"length":150,"time":4000}}},
+			{"trip":{"legs":[{"shape":"_"}],"summary":{"length":1,"time":1}}}]}`))
+	}))
+	defer srv.Close()
+
+	v := &Valhalla{URL: srv.URL}
+	route, err := v.Route(context.Background(), Request{Points: make([]geo.LonLat, 2), Alternatives: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Alternates != 2 {
+		t.Errorf("expected 2 alternates asked for, got %d", got.Alternates)
+	}
+	if len(route.Alternatives) != 1 || route.Alternatives[0].Distance != 150000 || len(route.Alternatives[0].Points) != 2 {
+		t.Errorf("expected one alternative, got %+v", route.Alternatives)
+	}
+
+	// With intermediate points, no alternatives are asked for.
+	if _, err := v.Route(context.Background(), Request{Points: make([]geo.LonLat, 3), Alternatives: 2}); err != nil {
+		t.Fatal(err)
+	}
+	if got.Alternates != 0 {
+		t.Errorf("expected no alternates asked for, got %d", got.Alternates)
+	}
+}

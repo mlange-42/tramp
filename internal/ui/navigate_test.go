@@ -26,6 +26,8 @@ type fakeRouter struct {
 	mu       sync.Mutex
 	err      error
 	requests []routing.Request
+	// alt returns an alternative route for routes without via points.
+	alt bool
 }
 
 func (f *fakeRouter) Attribution() string { return "test" }
@@ -37,7 +39,14 @@ func (f *fakeRouter) Route(_ context.Context, r routing.Request) (*routing.Route
 	if f.err != nil {
 		return nil, f.err
 	}
-	return &routing.Route{Points: r.Points, Distance: 1234, Duration: 20 * time.Minute}, nil
+	route := &routing.Route{Points: r.Points, Distance: 1234, Duration: 20 * time.Minute}
+	if f.alt && len(r.Points) == 2 && r.Alternatives > 0 {
+		// A detour over the point south of the middle of the route.
+		a, b := r.Points[0], r.Points[1]
+		detour := geo.LonLat{Lon: (a.Lon + b.Lon) / 2, Lat: (a.Lat+b.Lat)/2 - 0.05}
+		route.Alternatives = []*routing.Route{{Points: []geo.LonLat{a, detour, b}, Distance: 2000, Duration: 30 * time.Minute}}
+	}
+	return route, nil
 }
 
 // navApp returns an app with a map of a fixed size and a fake router, with the route panel open.
@@ -491,5 +500,39 @@ func TestNavAddVia(t *testing.T) {
 	waitRoute(a)
 	if n := len(f.requests); n != 4 || len(f.requests[3].Points) != 2 {
 		t.Errorf("expected routing without the empty via point, got %+v", f.requests)
+	}
+}
+
+func TestNavAlternatives(t *testing.T) {
+	a, f, _ := navApp()
+	f.alt = true
+	start, target := geo.LonLat{Lon: 12.2, Lat: 51.3}, geo.LonLat{Lon: 12.4, Lat: 51.3}
+	navClick(a, start, 0)
+	navClick(a, target, 0)
+	waitRoute(a)
+	if f.requests[0].Alternatives != navAlternatives || len(a.nav.alts) != 1 || len(a.nav.altLines) != 1 {
+		t.Fatalf("expected an alternative, got %+v", a.nav.alts)
+	}
+	if h := navAltsHint(a.nav.alts); h != "Click a grey route for an alternative: 2.0 km · 30 min" {
+		t.Errorf("unexpected hint %q", h)
+	}
+
+	// Clicking the alternative makes it the route, without routing again.
+	detour := geo.LonLat{Lon: 12.3, Lat: 51.25}
+	if rest := navClick(a, detour, 0); len(rest) != 0 {
+		t.Errorf("expected the click taken, got %v", rest)
+	}
+	if a.nav.route.Distance != 2000 || a.nav.alts[0].Distance != 1234 || a.nav.busy || len(f.requests) != 1 || a.nav.swallow {
+		t.Fatalf("expected the alternative selected, got %+v", a.nav.route)
+	}
+	if len(navPts(a)) != 2 {
+		t.Errorf("expected no via point, got %v", navPts(a))
+	}
+
+	// Dragging the route adds a via point, and then there are no alternatives.
+	navClick(a, detour, 30)
+	waitRoute(a)
+	if len(navPts(a)) != 3 || len(a.nav.alts) != 0 || len(a.nav.altLines) != 0 {
+		t.Errorf("expected no alternatives with a via point, got %+v", a.nav.alts)
 	}
 }

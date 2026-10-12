@@ -47,20 +47,27 @@ type valhallaRequest struct {
 	Units     string             `json:"units"`
 	// DirectionsType "none" leaves out the turn-by-turn instructions.
 	DirectionsType string `json:"directions_type"`
+	// Alternates is the number of alternative routes wanted.
+	Alternates int `json:"alternates,omitempty"`
 }
 
 type valhallaResponse struct {
-	Trip struct {
-		Legs []struct {
-			// Shape is the line of the leg as an encoded polyline with precision 6.
-			Shape string `json:"shape"`
-		} `json:"legs"`
-		Summary struct {
-			// Length is in kilometers, and Time in seconds.
-			Length float64 `json:"length"`
-			Time   float64 `json:"time"`
-		} `json:"summary"`
-	} `json:"trip"`
+	Trip       valhallaTrip `json:"trip"`
+	Alternates []struct {
+		Trip valhallaTrip `json:"trip"`
+	} `json:"alternates"`
+}
+
+type valhallaTrip struct {
+	Legs []struct {
+		// Shape is the line of the leg as an encoded polyline with precision 6.
+		Shape string `json:"shape"`
+	} `json:"legs"`
+	Summary struct {
+		// Length is in kilometers, and Time in seconds.
+		Length float64 `json:"length"`
+		Time   float64 `json:"time"`
+	} `json:"summary"`
 }
 
 // Attribution returns [ValhallaAttribution].
@@ -75,7 +82,7 @@ func (v *Valhalla) Route(ctx context.Context, r Request) (*Route, error) {
 	if !ok {
 		return nil, fmt.Errorf("unknown routing profile %q", r.Profile)
 	}
-	body := valhallaRequest{Costing: costing, Units: "kilometers", DirectionsType: "none"}
+	body := valhallaRequest{Costing: costing, Units: "kilometers", DirectionsType: "none", Alternates: r.alternatives()}
 	for _, p := range r.Points {
 		body.Locations = append(body.Locations, valhallaLocation{Lat: p.Lat, Lon: p.Lon})
 	}
@@ -97,11 +104,26 @@ func (v *Valhalla) Route(ctx context.Context, r Request) (*Route, error) {
 		return nil, err
 	}
 
-	route := &Route{
-		Distance: res.Trip.Summary.Length * 1000,
-		Duration: time.Duration(res.Trip.Summary.Time * float64(time.Second)),
+	route, err := res.Trip.route()
+	if err != nil {
+		return nil, err
 	}
-	for i, leg := range res.Trip.Legs {
+	for _, alt := range res.Alternates {
+		// A broken alternative doesn't spoil the route.
+		if a, err := alt.Trip.route(); err == nil {
+			route.Alternatives = append(route.Alternatives, a)
+		}
+	}
+	return route, nil
+}
+
+// route converts a trip, joining the lines of its legs.
+func (t *valhallaTrip) route() (*Route, error) {
+	route := &Route{
+		Distance: t.Summary.Length * 1000,
+		Duration: time.Duration(t.Summary.Time * float64(time.Second)),
+	}
+	for i, leg := range t.Legs {
 		points, err := decodePolyline(leg.Shape, 6)
 		if err != nil {
 			return nil, fmt.Errorf("routing failed: %w", err)

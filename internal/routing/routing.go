@@ -57,6 +57,17 @@ type Request struct {
 	Points []geo.LonLat
 	// Profile is one of [Profiles]. Empty means [ProfileFoot].
 	Profile string
+	// Alternatives is the largest number of alternative routes wanted, besides the best one.
+	// The services find alternatives only for routes without intermediate points, and may find fewer or none.
+	Alternatives int
+}
+
+// alternatives returns the number of alternatives to ask the service for: none with intermediate points.
+func (r Request) alternatives() int {
+	if len(r.Points) != 2 {
+		return 0
+	}
+	return max(0, r.Alternatives)
 }
 
 // Route is a found route.
@@ -67,6 +78,9 @@ type Route struct {
 	Distance float64
 	// Duration is the estimated travel time.
 	Duration time.Duration
+	// Alternatives are other routes between the same points, if asked for and found.
+	// They are set only for the best route.
+	Alternatives []*Route
 }
 
 // New returns the router for a service, [ServiceValhalla] if empty, with requests throttled
