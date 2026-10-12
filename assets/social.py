@@ -25,6 +25,10 @@ W, H = 1280, 640
 YELLOW = "#f2c230"
 FG, SUB = "#fff6ee", "#a9b6c3"
 
+# RNG seeds
+CONTOURS_SEED = 11
+PROFILE_SEED = 3
+
 # Simplification tolerances in pixels (Ramer-Douglas-Peucker).
 CONTOUR_TOL = 3.0
 PROFILE_TOL = 0.5
@@ -175,7 +179,7 @@ def main():
     course = [(0.0, 0.12), (0.06, 0.16), (0.16, 0.5), (0.21, 0.44), (0.27, 0.62), (0.31, 0.58),
               (0.42, 1.0), (0.47, 0.82), (0.53, 0.86), (0.66, 0.34), (0.72, 0.3), (0.83, 0.55),
               (0.88, 0.5), (1.0, 0.05)]
-    ts, elev = profile(course, seed=3, levels=8)
+    ts, elev = profile(course, seed=PROFILE_SEED, levels=8)
     y_top, y_bot = 492, 590
     pts = np.column_stack([-20 + (W + 40) * ts, y_bot - (elev - elev.min()) / np.ptp(elev) * (y_bot - y_top)])
     pts = rdp(pts, PROFILE_TOL)
@@ -185,7 +189,7 @@ def main():
     ls, ts_, ss = 200, 1.75, 1.55  # logo size, title and subtitle scale
     top = 62
     body = f'''<rect width="{W}" height="{H}" fill="url(#bg)"/>
-  {contours([(640, 250, 700)], 11, "#ffffff", 0.05)}
+  {contours([(640, 250, 700)], CONTOURS_SEED, "#ffffff", 0.05)}
   <path d="{area}" fill="url(#prof)"/>
   <path d="{line}" fill="none" stroke="{YELLOW}" stroke-width="4" stroke-linejoin="round" stroke-opacity="0.9"/>
   {logo_at(640 - ls / 2, top, ls)}
