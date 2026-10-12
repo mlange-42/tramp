@@ -50,6 +50,16 @@ On Linux, the file dialog requires `zenity`, `kdialog` or a similar tool, which 
 - [Editing](docs/editing.md): creating and editing routes and waypoints
 - [Configuration](docs/configuration.md): settings, maps and color gradients
 
+## Development
+
+TRAMP is designed and maintained by [@mlange-42](https://github.com/mlange-42).
+Most of the implementation was written with [Claude Code](https://claude.com/claude-code)
+(Anthropic) as a pair-programming assistant.
+
+Architecture, feature design, and technology choices are mine;
+every change is reviewed, tested against real-world data,
+and merged by me via pull request.
+
 ## License
 
 TRAMP and all its sources and documentation are distributed under the [MIT license](https://github.com/mlange-42/tramp/blob/main/LICENSE).
