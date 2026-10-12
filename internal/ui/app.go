@@ -148,13 +148,11 @@ type App struct {
 	// nextColor is the index of the default color for the next opened file.
 	nextColor int
 
-	// bgMu guards the fields for results of background work: files being read and chosen colors.
-	bgMu         sync.Mutex
-	nextBatch    int
-	pending      map[int][]settings.File
-	loaded       []loadBatch
-	colorChanges []colorChange
-	// uiTasks are functions to run on the UI goroutine, see [App.runOnUI].
+	// pending are the files being read, by batch, for saving the settings.
+	nextBatch int
+	pending   map[int][]settings.File
+	// uiTasks are functions to run on the UI goroutine, see [App.runOnUI], guarded by bgMu.
+	bgMu    sync.Mutex
 	uiTasks []func()
 }
 
@@ -429,8 +427,6 @@ func (a *App) update(gtx layout.Context) {
 	a.updateShortcuts(gtx)
 	a.updateSearch(gtx)
 
-	a.addLoaded()
-	a.applyColors()
 	a.updateColoring(gtx)
 	a.updateFiles(gtx)
 	// The map's hover position is needed before the map is drawn.

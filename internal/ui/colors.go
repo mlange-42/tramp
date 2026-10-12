@@ -71,47 +71,27 @@ func parseColorAlpha(s string) (color.NRGBA, error) {
 	return c, nil
 }
 
-// colorChange is a color chosen in the dialog, for the given items.
-type colorChange struct {
-	items []*fileItem
-	color color.NRGBA
-}
-
 // showColorDialog lets the user choose the color of the given items, without blocking the UI.
 func (a *App) showColorDialog(items []*fileItem) {
-	if len(items) == 0 || !a.dialogOpen.CompareAndSwap(false, true) {
+	if len(items) == 0 {
 		return
 	}
 	pick := a.plat.colorDialog(items[0].color)
-	go func() {
-		defer a.dialogOpen.Store(false)
+	a.dialog(func() func() {
 		nc, err := pick()
 		if err != nil {
 			if !errors.Is(err, zenity.ErrCanceled) {
 				log.Printf("color dialog: %v", err)
 			}
-			return
+			return nil
 		}
-		a.bgMu.Lock()
-		a.colorChanges = append(a.colorChanges, colorChange{items: items, color: nc})
-		a.bgMu.Unlock()
-		a.invalidate()
-	}()
-}
-
-// applyColors applies colors chosen in the dialog.
-func (a *App) applyColors() {
-	a.bgMu.Lock()
-	changes := a.colorChanges
-	a.colorChanges = nil
-	a.bgMu.Unlock()
-
-	for _, c := range changes {
-		for _, it := range c.items {
-			it.color = c.color
+		return func() {
+			for _, it := range items {
+				it.color = nc
+			}
+			a.tracksChanged = true
 		}
-		a.tracksChanged = true
-	}
+	})
 }
 
 // layoutSwatch draws a clickable color field, split into stripes for several colors.
