@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/mlange-42/tramp/internal/geo"
+	"github.com/mlange-42/tramp/internal/httpx"
 )
 
 // PhotonURL is the search endpoint of the public Photon service of komoot.
@@ -28,10 +29,7 @@ const photonBiasScale = "0.6"
 type Photon struct {
 	// URL is the search endpoint. Empty means [PhotonURL].
 	URL string
-	// HTTP is the client for requests. Nil means [http.DefaultClient].
-	HTTP *http.Client
-	// UserAgent identifies the application.
-	UserAgent string
+	httpx.Client
 }
 
 // photonResult is the GeoJSON response of Photon.
@@ -87,7 +85,7 @@ func (p *Photon) Search(ctx context.Context, query Query) ([]Place, error) {
 		return nil, err
 	}
 	var res photonResult
-	if err := getJSON(p.HTTP, req, p.UserAgent, &res); err != nil {
+	if err := p.DoJSON(req, &res, nil); err != nil {
 		return nil, err
 	}
 	places := make([]Place, 0, len(res.Features))

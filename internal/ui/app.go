@@ -26,6 +26,7 @@ import (
 	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/geocode"
+	"github.com/mlange-42/tramp/internal/httpx"
 	"github.com/mlange-42/tramp/internal/mapview"
 	"github.com/mlange-42/tramp/internal/routing"
 	"github.com/mlange-42/tramp/internal/settings"
@@ -171,7 +172,7 @@ func newApp(invalidate func(), opts Options) *App {
 	a := &App{
 		invalidate:   invalidate,
 		style:        DefaultStyle(),
-		client:       &wms.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent},
+		client:       &wms.Client{Client: httpx.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent}},
 		tileCache:    opts.State.TileCache,
 		layers:       layers,
 		overlaySel:   NewMultiSelect("Overlays", len(overlays)),

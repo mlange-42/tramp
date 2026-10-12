@@ -2,7 +2,6 @@ package geocode
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"slices"
@@ -11,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/mlange-42/tramp/internal/geo"
+	"github.com/mlange-42/tramp/internal/httpx"
 )
 
 // Search services.
@@ -74,9 +74,9 @@ func New(service, url string, client *http.Client, userAgent string) (Searcher, 
 	var s Searcher
 	switch strings.ToLower(strings.TrimSpace(service)) {
 	case "", ServicePhoton:
-		s = &Photon{URL: url, HTTP: client, UserAgent: userAgent}
+		s = &Photon{URL: url, Client: httpx.Client{HTTP: client, UserAgent: userAgent}}
 	case ServiceNominatim:
-		s = &Nominatim{URL: url, HTTP: client, UserAgent: userAgent}
+		s = &Nominatim{URL: url, Client: httpx.Client{HTTP: client, UserAgent: userAgent}}
 	default:
 		return nil, fmt.Errorf("unknown search service %q, expected %s or %s", service, ServicePhoton, ServiceNominatim)
 	}
@@ -129,26 +129,4 @@ func (c *Cache) Search(ctx context.Context, q Query) ([]Place, error) {
 	}
 	c.results[key] = slices.Clone(places)
 	return places, nil
-}
-
-// getJSON sends a request with the user agent, and decodes the JSON response into v.
-func getJSON(client *http.Client, req *http.Request, userAgent string, v any) error {
-	if userAgent != "" {
-		req.Header.Set("User-Agent", userAgent)
-	}
-	if client == nil {
-		client = http.DefaultClient
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("search failed: %s", resp.Status)
-	}
-	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
-		return fmt.Errorf("search failed: %w", err)
-	}
-	return nil
 }

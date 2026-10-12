@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mlange-42/tramp/internal/geo"
+	"github.com/mlange-42/tramp/internal/httpx"
 )
 
 // valhallaSample is a response of the public Valhalla server for a short walk in Leipzig,
@@ -34,7 +35,7 @@ func TestValhallaRoute(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	v := &Valhalla{URL: srv.URL, UserAgent: "test-agent"}
+	v := &Valhalla{URL: srv.URL, Client: httpx.Client{UserAgent: "test-agent"}}
 	req := Request{Points: []geo.LonLat{{Lon: 12.3731, Lat: 51.3397}, {Lon: 12.376, Lat: 51.3405}}, Profile: ProfileBike}
 	route, err := v.Route(context.Background(), req)
 	if err != nil {

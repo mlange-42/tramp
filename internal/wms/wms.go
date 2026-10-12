@@ -17,6 +17,7 @@ import (
 	_ "image/png"
 
 	"github.com/mlange-42/tramp/internal/geo"
+	"github.com/mlange-42/tramp/internal/httpx"
 )
 
 // Layer types.
@@ -120,8 +121,7 @@ func (l *Layer) MapURL(bbox geo.Rect, width, height int) string {
 
 // Client fetches map images from WMS and tile servers.
 type Client struct {
-	HTTP      *http.Client
-	UserAgent string
+	httpx.Client
 }
 
 // GetMap fetches and decodes the map image for the given layer and extent.
@@ -139,15 +139,7 @@ func (c *Client) get(ctx context.Context, u string) (image.Image, error) {
 	if err != nil {
 		return nil, err
 	}
-	if c.UserAgent != "" {
-		req.Header.Set("User-Agent", c.UserAgent)
-	}
-
-	client := c.HTTP
-	if client == nil {
-		client = http.DefaultClient
-	}
-	resp, err := client.Do(req)
+	resp, err := c.Do(req)
 	if err != nil {
 		return nil, err
 	}
