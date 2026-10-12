@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/mlange-42/tramp/internal/geo"
+	"github.com/mlange-42/tramp/internal/httpx"
 )
 
 // photonSample is a shortened response of the public Photon server.
@@ -32,7 +33,7 @@ func TestPhotonSearch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := &Photon{URL: srv.URL, UserAgent: "test-agent"}
+	p := &Photon{URL: srv.URL, Client: httpx.Client{UserAgent: "test-agent"}}
 	q := Query{Text: "Thomaskirche", Limit: 5, Near: geo.LonLat{Lon: 12.37, Lat: 51.34}, HasNear: true, Zoom: 14}
 	places, err := p.Search(context.Background(), q)
 	if err != nil {

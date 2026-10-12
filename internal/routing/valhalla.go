@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/mlange-42/tramp/internal/httpx"
 )
 
 // ValhallaURL is the route endpoint of the public Valhalla server of FOSSGIS e.V.
@@ -30,10 +32,7 @@ var valhallaCosting = map[string]string{
 type Valhalla struct {
 	// URL is the route endpoint. Empty means [ValhallaURL].
 	URL string
-	// HTTP is the client for requests. Nil means [http.DefaultClient].
-	HTTP *http.Client
-	// UserAgent identifies the application.
-	UserAgent string
+	httpx.Client
 }
 
 type valhallaLocation struct {
@@ -100,8 +99,8 @@ func (v *Valhalla) Route(ctx context.Context, r Request) (*Route, error) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 	var res valhallaResponse
-	if err := doJSON(v.HTTP, req, v.UserAgent, &res, valhallaError); err != nil {
-		return nil, err
+	if err := v.DoJSON(req, &res, valhallaError); err != nil {
+		return nil, fmt.Errorf("routing failed: %w", err)
 	}
 
 	route, err := res.Trip.route()

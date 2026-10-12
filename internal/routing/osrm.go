@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mlange-42/tramp/internal/geo"
+	"github.com/mlange-42/tramp/internal/httpx"
 )
 
 // OSRMURL is the address of the public OSRM servers of FOSSGIS e.V., with a placeholder for the profile.
@@ -31,10 +32,7 @@ type OSRM struct {
 	// URL is the address of the server, without the /route/v1 path.
 	// [ProfilePlaceholder] in it is replaced by the profile. Empty means [OSRMURL].
 	URL string
-	// HTTP is the client for requests. Nil means [http.DefaultClient].
-	HTTP *http.Client
-	// UserAgent identifies the application.
-	UserAgent string
+	httpx.Client
 }
 
 type osrmResponse struct {
@@ -85,8 +83,8 @@ func (o *OSRM) Route(ctx context.Context, r Request) (*Route, error) {
 		return nil, err
 	}
 	var res osrmResponse
-	if err := doJSON(o.HTTP, req, o.UserAgent, &res, osrmError); err != nil {
-		return nil, err
+	if err := o.DoJSON(req, &res, osrmError); err != nil {
+		return nil, fmt.Errorf("routing failed: %w", err)
 	}
 	if res.Code != "Ok" {
 		return nil, fmt.Errorf("routing failed: %s", osrmMessage(res.Code, res.Message))

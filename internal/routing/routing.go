@@ -3,15 +3,14 @@ package routing
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/mlange-42/tramp/internal/geo"
+	"github.com/mlange-42/tramp/internal/httpx"
 )
 
 // Routing services.
@@ -91,9 +90,9 @@ func New(service, url string, client *http.Client, userAgent string) (Router, er
 	var r Router
 	switch strings.ToLower(strings.TrimSpace(service)) {
 	case "", ServiceValhalla:
-		r = &Valhalla{URL: url, HTTP: client, UserAgent: userAgent}
+		r = &Valhalla{URL: url, Client: httpx.Client{HTTP: client, UserAgent: userAgent}}
 	case ServiceOSRM:
-		r = &OSRM{URL: url, HTTP: client, UserAgent: userAgent}
+		r = &OSRM{URL: url, Client: httpx.Client{HTTP: client, UserAgent: userAgent}}
 	default:
 		return nil, fmt.Errorf("unknown routing service %q, expected %s or %s", service, ServiceValhalla, ServiceOSRM)
 	}
@@ -152,33 +151,6 @@ func (t *Throttle) Route(ctx context.Context, r Request) (*Route, error) {
 	}
 	t.last = time.Now()
 	return t.Router.Route(ctx, r)
-}
-
-// doJSON sends a request with the user agent, and decodes the JSON response into v.
-// For a response with an error status, errMsg extracts the message of the service from the body, if any.
-func doJSON(client *http.Client, req *http.Request, userAgent string, v any, errMsg func([]byte) string) error {
-	if userAgent != "" {
-		req.Header.Set("User-Agent", userAgent)
-	}
-	if client == nil {
-		client = http.DefaultClient
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		if msg := errMsg(body); msg != "" {
-			return fmt.Errorf("routing failed: %s", msg)
-		}
-		return fmt.Errorf("routing failed: %s", resp.Status)
-	}
-	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
-		return fmt.Errorf("routing failed: %w", err)
-	}
-	return nil
 }
 
 // decodePolyline decodes a line in the Encoded Polyline Algorithm Format, with the given precision

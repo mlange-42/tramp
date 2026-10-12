@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mlange-42/tramp/internal/geo"
+	"github.com/mlange-42/tramp/internal/httpx"
 )
 
 // NominatimURL is the search endpoint of the public Nominatim service of OpenStreetMap.
@@ -29,10 +30,7 @@ const nominatimInterval = time.Second
 type Nominatim struct {
 	// URL is the search endpoint. Empty means [NominatimURL].
 	URL string
-	// HTTP is the client for requests. Nil means [http.DefaultClient].
-	HTTP *http.Client
-	// UserAgent identifies the application, as required by the usage policy.
-	UserAgent string
+	httpx.Client
 
 	mu   sync.Mutex
 	last time.Time
@@ -70,7 +68,7 @@ func (n *Nominatim) Search(ctx context.Context, query Query) ([]Place, error) {
 		return nil, err
 	}
 	var raw []nominatimPlace
-	if err := getJSON(n.HTTP, req, n.UserAgent, &raw); err != nil {
+	if err := n.DoJSON(req, &raw, nil); err != nil {
 		return nil, err
 	}
 	places := make([]Place, 0, len(raw))

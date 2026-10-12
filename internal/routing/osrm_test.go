@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mlange-42/tramp/internal/geo"
+	"github.com/mlange-42/tramp/internal/httpx"
 )
 
 // osrmSample is a response of the public OSRM foot server for a short walk in Leipzig,
@@ -27,7 +28,7 @@ func TestOSRMRoute(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	o := &OSRM{URL: srv.URL + "/routed-" + ProfilePlaceholder + "/", UserAgent: "test-agent"}
+	o := &OSRM{URL: srv.URL + "/routed-" + ProfilePlaceholder + "/", Client: httpx.Client{UserAgent: "test-agent"}}
 	req := Request{Points: []geo.LonLat{{Lon: 12.3731, Lat: 51.3397}, {Lon: 12.376, Lat: 51.3405}}}
 	route, err := o.Route(context.Background(), req)
 	if err != nil {

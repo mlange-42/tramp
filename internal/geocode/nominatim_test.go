@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/mlange-42/tramp/internal/httpx"
 )
 
 func TestNominatimSearch(t *testing.T) {
@@ -21,7 +23,7 @@ func TestNominatimSearch(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	n := &Nominatim{URL: srv.URL, UserAgent: "test-agent"}
+	n := &Nominatim{URL: srv.URL, Client: httpx.Client{UserAgent: "test-agent"}}
 	places, err := n.Search(context.Background(), Query{Text: "Leipzig", Limit: 5})
 	if err != nil {
 		t.Fatal(err)
