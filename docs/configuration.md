@@ -31,11 +31,24 @@ search:
   service: photon          # search service for place names: photon or nominatim
   url: ''                  # search endpoint of another server; empty for the public server of the service
   limit: 10                # most places listed for a search, up to 40
+routing:
+  service: valhalla        # routing service: valhalla or osrm
+  url: ''                  # endpoint of another server; empty for the public FOSSGIS server of the service
+  profile: foot            # last selected means of travel: foot, bike or car
+  points: []               # start, via points and target of the last route, with lon, lat and the name of searched places
 ```
 
 Sizes are in device-independent pixels.
 See [Live GPS position](usage.md#live-gps-position) for the GPS receiver.
-See [Search](usage.md#search) for the search services.
+See [Search](usage.md#search) for the search services, and [Routing](usage.md#routing) for routing.
+Routes are found with the public servers of [FOSSGIS e.V.](https://www.fossgis.de),
+[Valhalla](https://valhalla1.openstreetmap.de) or [OSRM](https://routing.openstreetmap.de),
+which allow at most one request per second.
+The Valhalla server finds routes up to 100 km on foot and 150 km by bike; the OSRM servers have no such limit.
+For another Valhalla server, `url` is its route endpoint, like `http://localhost:8002/route`.
+For another OSRM server, `url` is its address without `/route/v1`, like `http://localhost:5000`;
+`{profile}` in it is replaced by `foot`, `bike` or `car`, for servers with one address per profile
+like the public ones at `https://routing.openstreetmap.de/routed-{profile}`.
 Colors are given like `#808080`, or with opacity like `#808080c0`.
 
 ## Maps
