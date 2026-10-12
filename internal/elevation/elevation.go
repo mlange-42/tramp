@@ -250,6 +250,32 @@ func (s *Service) Elevations(ctx context.Context, pts []geo.LonLat, zoom int) ([
 	return res, nil
 }
 
+// Cached returns the elevation at a position like [Service.Elevation], but only from cached tiles,
+// without waiting for downloads. It returns false if a needed tile is not cached.
+func (s *Service) Cached(p geo.LonLat, zoom int) (float64, bool) {
+	if math.Abs(p.Lat) > geo.MaxLat {
+		return math.NaN(), true
+	}
+	m := geo.ToMercator(p)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for z := min(zoom, s.src.MaxZoom); z >= 0; z-- {
+		k := geo.TileAt(z, m)
+		if !k.Valid() {
+			break
+		}
+		el, ok := s.entries[k]
+		if !ok {
+			return math.NaN(), false
+		}
+		s.cache.MoveToFront(el)
+		if g := el.Value.(*cacheEntry).grid; g != nil {
+			return g.sample(k, m), true
+		}
+	}
+	return math.NaN(), true
+}
+
 // tiles returns the tiles, downloading those not cached concurrently.
 // Tiles the source doesn't have are nil.
 func (s *Service) tiles(ctx context.Context, keys []geo.TileKey) (map[geo.TileKey]*grid, error) {

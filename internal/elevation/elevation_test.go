@@ -112,6 +112,29 @@ func TestElevations(t *testing.T) {
 	}
 }
 
+func TestCached(t *testing.T) {
+	ts := newTileServer(t, 3)
+	s := NewService(ts.source(), httpx.Client{}, 0)
+	p := geo.LonLat{Lon: 12.38, Lat: 51.34}
+	if _, ok := s.Cached(p, 5); ok {
+		t.Error("expected nothing cached")
+	}
+	if _, err := s.Elevation(context.Background(), p, 5); err != nil {
+		t.Fatal(err)
+	}
+	// Levels 5 and 4 are cached as missing, so level 3 is used.
+	if e, ok := s.Cached(p, 5); !ok || e != 3042 {
+		t.Errorf("expected 3042 from the cache, got %v, %v", e, ok)
+	}
+	// Level 6 was not tried yet.
+	if _, ok := s.Cached(p, 6); ok {
+		t.Error("expected level 6 not cached")
+	}
+	if e, ok := s.Cached(geo.LonLat{Lat: 89}, 5); !ok || !math.IsNaN(e) {
+		t.Errorf("expected no elevation beyond the tiles, got %v, %v", e, ok)
+	}
+}
+
 func TestElevationsError(t *testing.T) {
 	ts := newTileServer(t, 3)
 	ts.fail["/3/4/2.png"] = true

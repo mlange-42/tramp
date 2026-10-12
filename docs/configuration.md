@@ -41,7 +41,7 @@ routing:
                            # in a saved route; negative for none
   points: []               # start, via points and target of the last route, with lon, lat and the name of searched places
 elevation:
-  source: aws              # source of terrain elevations: aws or mapterhorn
+  source: aws              # source of terrain elevations: aws, mapterhorn, or none to turn them off
   url: ''                  # tile URL template of another service, like https://tiles.example.com/{z}/{x}/{y}.png
   encoding: ''             # for another service: terrarium or mapbox
   tile_size: 0             # for another service: edge length of the tiles in pixels
@@ -63,6 +63,7 @@ Terrain elevations come from Terrain-RGB tiles, map tiles with the elevation enc
 [AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) by default, worldwide and mostly based on SRTM,
 or [Mapterhorn](https://mapterhorn.com), with more detailed elevation models in parts of Europe.
 For another service, set `url`, and `encoding`, `tile_size` and `max_zoom` where they differ from the source.
+With `source: none`, no elevations are downloaded.
 Colors are given like `#808080`, or with opacity like `#808080c0`.
 
 ## Maps

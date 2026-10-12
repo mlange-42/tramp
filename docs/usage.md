@@ -5,6 +5,9 @@ Run `tramp` to open the map. Drag to pan, scroll to zoom.
 The background map and overlays like hillshading can be selected in the toolbar.
 Further maps can be added in the [maps configuration](configuration.md#maps).
 
+The status bar shows the position under the mouse pointer and its terrain elevation.
+The elevation comes from elevation tiles downloaded from the internet, see the [settings](configuration.md#settings).
+
 ## Search
 
 The search field at the right of the toolbar (Ctrl+F) moves the map to a place or to coordinates.
