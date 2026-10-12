@@ -113,6 +113,12 @@ func (s Search) SearchLimit() int {
 	return min(s.Limit, MaxSearchLimit)
 }
 
+// DefaultRouteTolerance is the default for [Routing.Tolerance], in meters.
+const DefaultRouteTolerance = 100
+
+// DefaultSlightAngle is the default for [Routing.SlightAngle], in degrees.
+const DefaultSlightAngle = 22.5
+
 // Routing selects the service for finding routes.
 type Routing struct {
 	// Service is valhalla or osrm. If empty, valhalla is used.
@@ -123,6 +129,12 @@ type Routing struct {
 	URL string `yaml:"url"`
 	// Profile is the last selected means of travel: foot, bike or car. If empty, foot is used.
 	Profile string `yaml:"profile"`
+	// Tolerance is the largest distance in meters between a saved route and the straight lines
+	// between its points. Points are added where needed. Negative to add none, 0 for the default.
+	Tolerance float64 `yaml:"tolerance"`
+	// SlightAngle is the smallest change of direction in degrees for which a slight turn gets a point
+	// in a saved route. Negative for none, 0 for the default.
+	SlightAngle float64 `yaml:"slight_angle"`
 	// Points are the start, the via points and the target of the last route.
 	Points []RoutePoint `yaml:"points,omitempty"`
 }
@@ -276,6 +288,12 @@ func (s *Settings) setDefaults() {
 	}
 	if s.Style.SymbolSize <= 0 {
 		s.Style.SymbolSize = DefaultSymbolSize
+	}
+	if s.Routing.Tolerance == 0 {
+		s.Routing.Tolerance = DefaultRouteTolerance
+	}
+	if s.Routing.SlightAngle == 0 {
+		s.Routing.SlightAngle = DefaultSlightAngle
 	}
 	if s.Style.MutedColor == "" {
 		s.Style.MutedColor = DefaultMutedColor

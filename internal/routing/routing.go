@@ -5,7 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -77,9 +79,100 @@ type Route struct {
 	Distance float64
 	// Duration is the estimated travel time.
 	Duration time.Duration
+	// Turns are the points where the route starts, changes direction or road, passes a via point, and ends,
+	// in route order. The first is a [TurnStart] at index 0, and the last a [TurnEnd] at the last point.
+	Turns []Turn
 	// Alternatives are other routes between the same points, if asked for and found.
 	// They are set only for the best route.
 	Alternatives []*Route
+}
+
+// Turn is a point of a route where the traveler has to decide where to go, or could have to.
+type Turn struct {
+	// Index is the index of the point in [Route.Points].
+	Index int
+	Kind  TurnKind
+	// Street is the name of the road or path the route follows after the turn, if it has one.
+	Street string
+	// Exit is the number of the exit to take, for a [TurnRoundabout]. Zero if not known.
+	Exit int
+	// Angle is the change of direction in degrees, from -180 to 180, positive to the right.
+	// Zero if not known, like at the start and the end.
+	Angle float64
+}
+
+// turnAngle returns the change of direction from bearing before to bearing after, in degrees from -180 to 180,
+// positive to the right. Bearings are in degrees clockwise from north.
+func turnAngle(before, after float64) float64 {
+	a := math.Mod(after-before, 360)
+	switch {
+	case a > 180:
+		a -= 360
+	case a <= -180:
+		a += 360
+	}
+	return a
+}
+
+// TurnKind is the kind of a [Turn].
+type TurnKind int
+
+// Kinds of turns.
+const (
+	// TurnContinue follows the road or path, maybe under a new name.
+	TurnContinue TurnKind = iota
+	TurnSlightLeft
+	TurnLeft
+	TurnSharpLeft
+	TurnSlightRight
+	TurnRight
+	TurnSharpRight
+	TurnUTurn
+	// TurnKeepLeft and TurnKeepRight take the left or right branch of a fork.
+	TurnKeepLeft
+	TurnKeepRight
+	// TurnRoundabout enters a roundabout, see [Turn.Exit].
+	TurnRoundabout
+	// TurnFerry boards a ferry.
+	TurnFerry
+	// TurnStart and TurnEnd are the start and the destination, and TurnVia an intermediate point of the request.
+	TurnStart
+	TurnVia
+	TurnEnd
+)
+
+var turnNames = [...]string{"continue", "slight left", "left", "sharp left", "slight right", "right", "sharp right",
+	"u-turn", "keep left", "keep right", "roundabout", "ferry", "start", "via", "end"}
+
+func (k TurnKind) String() string {
+	if k < 0 || int(k) >= len(turnNames) {
+		return "unknown"
+	}
+	return turnNames[k]
+}
+
+// fixTurns sorts the turns by index, and makes sure that they start with a [TurnStart] at the first point
+// and end with a [TurnEnd] at the last point, as services may leave them out.
+func (r *Route) fixTurns() {
+	r.Turns = fixTurns(r.Turns, len(r.Points))
+}
+
+// fixTurns does the work of [Route.fixTurns], for a route with n points. It changes turns in place.
+func fixTurns(turns []Turn, n int) []Turn {
+	last := n - 1
+	for i := range turns {
+		turns[i].Index = min(max(turns[i].Index, 0), last)
+	}
+	slices.SortStableFunc(turns, func(a, b Turn) int { return a.Index - b.Index })
+	if len(turns) == 0 || turns[0].Kind != TurnStart {
+		turns = slices.Insert(turns, 0, Turn{Kind: TurnStart})
+	}
+	turns[0].Index = 0
+	if turns[len(turns)-1].Kind != TurnEnd {
+		turns = append(turns, Turn{Kind: TurnEnd})
+	}
+	turns[len(turns)-1].Index = last
+	return turns
 }
 
 // New returns the router for a service, [ServiceValhalla] if empty, with requests throttled

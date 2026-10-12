@@ -37,7 +37,8 @@ func TestSaveLoad(t *testing.T) {
 			Map:      "OpenStreetMap",
 			Overlays: []string{"Hillshade (SRTM)", "Labels & roads"},
 		},
-		Window: &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true, PanelWidth: 300, ChartHeight: 150, ChartClosed: true, ChartAxis: "clock_time"},
+		Routing: Routing{Tolerance: 50, SlightAngle: 30},
+		Window:  &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true, PanelWidth: 300, ChartHeight: 150, ChartClosed: true, ChartAxis: "clock_time"},
 	}
 	if err := save(path, &s); err != nil {
 		t.Fatal(err)
@@ -87,5 +88,25 @@ func TestPaneSizeDefaults(t *testing.T) {
 	}
 	if s.Window.PanelWidth != DefaultPanelWidth {
 		t.Errorf("panel width default not set: %v", s.Window.PanelWidth)
+	}
+}
+
+func TestRoutePointDefaults(t *testing.T) {
+	for _, tc := range []struct{ val, wantTol, wantAngle float64 }{
+		{0, DefaultRouteTolerance, DefaultSlightAngle},
+		{50, 50, 50},
+		{-1, -1, -1},
+	} {
+		path := filepath.Join(t.TempDir(), fileName)
+		if err := save(path, &Settings{Routing: Routing{Tolerance: tc.val, SlightAngle: tc.val}}); err != nil {
+			t.Fatal(err)
+		}
+		s, _, err := load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.Routing.Tolerance != tc.wantTol || s.Routing.SlightAngle != tc.wantAngle {
+			t.Errorf("value %v: expected %v and %v, got %+v", tc.val, tc.wantTol, tc.wantAngle, s.Routing)
+		}
 	}
 }

@@ -35,7 +35,7 @@ func TestOSRMRoute(t *testing.T) {
 		t.Fatal(err)
 	}
 	if gotPath != "/routed-foot/route/v1/driving/12.373100,51.339700;12.376000,51.340500" ||
-		gotQuery != "overview=full&geometries=geojson&steps=false" || gotAgent != "test-agent" {
+		gotQuery != "overview=full&geometries=geojson&steps=true" || gotAgent != "test-agent" {
 		t.Errorf("unexpected request %s?%s, agent %q", gotPath, gotQuery, gotAgent)
 	}
 	if route.Distance != 260.4 || route.Duration != 208200*time.Millisecond {
@@ -111,5 +111,57 @@ func TestOSRMAlternatives(t *testing.T) {
 	}
 	if strings.Contains(gotQuery, "alternatives") {
 		t.Errorf("expected no alternatives asked for with intermediate points, got %q", gotQuery)
+	}
+}
+
+func TestOSRMTurns(t *testing.T) {
+	// Two legs from (0, 0) over (1, 1) to (2, 2).
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":"Ok","routes":[{"geometry":{"coordinates":[[0,0],[0,1],[1,1],[2,1],[2,2]]},
+			"legs":[{"steps":[
+				{"name":"A","maneuver":{"type":"depart","location":[0,0]}},
+				{"name":"B","maneuver":{"type":"turn","modifier":"left","location":[0,1]}},
+				{"name":"B","maneuver":{"type":"arrive","modifier":"left","location":[1,1]}}]},
+			{"steps":[
+				{"name":"B","maneuver":{"type":"depart","location":[1,1]}},
+				{"name":"C","maneuver":{"type":"fork","modifier":"slight right","location":[2,1],"bearing_before":350,"bearing_after":20}},
+				{"name":"E","maneuver":{"type":"roundabout","modifier":"right","exit":2,"location":[2,1]}},
+				{"name":"D","maneuver":{"type":"new name","modifier":"left","location":[2.1,1.6]}},
+				{"name":"D","maneuver":{"type":"arrive","location":[2,2]}}]}],
+			"distance":1,"duration":1}]}`))
+	}))
+	defer srv.Close()
+
+	o := &OSRM{URL: srv.URL}
+	route, err := o.Route(context.Background(), Request{Points: make([]geo.LonLat, 3)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Turn{
+		{Index: 0, Kind: TurnStart, Street: "A"},
+		{Index: 1, Kind: TurnLeft, Street: "B"},
+		{Index: 2, Kind: TurnVia},
+		{Index: 3, Kind: TurnKeepRight, Street: "C", Angle: 30},
+		{Index: 3, Kind: TurnRoundabout, Street: "E", Exit: 2},
+		{Index: 4, Kind: TurnContinue, Street: "D"},
+		{Index: 4, Kind: TurnEnd},
+	}
+	checkTurns(t, route.Turns, want)
+}
+
+func TestPointIndex(t *testing.T) {
+	points := []geo.LonLat{{Lon: 0, Lat: 0}, {Lon: 1, Lat: 0}, {Lon: 0, Lat: 0}, {Lon: 2, Lat: 0}}
+	for _, tc := range []struct {
+		p          geo.LonLat
+		from, want int
+	}{
+		{geo.LonLat{Lon: 0, Lat: 0}, 0, 0},
+		{geo.LonLat{Lon: 0, Lat: 0}, 1, 2},
+		{geo.LonLat{Lon: 1.9, Lat: 0.1}, 0, 3},
+		{geo.LonLat{Lon: 0.4, Lat: 0}, 2, 2},
+	} {
+		if got := pointIndex(points, tc.p, tc.from); got != tc.want {
+			t.Errorf("point %v from %d: expected %d, got %d", tc.p, tc.from, tc.want, got)
+		}
 	}
 }

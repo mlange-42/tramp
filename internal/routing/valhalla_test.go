@@ -138,3 +138,58 @@ func TestValhallaAlternatives(t *testing.T) {
 		t.Errorf("expected no alternates asked for, got %d", got.Alternates)
 	}
 }
+
+func TestValhallaTurns(t *testing.T) {
+	// Two legs from (0, 0) over (0, 1) to (2, 2), with ' for backticks in the shapes.
+	body := strings.ReplaceAll(`{"trip":{"legs":[
+		{"shape":"??_c'|@?","maneuvers":[
+			{"type":1,"street_names":["A"],"begin_shape_index":0},
+			{"type":5,"begin_shape_index":1}]},
+		{"shape":"_c'|@??_c'|@?_c'|@_c'|@?","maneuvers":[
+			{"type":3,"street_names":["B"],"begin_shape_index":0},
+			{"type":15,"street_names":["C","C2"],"begin_shape_index":1,"bearing_before":10,"bearing_after":280},
+			{"type":26,"street_names":["D"],"begin_shape_index":2,"roundabout_exit_count":3},
+			{"type":8,"street_names":["E"],"begin_shape_index":2},
+			{"type":6,"begin_shape_index":3,"bearing_before":90}]}],
+		"summary":{"length":1,"time":1}}}`, "'", "`")
+	var got valhallaRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	v := &Valhalla{URL: srv.URL}
+	route, err := v.Route(context.Background(), Request{Points: make([]geo.LonLat, 3)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.DirectionsType != "maneuvers" {
+		t.Errorf("expected maneuvers asked for, got %q", got.DirectionsType)
+	}
+	if len(route.Points) != 5 {
+		t.Fatalf("expected 5 points, got %v", route.Points)
+	}
+	want := []Turn{
+		{Index: 0, Kind: TurnStart, Street: "A"},
+		{Index: 1, Kind: TurnVia},
+		{Index: 2, Kind: TurnLeft, Street: "C", Angle: -90},
+		{Index: 3, Kind: TurnRoundabout, Street: "D", Exit: 3},
+		{Index: 3, Kind: TurnContinue, Street: "E"},
+		{Index: 4, Kind: TurnEnd},
+	}
+	checkTurns(t, route.Turns, want)
+}
+
+// checkTurns reports differences between turns.
+func checkTurns(t *testing.T, got, want []Turn) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("expected %+v, got %+v", want, got)
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			t.Errorf("turn %d: expected %+v, got %+v", i, want[i], got[i])
+		}
+	}
+}

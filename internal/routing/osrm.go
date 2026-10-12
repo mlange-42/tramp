@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"slices"
 	"strconv"
@@ -46,9 +47,62 @@ type osrmRoute struct {
 		// Coordinates are longitude and latitude.
 		Coordinates [][]float64 `json:"coordinates"`
 	} `json:"geometry"`
+	Legs []struct {
+		Steps []osrmStep `json:"steps"`
+	} `json:"legs"`
 	// Distance is in meters, and Duration in seconds.
 	Distance float64 `json:"distance"`
 	Duration float64 `json:"duration"`
+}
+
+type osrmStep struct {
+	// Name is the name of the road or path of the step.
+	Name     string `json:"name"`
+	Maneuver struct {
+		Type     string `json:"type"`
+		Modifier string `json:"modifier"`
+		// Location is longitude and latitude.
+		Location []float64 `json:"location"`
+		// Exit is the number of the exit to take from a roundabout.
+		Exit int `json:"exit"`
+		// BearingBefore and BearingAfter are the directions before and after the maneuver,
+		// in degrees clockwise from north. Zero for depart and arrive.
+		BearingBefore float64 `json:"bearing_before"`
+		BearingAfter  float64 `json:"bearing_after"`
+	} `json:"maneuver"`
+}
+
+// osrmModifiers are the turn kinds of the direction modifiers of OSRM.
+// "straight" and unknown modifiers mean [TurnContinue].
+var osrmModifiers = map[string]TurnKind{
+	"uturn":        TurnUTurn,
+	"sharp right":  TurnSharpRight,
+	"right":        TurnRight,
+	"slight right": TurnSlightRight,
+	"slight left":  TurnSlightLeft,
+	"left":         TurnLeft,
+	"sharp left":   TurnSharpLeft,
+}
+
+// kind returns the turn kind of the step, other than for its start and end.
+// See https://project-osrm.org/docs/v5.24.0/api/#stepmaneuver-object.
+func (s *osrmStep) kind() TurnKind {
+	switch s.Maneuver.Type {
+	case "new name", "merge", "notification", "use lane", "exit roundabout", "exit rotary":
+		return TurnContinue
+	case "roundabout", "rotary":
+		return TurnRoundabout
+	case "fork", "on ramp", "off ramp":
+		switch {
+		case strings.Contains(s.Maneuver.Modifier, "left"):
+			return TurnKeepLeft
+		case strings.Contains(s.Maneuver.Modifier, "right"):
+			return TurnKeepRight
+		}
+		return TurnContinue
+	}
+	// "turn", "end of road", "continue" and "roundabout turn" go where the modifier says.
+	return osrmModifiers[s.Maneuver.Modifier]
 }
 
 // Attribution returns [OSRMAttribution].
@@ -74,7 +128,7 @@ func (o *OSRM) Route(ctx context.Context, r Request) (*Route, error) {
 		coords[i] = strconv.FormatFloat(p.Lon, 'f', 6, 64) + "," + strconv.FormatFloat(p.Lat, 'f', 6, 64)
 	}
 	// The profile in the path is ignored by OSRM, which serves the profile it was set up with.
-	endpoint := base + "/route/v1/driving/" + strings.Join(coords, ";") + "?overview=full&geometries=geojson&steps=false"
+	endpoint := base + "/route/v1/driving/" + strings.Join(coords, ";") + "?overview=full&geometries=geojson&steps=true"
 	if n := r.alternatives(); n > 0 {
 		endpoint += "&alternatives=" + strconv.Itoa(n)
 	}
@@ -119,7 +173,60 @@ func (or *osrmRoute) route() (*Route, error) {
 	if len(route.Points) < 2 {
 		return nil, errors.New("routing failed: empty route")
 	}
+	// The steps don't refer to the points of the route, so their points are searched along it.
+	from := 0
+	for i, leg := range or.Legs {
+		for _, s := range leg.Steps {
+			if len(s.Maneuver.Location) < 2 {
+				continue
+			}
+			turn := Turn{Kind: s.kind(), Street: s.Name}
+			switch s.Maneuver.Type {
+			case "depart":
+				if i > 0 {
+					// The via point was added with the arrival of the previous leg.
+					continue
+				}
+				turn.Kind = TurnStart
+			case "arrive":
+				turn.Kind = TurnVia
+				if i == len(or.Legs)-1 {
+					turn.Kind = TurnEnd
+				}
+				// The street at the arrival is the one of the step before.
+				turn.Street = ""
+			}
+			if turn.Kind == TurnRoundabout {
+				turn.Exit = s.Maneuver.Exit
+			}
+			if !isStop(turn.Kind) {
+				turn.Angle = turnAngle(s.Maneuver.BearingBefore, s.Maneuver.BearingAfter)
+			}
+			loc := geo.LonLat{Lon: s.Maneuver.Location[0], Lat: s.Maneuver.Location[1]}
+			turn.Index = pointIndex(route.Points, loc, from)
+			from = turn.Index
+			route.Turns = append(route.Turns, turn)
+		}
+	}
+	route.fixTurns()
 	return route, nil
+}
+
+// pointIndex returns the index of the first point at or after from that equals p,
+// or of the nearest point at or after from if none does.
+func pointIndex(points []geo.LonLat, p geo.LonLat, from int) int {
+	best, bestDist := from, math.Inf(1)
+	for i := from; i < len(points); i++ {
+		if points[i] == p {
+			return i
+		}
+		// Degrees are good enough to find the nearest point.
+		dx, dy := points[i].Lon-p.Lon, points[i].Lat-p.Lat
+		if d := dx*dx + dy*dy; d < bestDist {
+			best, bestDist = i, d
+		}
+	}
+	return best
 }
 
 // osrmError returns the message of an error response, like "Query string malformed close to position 49".
