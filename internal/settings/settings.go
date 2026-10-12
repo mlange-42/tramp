@@ -123,6 +123,14 @@ type Routing struct {
 	URL string `yaml:"url"`
 	// Profile is the last selected means of travel: foot, bike or car. If empty, foot is used.
 	Profile string `yaml:"profile"`
+	// Points are the start, the via points and the target of the last route.
+	Points []LonLat `yaml:"points,omitempty,flow"`
+}
+
+// LonLat is a geographic position.
+type LonLat struct {
+	Lon float64 `yaml:"lon"`
+	Lat float64 `yaml:"lat"`
 }
 
 // File is an opened track file.

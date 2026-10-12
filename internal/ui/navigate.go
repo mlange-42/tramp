@@ -41,14 +41,15 @@ var (
 )
 
 // navigator shows a route from a start to a target on the map, found by a routing service.
-// It is independent of the routes in GPX files. The route exists while the panel is open,
-// so that the attribution of the service is always shown with it.
+// It is independent of the routes in GPX files. The route is shown while the panel is open,
+// so that the attribution of the service is always shown with it. It is kept when the panel is closed,
+// and its points are saved in the settings.
 type navigator struct {
 	open bool
 	// btn opens and closes the panel, from the toolbar.
 	btn iconButton
-	// closeBtn closes the panel, swapBtn reverses the route, profileBtns select the profile.
-	closeBtn, swapBtn iconButton
+	// closeBtn closes the panel, clearBtn removes the route, swapBtn reverses it, profileBtns select the profile.
+	closeBtn, clearBtn, swapBtn iconButton
 	profileBtns       []iconButton
 	// profile is the index of the selected profile in [routing.Profiles].
 	profile int
@@ -60,6 +61,9 @@ type navigator struct {
 	// points are the start, the via points, and the target, in route order.
 	// While picking, there is only the start, or nothing.
 	points []geo.LonLat
+	// stale is set while the route of the points was not requested yet, after loading them from the settings.
+	// It is requested when the panel is opened.
+	stale bool
 	// pressing is set from a press on the map while picking an end, until the pointer moves too far for a click.
 	// pressAt is where the press was, also for dragging a point.
 	pressing bool
@@ -120,6 +124,9 @@ func (a *App) updateNav(gtx layout.Context, events []mapview.PointerEvent) []map
 	}
 	if n.closeBtn.Clicked(gtx) {
 		a.closeNav()
+	}
+	if n.clearBtn.Clicked(gtx) {
+		a.clearNav()
 	}
 	for i := range n.profileBtns {
 		if n.profileBtns[i].Clicked(gtx) && i != n.profile {
@@ -342,7 +349,8 @@ func (a *App) navCursor(gtx layout.Context) (pointer.Cursor, bool) {
 	return pointer.CursorDefault, false
 }
 
-// toggleNav opens or closes the panel.
+// toggleNav opens or closes the panel. Opening shows the last route again,
+// and finds it first if it was loaded from the settings.
 func (a *App) toggleNav() {
 	if a.nav.open {
 		a.closeNav()
@@ -353,15 +361,57 @@ func (a *App) toggleNav() {
 	if len(n.profileBtns) != len(routing.Profiles) {
 		n.profileBtns = make([]iconButton, len(routing.Profiles))
 	}
+	if n.stale {
+		n.stale = false
+		a.startRoute()
+	}
 }
 
-// closeNav closes the panel, and removes the route and its points.
+// closeNav closes the panel. The route is kept for opening it again.
 func (a *App) closeNav() {
+	n := &a.nav
+	if n.dragging {
+		a.navDrag(mapview.PointerEvent{Kind: pointer.Cancel})
+	}
+	n.open, n.pressing = false, false
+}
+
+// clearNav removes the route and its points, for picking a new start.
+func (a *App) clearNav() {
 	a.stopRoute()
 	n := &a.nav
-	n.open, n.points, n.pressing, n.dragging = false, nil, false, false
+	n.points, n.pressing, n.dragging, n.stale = nil, false, false, false
 	n.err = nil
 	a.setNavRoute(nil)
+}
+
+// navState returns the routing settings with the points of the route.
+func (a *App) navState() settings.Routing {
+	cfg := a.routingCfg
+	cfg.Points = nil
+	for _, p := range a.nav.points {
+		cfg.Points = append(cfg.Points, settings.LonLat{Lon: roundCoord(p.Lon), Lat: roundCoord(p.Lat)})
+	}
+	return cfg
+}
+
+// coordDigits is the number of decimals of saved route points, about 1 m.
+const coordDigits = 5
+
+// roundCoord rounds a coordinate in degrees to [coordDigits] decimals.
+func roundCoord(v float64) float64 {
+	f := math.Pow10(coordDigits)
+	return math.Round(v*f) / f
+}
+
+// loadNav takes the points of the last route from the settings. The route is found when the panel is opened.
+func (a *App) loadNav(cfg settings.Routing) {
+	n := &a.nav
+	n.points = nil
+	for _, p := range cfg.Points {
+		n.points = append(n.points, geo.LonLat{Lon: p.Lon, Lat: p.Lat})
+	}
+	n.stale = len(n.points) >= 2
 }
 
 // startRoute finds the route through the points in the background, if start and target are set.
@@ -556,8 +606,15 @@ func (a *App) layoutNavContent(gtx layout.Context) layout.Dimensions {
 	}
 	gap := layout.Rigid(layout.Spacer{Height: st.Spacing / 2}.Layout)
 
+	// The panel is at the right edge of the window, so the tooltips extend to the left.
+	for _, b := range []*iconButton{&n.swapBtn, &n.clearBtn, &n.closeBtn} {
+		b.tip.right = true
+	}
+	for i := range n.profileBtns {
+		n.profileBtns[i].tip.right = true
+	}
 	header := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		children := make([]layout.FlexChild, 0, 2*len(n.profileBtns)+4)
+		children := make([]layout.FlexChild, 0, 2*len(n.profileBtns)+6)
 		for i := range n.profileBtns {
 			if i > 0 {
 				children = append(children, layout.Rigid(layout.Spacer{Width: 1}.Layout))
@@ -573,7 +630,11 @@ func (a *App) layoutNavContent(gtx layout.Context) layout.Dimensions {
 			}),
 			layout.Rigid(layout.Spacer{Width: 1}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return n.closeBtn.Layout(gtx, st, iconClose, "Close and remove the route (Esc)", true, false)
+				return n.clearBtn.Layout(gtx, st, iconDelete, "Remove the route, to start a new one", len(n.points) > 0, false)
+			}),
+			layout.Rigid(layout.Spacer{Width: 1}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return n.closeBtn.Layout(gtx, st, iconClose, "Close (Esc). The route is kept for the next time", true, false)
 			}),
 		)
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)

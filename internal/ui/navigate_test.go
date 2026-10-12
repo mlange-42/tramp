@@ -113,8 +113,21 @@ func TestNavPicking(t *testing.T) {
 		t.Errorf("points changed: %v", a.nav.points)
 	}
 
+	// Closing keeps the route, and opening shows it again without routing.
 	a.closeNav()
-	if a.nav.open || len(a.nav.points) != 0 || a.nav.route != nil {
+	if a.nav.open || len(a.nav.points) != 2 || a.nav.route == nil {
+		t.Errorf("expected the route kept, got %+v", a.nav)
+	}
+	if rest := navClick(a, start, 40); len(rest) != 3 {
+		t.Errorf("expected clicks passed on while closed, got %v", rest)
+	}
+	a.toggleNav()
+	if !a.nav.open || a.nav.route == nil || a.nav.busy || len(f.requests) != 1 {
+		t.Errorf("expected the route shown again, got %+v", a.nav)
+	}
+
+	a.clearNav()
+	if !a.nav.open || len(a.nav.points) != 0 || a.nav.route != nil || !a.nav.picking() {
 		t.Errorf("expected everything cleared, got %+v", a.nav)
 	}
 }
@@ -159,8 +172,8 @@ func TestNavOutdated(t *testing.T) {
 	a, f, _ := navApp()
 	navClick(a, geo.LonLat{Lon: 12.2, Lat: 51.2}, 0)
 	navClick(a, geo.LonLat{Lon: 12.4, Lat: 51.4}, 0)
-	// Closing while routing drops the result.
-	a.closeNav()
+	// Clearing while routing drops the result.
+	a.clearNav()
 	for {
 		f.mu.Lock()
 		n := len(f.requests)
@@ -311,5 +324,41 @@ func TestViaInsertIndex(t *testing.T) {
 	}
 	if got := viaInsertIndex(line, points[:2:2], 4); got != 1 {
 		t.Errorf("without via points: expected 1, got %d", got)
+	}
+}
+
+func TestNavSettings(t *testing.T) {
+	a, f, _ := navApp()
+	start, via, target := geo.LonLat{Lon: 12.2, Lat: 51.3}, geo.LonLat{Lon: 12.3, Lat: 51.2}, geo.LonLat{Lon: 12.4, Lat: 51.3}
+	a.nav.points = []geo.LonLat{start, via, target}
+	cfg := a.navState()
+	if len(cfg.Points) != 3 || cfg.Points[1] != (settings.LonLat{Lon: 12.3, Lat: 51.2}) {
+		t.Fatalf("unexpected saved points %+v", cfg.Points)
+	}
+	// Saved points are rounded to about a meter.
+	a.nav.points[0] = geo.LonLat{Lon: 12.373114999, Lat: -51.339741234}
+	if p := a.navState().Points[0]; p != (settings.LonLat{Lon: 12.37311, Lat: -51.33974}) {
+		t.Errorf("expected rounded coordinates, got %+v", p)
+	}
+	a.nav.points[0] = start
+
+	// Loaded points are routed when the panel is opened.
+	a.closeNav()
+	a.loadNav(cfg)
+	if len(a.nav.points) != 3 || !a.nav.stale || len(f.requests) != 0 {
+		t.Fatalf("expected the points loaded without routing, got %+v", a.nav)
+	}
+	a.toggleNav()
+	waitRoute(a)
+	if a.nav.stale || a.nav.route == nil || len(f.requests) != 1 || len(f.requests[0].Points) != 3 {
+		t.Errorf("expected the route found on opening, got %+v", f.requests)
+	}
+
+	// A single point is kept, but not routed.
+	a.closeNav()
+	a.loadNav(settings.Routing{Points: cfg.Points[:1]})
+	a.toggleNav()
+	if len(a.nav.points) != 1 || a.nav.busy || !a.nav.picking() {
+		t.Errorf("expected picking the target, got %+v", a.nav)
 	}
 }

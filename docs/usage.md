@@ -45,7 +45,8 @@ Drag A or B to move them; the route is found again when released.
 Drag the route itself to add a via point there, to make the route pass through another place.
 Via points can be dragged as well, and a click on a via point removes it.
 Select the means of travel in the panel: on foot, by bike or by car.
-The swap button reverses the route, with its via points. Close the panel with × or Esc to remove the route.
+The swap button reverses the route, with its via points, and the bin button removes it to start a new one.
+Close the panel with × or Esc. The route is kept, also when TRAMP is closed, and shown again when the panel is opened.
 
 Routes are found with [Valhalla](https://valhalla1.openstreetmap.de) by default, or [OSRM](https://routing.openstreetmap.de),
 on public servers of [FOSSGIS e.V.](https://www.fossgis.de) using OpenStreetMap data,

@@ -202,6 +202,7 @@ func newApp(invalidate func(), opts Options) *App {
 	a.geocoder = newGeocoder(opts.State.Search)
 	a.router = newRouter(opts.State.Routing)
 	a.nav.profile = profileIndex(opts.State.Routing.Profile)
+	a.loadNav(opts.State.Routing)
 	if c := opts.State.Style.MutedColor; c != "" {
 		if col, err := parseColorAlpha(c); err == nil {
 			a.style.MutedTrack = col
@@ -292,7 +293,7 @@ func (a *App) State() settings.Settings {
 		},
 		GPS:     a.gps.cfg,
 		Search:  a.searchCfg,
-		Routing: a.routingCfg,
+		Routing: a.navState(),
 		Window:  new(a.win),
 		Files:   a.fileState(),
 	}
