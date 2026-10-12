@@ -121,6 +121,22 @@ func TestThrottleCanceled(t *testing.T) {
 	}
 }
 
+func TestTurnAngle(t *testing.T) {
+	for _, tc := range []struct{ before, after, want float64 }{
+		{0, 90, 90},
+		{90, 0, -90},
+		{350, 20, 30},
+		{20, 350, -30},
+		{0, 180, 180},
+		{180, 0, 180},
+		{222, 164, -58},
+	} {
+		if got := turnAngle(tc.before, tc.after); got != tc.want {
+			t.Errorf("%v to %v: expected %v, got %v", tc.before, tc.after, tc.want, got)
+		}
+	}
+}
+
 func TestFixTurns(t *testing.T) {
 	// Without turns, the start and the end are added.
 	r := Route{Points: make([]geo.LonLat, 3)}

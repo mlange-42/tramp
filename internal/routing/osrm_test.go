@@ -124,7 +124,7 @@ func TestOSRMTurns(t *testing.T) {
 				{"name":"B","maneuver":{"type":"arrive","modifier":"left","location":[1,1]}}]},
 			{"steps":[
 				{"name":"B","maneuver":{"type":"depart","location":[1,1]}},
-				{"name":"C","maneuver":{"type":"fork","modifier":"slight right","location":[2,1]}},
+				{"name":"C","maneuver":{"type":"fork","modifier":"slight right","location":[2,1],"bearing_before":350,"bearing_after":20}},
 				{"name":"E","maneuver":{"type":"roundabout","modifier":"right","exit":2,"location":[2,1]}},
 				{"name":"D","maneuver":{"type":"new name","modifier":"left","location":[2.1,1.6]}},
 				{"name":"D","maneuver":{"type":"arrive","location":[2,2]}}]}],
@@ -141,7 +141,7 @@ func TestOSRMTurns(t *testing.T) {
 		{Index: 0, Kind: TurnStart, Street: "A"},
 		{Index: 1, Kind: TurnLeft, Street: "B"},
 		{Index: 2, Kind: TurnVia},
-		{Index: 3, Kind: TurnKeepRight, Street: "C"},
+		{Index: 3, Kind: TurnKeepRight, Street: "C", Angle: 30},
 		{Index: 3, Kind: TurnRoundabout, Street: "E", Exit: 2},
 		{Index: 4, Kind: TurnContinue, Street: "D"},
 		{Index: 4, Kind: TurnEnd},

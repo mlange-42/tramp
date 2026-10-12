@@ -65,6 +65,10 @@ type osrmStep struct {
 		Location []float64 `json:"location"`
 		// Exit is the number of the exit to take from a roundabout.
 		Exit int `json:"exit"`
+		// BearingBefore and BearingAfter are the directions before and after the maneuver,
+		// in degrees clockwise from north. Zero for depart and arrive.
+		BearingBefore float64 `json:"bearing_before"`
+		BearingAfter  float64 `json:"bearing_after"`
 	} `json:"maneuver"`
 }
 
@@ -194,6 +198,9 @@ func (or *osrmRoute) route() (*Route, error) {
 			}
 			if turn.Kind == TurnRoundabout {
 				turn.Exit = s.Maneuver.Exit
+			}
+			if !isStop(turn.Kind) {
+				turn.Angle = turnAngle(s.Maneuver.BearingBefore, s.Maneuver.BearingAfter)
 			}
 			loc := geo.LonLat{Lon: s.Maneuver.Location[0], Lat: s.Maneuver.Location[1]}
 			turn.Index = pointIndex(route.Points, loc, from)

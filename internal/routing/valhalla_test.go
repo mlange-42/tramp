@@ -147,10 +147,10 @@ func TestValhallaTurns(t *testing.T) {
 			{"type":5,"begin_shape_index":1}]},
 		{"shape":"_c'|@??_c'|@?_c'|@_c'|@?","maneuvers":[
 			{"type":3,"street_names":["B"],"begin_shape_index":0},
-			{"type":15,"street_names":["C","C2"],"begin_shape_index":1},
+			{"type":15,"street_names":["C","C2"],"begin_shape_index":1,"bearing_before":10,"bearing_after":280},
 			{"type":26,"street_names":["D"],"begin_shape_index":2,"roundabout_exit_count":3},
 			{"type":8,"street_names":["E"],"begin_shape_index":2},
-			{"type":6,"begin_shape_index":3}]}],
+			{"type":6,"begin_shape_index":3,"bearing_before":90}]}],
 		"summary":{"length":1,"time":1}}}`, "'", "`")
 	var got valhallaRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -173,7 +173,7 @@ func TestValhallaTurns(t *testing.T) {
 	want := []Turn{
 		{Index: 0, Kind: TurnStart, Street: "A"},
 		{Index: 1, Kind: TurnVia},
-		{Index: 2, Kind: TurnLeft, Street: "C"},
+		{Index: 2, Kind: TurnLeft, Street: "C", Angle: -90},
 		{Index: 3, Kind: TurnRoundabout, Street: "D", Exit: 3},
 		{Index: 3, Kind: TurnContinue, Street: "E"},
 		{Index: 4, Kind: TurnEnd},

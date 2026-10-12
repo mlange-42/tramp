@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"slices"
 	"strings"
@@ -95,6 +96,22 @@ type Turn struct {
 	Street string
 	// Exit is the number of the exit to take, for a [TurnRoundabout]. Zero if not known.
 	Exit int
+	// Angle is the change of direction in degrees, from -180 to 180, positive to the right.
+	// Zero if not known, like at the start and the end.
+	Angle float64
+}
+
+// turnAngle returns the change of direction from bearing before to bearing after, in degrees from -180 to 180,
+// positive to the right. Bearings are in degrees clockwise from north.
+func turnAngle(before, after float64) float64 {
+	a := math.Mod(after-before, 360)
+	switch {
+	case a > 180:
+		a -= 360
+	case a <= -180:
+		a += 360
+	}
+	return a
 }
 
 // TurnKind is the kind of a [Turn].

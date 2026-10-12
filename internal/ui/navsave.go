@@ -49,9 +49,9 @@ func navRouteName(stops []string) string {
 	return from + " → " + to
 }
 
-// navTolerance returns the tolerance for the points of saved routes, from the settings.
-func (a *App) navTolerance() float64 {
-	return a.routingCfg.Tolerance
+// navPointOptions returns the options for the points of saved routes, from the settings.
+func (a *App) navPointOptions() routing.PointOptions {
+	return routing.PointOptions{Tolerance: a.routingCfg.Tolerance, SlightAngle: a.routingCfg.SlightAngle}
 }
 
 // updateNavSaveCount counts the points the route would be saved with, for the save button.
@@ -59,7 +59,7 @@ func (a *App) updateNavSaveCount() {
 	n := &a.nav
 	n.saveCount = 0
 	if n.route != nil {
-		n.saveCount = len(routing.RoutePoints(n.route, n.navStopNames(), a.navTolerance(), nil))
+		n.saveCount = len(routing.RoutePoints(n.route, n.navStopNames(), a.navPointOptions(), nil))
 	}
 }
 
@@ -86,7 +86,7 @@ func (a *App) navTrackRoute(d *track.File) track.Route {
 	}
 	return track.Route{
 		Name:   name,
-		Points: routing.RoutePoints(n.route, stops, a.navTolerance(), used),
+		Points: routing.RoutePoints(n.route, stops, a.navPointOptions(), used),
 	}
 }
 

@@ -27,12 +27,25 @@ type routePoint struct {
 	exit   int
 }
 
-// keepTurn reports whether a turn needs a route point. Following the road, also under a new name,
-// and slight turns don't. Slight turns at forks are [TurnKeepLeft] or [TurnKeepRight].
-func keepTurn(k TurnKind) bool {
-	switch k {
-	case TurnContinue, TurnSlightLeft, TurnSlightRight:
+// PointOptions are the options of [RoutePoints].
+type PointOptions struct {
+	// Tolerance is the largest distance in meters between the route and the straight lines between its points.
+	// Zero or less adds no points for it.
+	Tolerance float64
+	// SlightAngle is the smallest change of direction in degrees for which a slight turn gets a point.
+	// Zero or less leaves out all slight turns.
+	SlightAngle float64
+}
+
+// keepTurn reports whether a turn needs a route point. Following the road, also under a new name, doesn't,
+// and neither do slight turns that change the direction less than slightAngle degrees.
+// Slight turns at forks are [TurnKeepLeft] or [TurnKeepRight], and always kept.
+func keepTurn(t Turn, slightAngle float64) bool {
+	switch t.Kind {
+	case TurnContinue:
 		return false
+	case TurnSlightLeft, TurnSlightRight:
+		return slightAngle > 0 && math.Abs(t.Angle) >= slightAngle
 	}
 	return true
 }
@@ -46,17 +59,18 @@ func isStop(k TurnKind) bool {
 // for navigating with a handheld device:
 //
 //   - the start, the via points and the destination,
-//   - turns, forks and roundabouts, but no points where the route follows the road, or turns slightly,
+//   - turns, forks and roundabouts, but no points where the route follows the road,
+//     and only slight turns that change the direction by at least opts.SlightAngle degrees,
 //   - one point for turns closer than 30 m, at the first of them,
-//   - and points where the straight lines between the other points would be farther than tolerance meters
-//     from the route. A tolerance of zero or less turns this off.
+//   - and points where the straight lines between the other points would be farther than opts.Tolerance meters
+//     from the route.
 //
 // stops are the names of the start, the via points and the destination, in route order.
 // Missing or empty names become "Start", "Via 1", ... and "End". The other points are named with a number,
 // a short code of the turn and the street, like "03 L Waldweg", and describe the turn in full.
 // All names are unique, as devices merge points with the same name. used are the names taken already,
 // like those of other routes in the same file. Names are added to it. It may be nil.
-func RoutePoints(r *Route, stops []string, tolerance float64, used map[string]bool) []track.Waypoint {
+func RoutePoints(r *Route, stops []string, opts PointOptions, used map[string]bool) []track.Waypoint {
 	if len(r.Points) < 2 {
 		return nil
 	}
@@ -69,7 +83,7 @@ func RoutePoints(r *Route, stops []string, tolerance float64, used map[string]bo
 	nStops := 0
 	// The turns are fixed on a copy, for routes not made by a router.
 	for _, t := range fixTurns(slices.Clone(r.Turns), len(r.Points)) {
-		if !keepTurn(t.Kind) {
+		if !keepTurn(t, opts.SlightAngle) {
 			continue
 		}
 		p := routePoint{index: t.Index, stop: -1, kinds: []TurnKind{t.Kind}, street: t.Street, exit: t.Exit}
@@ -97,11 +111,11 @@ func RoutePoints(r *Route, stops []string, tolerance float64, used map[string]bo
 		}
 	}
 
-	if tolerance > 0 {
+	if opts.Tolerance > 0 {
 		var all []routePoint
 		for i, p := range points {
 			if i > 0 {
-				all = append(all, refine(r, points[i-1].index, p.index, tolerance)...)
+				all = append(all, refine(r, points[i-1].index, p.index, opts.Tolerance)...)
 			}
 			all = append(all, p)
 		}
@@ -218,15 +232,17 @@ func uniqueName(name string, used map[string]bool) string {
 
 // turnCodes are the short codes of turns in route point names.
 var turnCodes = map[TurnKind]string{
-	TurnLeft:       "L",
-	TurnSharpLeft:  "SL",
-	TurnRight:      "R",
-	TurnSharpRight: "SR",
-	TurnUTurn:      "U",
-	TurnKeepLeft:   "KL",
-	TurnKeepRight:  "KR",
-	TurnRoundabout: "RB",
-	TurnFerry:      "FERRY",
+	TurnSlightLeft:  "SL",
+	TurnLeft:        "L",
+	TurnSharpLeft:   "HL",
+	TurnSlightRight: "SR",
+	TurnRight:       "R",
+	TurnSharpRight:  "HR",
+	TurnUTurn:       "U",
+	TurnKeepLeft:    "KL",
+	TurnKeepRight:   "KR",
+	TurnRoundabout:  "RB",
+	TurnFerry:       "FERRY",
 }
 
 // turnCode returns the short code of the turns at a point, like "L", "L-R" for merged turns,
@@ -244,15 +260,17 @@ func turnCode(p routePoint) string {
 
 // turnPhrases are the descriptions of turns.
 var turnPhrases = map[TurnKind]string{
-	TurnLeft:       "turn left",
-	TurnSharpLeft:  "turn sharp left",
-	TurnRight:      "turn right",
-	TurnSharpRight: "turn sharp right",
-	TurnUTurn:      "make a U-turn",
-	TurnKeepLeft:   "keep left",
-	TurnKeepRight:  "keep right",
-	TurnRoundabout: "enter the roundabout",
-	TurnFerry:      "board the ferry",
+	TurnSlightLeft:  "turn slightly left",
+	TurnSlightRight: "turn slightly right",
+	TurnLeft:        "turn left",
+	TurnSharpLeft:   "turn sharp left",
+	TurnRight:       "turn right",
+	TurnSharpRight:  "turn sharp right",
+	TurnUTurn:       "make a U-turn",
+	TurnKeepLeft:    "keep left",
+	TurnKeepRight:   "keep right",
+	TurnRoundabout:  "enter the roundabout",
+	TurnFerry:       "board the ferry",
 }
 
 // turnDesc returns the description of the turns at a point, like "Turn left, then right onto Waldweg".

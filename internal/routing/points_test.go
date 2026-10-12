@@ -8,8 +8,8 @@ import (
 	"github.com/mlange-42/tramp/internal/track"
 )
 
-// testTolerance is the tolerance of route points, in meters.
-const testTolerance = 100
+// testOpts are the options of route points: a tolerance of 100 m, and slight turns from 22.5°.
+var testOpts = PointOptions{Tolerance: 100, SlightAngle: 22.5}
 
 // lRoute returns a route with points every 10 m, 1 km to the east and then 1 km to the north,
 // with the corner at index 100, and the given turns.
@@ -61,7 +61,7 @@ func TestRoutePointsTurns(t *testing.T) {
 		Turn{Index: 40, Kind: TurnSlightRight, Street: "C"},
 		Turn{Index: 100, Kind: TurnLeft, Street: "Waldweg"},
 	)
-	wps := RoutePoints(r, []string{"Home", "Lake"}, testTolerance, nil)
+	wps := RoutePoints(r, []string{"Home", "Lake"}, testOpts, nil)
 	checkPoints(t, r, wps, []string{"Home", "02 L Waldweg", "Lake"}, []int{0, 100, 200})
 	if wps[1].Desc != "Turn left onto Waldweg" || wps[0].Desc != "" {
 		t.Errorf("unexpected descriptions %q, %q", wps[0].Desc, wps[1].Desc)
@@ -79,24 +79,42 @@ func TestRoutePointsMerge(t *testing.T) {
 		// Right before the end.
 		Turn{Index: 198, Kind: TurnLeft, Street: "B"},
 	)
-	wps := RoutePoints(r, nil, testTolerance, nil)
+	wps := RoutePoints(r, nil, testOpts, nil)
 	checkPoints(t, r, wps, []string{"Start", "02 L-KR", "03 RB2 Hauptstraße", "End"}, []int{0, 50, 100, 200})
 	if wps[1].Desc != "Turn left, then keep right" || wps[2].Desc != "Take exit 2 at the roundabout onto Hauptstraße" {
 		t.Errorf("unexpected descriptions %q, %q", wps[1].Desc, wps[2].Desc)
 	}
 }
 
+func TestRoutePointsSlight(t *testing.T) {
+	r := lRoute(
+		Turn{Index: 30, Kind: TurnSlightLeft, Street: "A", Angle: -30},
+		Turn{Index: 60, Kind: TurnSlightRight, Street: "B", Angle: 20},
+		Turn{Index: 100, Kind: TurnSharpLeft, Street: "C", Angle: -150},
+		Turn{Index: 150, Kind: TurnSharpRight, Street: "D", Angle: 150},
+	)
+	wps := RoutePoints(r, nil, testOpts, nil)
+	checkPoints(t, r, wps, []string{"Start", "02 SL A", "03 HL C", "04 HR D", "End"}, []int{0, 30, 100, 150, 200})
+	if wps[1].Desc != "Turn slightly left onto A" || wps[2].Desc != "Turn sharp left onto C" {
+		t.Errorf("unexpected descriptions %q, %q", wps[1].Desc, wps[2].Desc)
+	}
+
+	// A negative angle leaves out all slight turns.
+	wps = RoutePoints(r, nil, PointOptions{Tolerance: 100, SlightAngle: -1}, nil)
+	checkPoints(t, r, wps, []string{"Start", "02 HL C", "03 HR D", "End"}, []int{0, 100, 150, 200})
+}
+
 func TestRoutePointsTolerance(t *testing.T) {
 	// Without turns, the corner is added as it is 707 m from the straight line.
 	r := lRoute(Turn{Index: 0, Kind: TurnStart, Street: "A"})
-	wps := RoutePoints(r, []string{"Home", "Lake"}, testTolerance, nil)
+	wps := RoutePoints(r, []string{"Home", "Lake"}, testOpts, nil)
 	checkPoints(t, r, wps, []string{"Home", "02 A", "Lake"}, []int{0, 100, 200})
 	if wps[1].Desc != "Follow A" {
 		t.Errorf("unexpected description %q", wps[1].Desc)
 	}
 
 	// The check can be turned off.
-	wps = RoutePoints(r, nil, 0, nil)
+	wps = RoutePoints(r, nil, PointOptions{}, nil)
 	checkPoints(t, r, wps, []string{"Start", "End"}, []int{0, 200})
 
 	// On a half circle with a radius of 1 km, points are added until the lines are within the tolerance.
@@ -109,7 +127,7 @@ func TestRoutePointsTolerance(t *testing.T) {
 		})
 	}
 	c.fixTurns()
-	wps = RoutePoints(c, nil, 50, nil)
+	wps = RoutePoints(c, nil, PointOptions{Tolerance: 50}, nil)
 	// A chord of a circle with radius R strays R(1-cos(θ/2)) from it, so 50 m allow chords of about 36°.
 	if len(wps) < 6 || len(wps) > 9 {
 		t.Errorf("expected 6 to 9 points, got %d", len(wps))
@@ -129,15 +147,15 @@ func TestRoutePointsNames(t *testing.T) {
 	// The corner between the via points is added, without a street to name it by.
 	r := lRoute(Turn{Index: 50, Kind: TurnVia}, Turn{Index: 150, Kind: TurnVia})
 	index := []int{0, 50, 100, 150, 200}
-	checkPoints(t, r, RoutePoints(r, nil, testTolerance, nil), []string{"Start", "Via 1", "03", "Via 2", "End"}, index)
-	checkPoints(t, r, RoutePoints(r, []string{"Home", " ", "Home"}, testTolerance, nil),
+	checkPoints(t, r, RoutePoints(r, nil, testOpts, nil), []string{"Start", "Via 1", "03", "Via 2", "End"}, index)
+	checkPoints(t, r, RoutePoints(r, []string{"Home", " ", "Home"}, testOpts, nil),
 		[]string{"Home", "Via 1", "03", "Home (2)", "End"}, index)
 }
 
 func TestRoutePointsUsed(t *testing.T) {
 	r := lRoute(Turn{Index: 100, Kind: TurnLeft, Street: "Waldweg"})
 	used := map[string]bool{"Start": true, "02 L Waldweg": true}
-	checkPoints(t, r, RoutePoints(r, nil, testTolerance, used), []string{"Start (2)", "02 L Waldweg (2)", "End"}, []int{0, 100, 200})
+	checkPoints(t, r, RoutePoints(r, nil, testOpts, used), []string{"Start (2)", "02 L Waldweg (2)", "End"}, []int{0, 100, 200})
 	if !used["End"] || !used["Start (2)"] {
 		t.Errorf("expected new names added, got %v", used)
 	}
@@ -146,11 +164,11 @@ func TestRoutePointsUsed(t *testing.T) {
 func TestRoutePointsNoTurns(t *testing.T) {
 	r := lRoute()
 	r.Turns = nil
-	checkPoints(t, r, RoutePoints(r, nil, 0, nil), []string{"Start", "End"}, []int{0, 200})
+	checkPoints(t, r, RoutePoints(r, nil, PointOptions{}, nil), []string{"Start", "End"}, []int{0, 200})
 }
 
 func TestRoutePointsShort(t *testing.T) {
-	if wps := RoutePoints(&Route{Points: make([]geo.LonLat, 1)}, nil, testTolerance, nil); wps != nil {
+	if wps := RoutePoints(&Route{Points: make([]geo.LonLat, 1)}, nil, testOpts, nil); wps != nil {
 		t.Errorf("expected no points, got %v", wps)
 	}
 }

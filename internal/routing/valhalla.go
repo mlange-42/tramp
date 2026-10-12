@@ -77,6 +77,10 @@ type valhallaManeuver struct {
 	// BeginShapeIndex is the index of the maneuver's point in the shape of the leg.
 	BeginShapeIndex     int `json:"begin_shape_index"`
 	RoundaboutExitCount int `json:"roundabout_exit_count"`
+	// BearingBefore and BearingAfter are the directions before and after the maneuver,
+	// in degrees clockwise from north. Pointers, as the start has none before, and the end none after.
+	BearingBefore *float64 `json:"bearing_before"`
+	BearingAfter  *float64 `json:"bearing_after"`
 }
 
 // valhallaStart and valhallaDestination are the maneuver types at the start and the end of a leg:
@@ -193,6 +197,9 @@ func (t *valhallaTrip) route() (*Route, error) {
 			}
 			if len(m.StreetNames) > 0 {
 				turn.Street = m.StreetNames[0]
+			}
+			if m.BearingBefore != nil && m.BearingAfter != nil && !isStop(turn.Kind) {
+				turn.Angle = turnAngle(*m.BearingBefore, *m.BearingAfter)
 			}
 			route.Turns = append(route.Turns, turn)
 		}
