@@ -1,7 +1,8 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/logo-title-dark.svg">
-  <img alt="TRAMP – Track and Route Analysis, Mapping and Planning" src="assets/logo-title-light.svg">
-</picture>
+<div align="center" width="100%">
+<a href="https://github.com/mlange-42/tramp">
+<img alt="TRAMP – Track and Route Analysis, Mapping and Planning" src="assets/social.svg">
+</a>
+</div>
 
 A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Written in [Go](https://go.dev), for Linux, Windows and MacOS.
 
