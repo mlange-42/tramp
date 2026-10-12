@@ -50,6 +50,8 @@ type Settings struct {
 	GPS GPS `yaml:"gps"`
 	// Search selects the service for searching places by name.
 	Search Search `yaml:"search"`
+	// Routing selects the service for finding routes.
+	Routing Routing `yaml:"routing"`
 	// Window is the last main window size, position and state. Nil if not known yet.
 	Window *Window `yaml:"window,omitempty"`
 	// Files are the opened track files, in panel order.
@@ -109,6 +111,16 @@ func (s Search) SearchLimit() int {
 		return DefaultSearchLimit
 	}
 	return min(s.Limit, MaxSearchLimit)
+}
+
+// Routing selects the service for finding routes.
+type Routing struct {
+	// Service is valhalla or osrm. If empty, valhalla is used.
+	Service string `yaml:"service"`
+	// URL is the endpoint of the service, for using another server.
+	// For OSRM, {profile} in it is replaced by foot, bike or car.
+	// If empty, the public FOSSGIS server of the service is used.
+	URL string `yaml:"url"`
 }
 
 // File is an opened track file.
