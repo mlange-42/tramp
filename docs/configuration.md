@@ -40,6 +40,12 @@ routing:
   slight_angle: 22.5       # smallest change of direction in degrees for a slight turn to get a point
                            # in a saved route; negative for none
   points: []               # start, via points and target of the last route, with lon, lat and the name of searched places
+elevation:
+  source: aws              # source of terrain elevations: aws or mapterhorn
+  url: ''                  # tile URL template of another service, like https://tiles.example.com/{z}/{x}/{y}.png
+  encoding: ''             # for another service: terrarium or mapbox
+  tile_size: 0             # for another service: edge length of the tiles in pixels
+  max_zoom: 0              # for another service: highest tile level
 ```
 
 Sizes are in device-independent pixels.
@@ -53,6 +59,10 @@ For another Valhalla server, `url` is its route endpoint, like `http://localhost
 For another OSRM server, `url` is its address without `/route/v1`, like `http://localhost:5000`;
 `{profile}` in it is replaced by `foot`, `bike` or `car`, for servers with one address per profile
 like the public ones at `https://routing.openstreetmap.de/routed-{profile}`.
+Terrain elevations come from Terrain-RGB tiles, map tiles with the elevation encoded in the colors of their pixels:
+[AWS Terrain Tiles](https://registry.opendata.aws/terrain-tiles/) by default, worldwide and mostly based on SRTM,
+or [Mapterhorn](https://mapterhorn.com), with more detailed elevation models in parts of Europe.
+For another service, set `url`, and `encoding`, `tile_size` and `max_zoom` where they differ from the source.
 Colors are given like `#808080`, or with opacity like `#808080c0`.
 
 ## Maps
