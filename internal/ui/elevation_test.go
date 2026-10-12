@@ -6,7 +6,6 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -58,18 +57,21 @@ func TestHoverElevation(t *testing.T) {
 	a.elev = elevationView{cfg: cfg, service: newElevationService(cfg)}
 
 	// Nothing without the pointer on the map.
-	if _, ok := a.hoverElevation(); ok || a.elev.busy {
+	if _, st := a.hoverElevation(); st != elevOff || a.elev.busy {
 		t.Fatal("expected no elevation without the pointer on the map")
 	}
 	a.mapView.Hover, a.mapView.HoverValid = geo.ToMercator(geo.LonLat{Lon: 12.38, Lat: 51.34}), true
 
-	// The tile is downloaded in the background.
-	if _, ok := a.hoverElevation(); ok || !a.elev.busy {
+	// The tile is downloaded in the background, and shown as loading meanwhile, also on later frames.
+	if _, st := a.hoverElevation(); st != elevLoading || !a.elev.busy {
 		t.Fatal("expected a download")
 	}
+	if _, st := a.hoverElevation(); st != elevLoading {
+		t.Errorf("expected loading while downloading, got %v", st)
+	}
 	waitElevation(t, a)
-	if e, ok := a.hoverElevation(); !ok || e != 123 {
-		t.Errorf("expected 123 m, got %v, %v", e, ok)
+	if e, st := a.hoverElevation(); st != elevKnown || e != 123 {
+		t.Errorf("expected 123 m, got %v, %v", e, st)
 	}
 	if a.elevationAttribution() != "" {
 		t.Errorf("expected no attribution for another service, got %q", a.elevationAttribution())
@@ -81,8 +83,8 @@ func TestHoverElevation(t *testing.T) {
 	a.hoverElevation()
 	waitElevation(t, a)
 	n := requests.Load()
-	if _, ok := a.hoverElevation(); ok || a.elev.busy || a.elev.failed.IsZero() {
-		t.Errorf("expected no new download after a failure")
+	if _, st := a.hoverElevation(); st != elevMissing || a.elev.busy || a.elev.failed.IsZero() {
+		t.Errorf("expected no new download after a failure, got %v", st)
 	}
 	if requests.Load() != n {
 		t.Errorf("expected no new requests, got %d after %d", requests.Load(), n)
@@ -98,27 +100,26 @@ func TestElevationNone(t *testing.T) {
 	}
 	a := &App{mapView: mapview.New(geo.LonLat{}, 3)}
 	a.mapView.HoverValid = true
-	if _, ok := a.hoverElevation(); ok || a.elevationAttribution() != "" {
+	if _, st := a.hoverElevation(); st != elevOff || a.elevationAttribution() != "" {
 		t.Error("expected no elevation and attribution when turned off")
 	}
 }
 
 func TestFormatHoverElevation(t *testing.T) {
 	for _, tc := range []struct {
-		e    float64
-		ok   bool
-		want string
+		e     float64
+		state elevState
+		want  string
 	}{
-		{117.4, true, "   117 m"},
-		{-12.6, true, "   -13 m"},
-		{2962, true, "  2962 m"},
-		{0, false, "        "},
+		{117.4, elevKnown, "   117 m"},
+		{-12.6, elevKnown, "   -13 m"},
+		{2962, elevKnown, "  2962 m"},
+		{0, elevLoading, "   ... m"},
+		{0, elevMissing, "     - m"},
+		{0, elevOff, "        "},
 	} {
-		if got := formatHoverElevation(tc.e, tc.ok); got != tc.want || len(got) != elevationWidth {
-			t.Errorf("%v, %v: expected %q, got %q", tc.e, tc.ok, tc.want, got)
+		if got := formatHoverElevation(tc.e, tc.state); got != tc.want || len(got) != elevationWidth {
+			t.Errorf("%v, %v: expected %q, got %q", tc.e, tc.state, tc.want, got)
 		}
-	}
-	if !strings.HasSuffix(formatHoverElevation(1, true), " m") {
-		t.Error("expected the unit")
 	}
 }

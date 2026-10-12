@@ -47,53 +47,79 @@ func newElevationService(cfg settings.Elevation) *elevation.Service {
 	return elevation.NewService(src, client, 0)
 }
 
-// hoverElevation returns the elevation under the pointer on the map, if the pointer is on the map
-// and the elevation is known. A missing tile is downloaded in the background, one at a time,
-// and the window redrawn when it arrives.
-func (a *App) hoverElevation() (float64, bool) {
+// elevState is the state of the elevation under the pointer.
+type elevState int
+
+const (
+	// elevOff is shown while the pointer is not on the map, or elevations are turned off.
+	elevOff elevState = iota
+	// elevLoading is shown while the tile is downloaded.
+	elevLoading
+	// elevMissing is shown where the source has no data, or the download failed.
+	elevMissing
+	// elevKnown is shown with the elevation.
+	elevKnown
+)
+
+// hoverElevation returns the elevation under the pointer on the map and its state.
+// A missing tile is downloaded in the background, one at a time, and the window redrawn when it arrives.
+func (a *App) hoverElevation() (float64, elevState) {
 	ev := &a.elev
 	if ev.service == nil || !a.mapView.HoverValid {
-		return math.NaN(), false
+		return math.NaN(), elevOff
 	}
 	p := geo.ToLonLat(a.mapView.Hover)
 	// The tiles of the map's level have about the resolution of the screen.
 	zoom := a.mapView.TileLevel()
 	if e, ok := ev.service.Cached(p, zoom); ok {
-		return e, !math.IsNaN(e)
+		if math.IsNaN(e) {
+			return e, elevMissing
+		}
+		return e, elevKnown
 	}
-	if !ev.busy && time.Since(ev.failed) > elevationRetry {
-		ev.busy = true
-		svc := ev.service
-		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			_, err := svc.Elevation(ctx, p, zoom)
-			a.runOnUI(func() {
-				ev.busy = false
-				if err != nil {
-					// Logged once per streak of failures.
-					if ev.failed.IsZero() {
-						log.Printf("elevation: %v", err)
-					}
-					ev.failed = time.Now()
-					return
+	if ev.busy {
+		return math.NaN(), elevLoading
+	}
+	if time.Since(ev.failed) <= elevationRetry {
+		return math.NaN(), elevMissing
+	}
+	ev.busy = true
+	svc := ev.service
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, err := svc.Elevation(ctx, p, zoom)
+		a.runOnUI(func() {
+			ev.busy = false
+			if err != nil {
+				// Logged once per streak of failures.
+				if ev.failed.IsZero() {
+					log.Printf("elevation: %v", err)
 				}
-				ev.failed = time.Time{}
-			})
-		}()
-	}
-	return math.NaN(), false
+				ev.failed = time.Now()
+				return
+			}
+			ev.failed = time.Time{}
+		})
+	}()
+	return math.NaN(), elevLoading
 }
 
 // elevationWidth is the width of the elevation in the status bar, like "  1234 m".
 const elevationWidth = 8
 
-// formatHoverElevation returns the elevation for the status bar, padded to a fixed width, or spaces if unknown.
-func formatHoverElevation(e float64, ok bool) string {
-	if !ok {
-		return strings.Repeat(" ", elevationWidth)
+// formatHoverElevation returns the elevation for the status bar, padded to a fixed width:
+// blank while off, "..." while loading, and "-" without data.
+func formatHoverElevation(e float64, state elevState) string {
+	switch state {
+	case elevLoading:
+		return fmt.Sprintf("%*s m", elevationWidth-2, "...")
+	case elevMissing:
+		return fmt.Sprintf("%*s m", elevationWidth-2, "-")
+	case elevKnown:
+		return fmt.Sprintf("%*.0f m", elevationWidth-2, e)
 	}
-	return fmt.Sprintf("%*.0f m", elevationWidth-2, e)
+	return strings.Repeat(" ", elevationWidth)
 }
 
 // elevationAttribution returns the attribution of the elevation source, or an empty string.
