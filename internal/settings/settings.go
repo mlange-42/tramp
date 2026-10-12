@@ -124,13 +124,14 @@ type Routing struct {
 	// Profile is the last selected means of travel: foot, bike or car. If empty, foot is used.
 	Profile string `yaml:"profile"`
 	// Points are the start, the via points and the target of the last route.
-	Points []LonLat `yaml:"points,omitempty,flow"`
+	Points []RoutePoint `yaml:"points,omitempty"`
 }
 
-// LonLat is a geographic position.
-type LonLat struct {
-	Lon float64 `yaml:"lon"`
-	Lat float64 `yaml:"lat"`
+// RoutePoint is a point of a route: a position, and the name of the place if it was searched.
+type RoutePoint struct {
+	Lon  float64 `yaml:"lon"`
+	Lat  float64 `yaml:"lat"`
+	Name string  `yaml:"name,omitempty"`
 }
 
 // File is an opened track file.

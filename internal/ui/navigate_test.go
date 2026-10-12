@@ -338,13 +338,15 @@ func TestNavSettings(t *testing.T) {
 	a, f, _ := navApp()
 	start, via, target := geo.LonLat{Lon: 12.2, Lat: 51.3}, geo.LonLat{Lon: 12.3, Lat: 51.2}, geo.LonLat{Lon: 12.4, Lat: 51.3}
 	a.nav.setPoints([]geo.LonLat{start, via, target})
+	a.nav.stops[2].name = "Leipzig"
 	cfg := a.navState()
-	if len(cfg.Points) != 3 || cfg.Points[1] != (settings.LonLat{Lon: 12.3, Lat: 51.2}) {
+	if len(cfg.Points) != 3 || cfg.Points[1] != (settings.RoutePoint{Lon: 12.3, Lat: 51.2}) ||
+		cfg.Points[2] != (settings.RoutePoint{Lon: 12.4, Lat: 51.3, Name: "Leipzig"}) {
 		t.Fatalf("unexpected saved points %+v", cfg.Points)
 	}
 	// Saved points are rounded to about a meter.
 	a.nav.stops[0].pos = geo.LonLat{Lon: 12.373114999, Lat: -51.339741234}
-	if p := a.navState().Points[0]; p != (settings.LonLat{Lon: 12.37311, Lat: -51.33974}) {
+	if p := a.navState().Points[0]; p != (settings.RoutePoint{Lon: 12.37311, Lat: -51.33974}) {
 		t.Errorf("expected rounded coordinates, got %+v", p)
 	}
 	a.nav.stops[0].pos = start
@@ -352,7 +354,7 @@ func TestNavSettings(t *testing.T) {
 	// Loaded points are routed when the panel is opened.
 	a.closeNav()
 	a.loadNav(cfg)
-	if len(navPts(a)) != 3 || !a.nav.stale || len(f.requests) != 0 {
+	if len(navPts(a)) != 3 || !a.nav.stale || len(f.requests) != 0 || a.nav.stops[2].label() != "Leipzig" {
 		t.Fatalf("expected the points loaded without routing, got %+v", a.nav)
 	}
 	a.toggleNav()

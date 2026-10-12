@@ -35,7 +35,7 @@ routing:
   service: valhalla        # routing service: valhalla or osrm
   url: ''                  # endpoint of another server; empty for the public FOSSGIS server of the service
   profile: foot            # last selected means of travel: foot, bike or car
-  points: []               # start, via points and target of the last route, like {lon: 12.37, lat: 51.34}
+  points: []               # start, via points and target of the last route, with lon, lat and the name of searched places
 ```
 
 Sizes are in device-independent pixels.

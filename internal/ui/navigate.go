@@ -545,13 +545,14 @@ func (a *App) clearNav() {
 	a.setNavRoute(nil)
 }
 
-// navState returns the routing settings with the positions of the stops.
+// navState returns the routing settings with the stops that are set, with their positions and names.
 func (a *App) navState() settings.Routing {
 	cfg := a.routingCfg
 	cfg.Points = nil
-	pts, _ := a.nav.points()
-	for _, p := range pts {
-		cfg.Points = append(cfg.Points, settings.LonLat{Lon: roundCoord(p.Lon), Lat: roundCoord(p.Lat)})
+	for _, st := range a.nav.stops {
+		if st.set {
+			cfg.Points = append(cfg.Points, settings.RoutePoint{Lon: roundCoord(st.pos.Lon), Lat: roundCoord(st.pos.Lat), Name: st.name})
+		}
 	}
 	return cfg
 }
@@ -573,6 +574,9 @@ func (a *App) loadNav(cfg settings.Routing) {
 		pts[i] = geo.LonLat{Lon: p.Lon, Lat: p.Lat}
 	}
 	n.setPoints(pts)
+	for i, p := range cfg.Points {
+		n.stops[i].name = p.Name
+	}
 	n.stale = n.routable()
 }
 
