@@ -44,6 +44,8 @@ or type a place or coordinates in their fields, like in the [search](#search).
 The route is shown on the map, with its length and the estimated travel time.
 Drag A or B to move them; the route is found again when released.
 Drag the route itself to add a via point there, to make the route pass through another place.
+Routes without via points may come with alternatives, drawn in grey, with their lengths and times listed in the panel.
+Click an alternative to use it instead.
 The ⊕ button adds a via point before the target, set by the next click on the map or by searching it.
 Via points are listed between A and B. They can be dragged as well, and ⊖ or a click on the map removes them.
 Clearing a field with × sets its point again by the next click on the map.

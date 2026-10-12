@@ -129,6 +129,9 @@ type Style struct {
 	NavLine, NavCasing color.NRGBA
 	// NavLineWidth is the width of a found route, NavCasingWidth that of the border on each side.
 	NavLineWidth, NavCasingWidth unit.Dp
+	// NavAlt is the color of alternative routes, NavAltWidth their width.
+	NavAlt      color.NRGBA
+	NavAltWidth unit.Dp
 	// NavStart and NavTarget are the colors of the markers of start and target, NavMarkerSize their diameter without the ring.
 	NavStart, NavTarget color.NRGBA
 	NavMarkerSize       unit.Dp
@@ -203,6 +206,8 @@ func DefaultStyle() *Style {
 		NavLine:          color.NRGBA{R: 0x1f, G: 0x5f, B: 0xb0, A: 0xff},
 		NavCasing:        color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
 		NavLineWidth:     5,
+		NavAlt:           color.NRGBA{R: 0x8a, G: 0x9b, B: 0xb0, A: 0xff},
+		NavAltWidth:      4,
 		NavCasingWidth:   1.5,
 		NavStart:         color.NRGBA{R: 0x2a, G: 0x9d, B: 0x48, A: 0xff},
 		NavTarget:        color.NRGBA{R: 0xc8, G: 0x37, B: 0x2d, A: 0xff},

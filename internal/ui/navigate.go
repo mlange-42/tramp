@@ -78,6 +78,8 @@ type navigator struct {
 	fromPos  geo.LonLat
 	fromName string
 	moved    bool
+	// swallow is set from a press on an alternative route on the map, which selects it, until the release.
+	swallow bool
 	// stale is set while the route of the stops was not requested yet, after loading them from the settings.
 	// It is requested when the panel is opened.
 	stale bool
@@ -88,10 +90,16 @@ type navigator struct {
 	busy   bool
 	err    error
 	route  *routing.Route
-	// line is the route in map coordinates, for hitting it with the pointer.
-	line  []mapview.Polyline
-	lines mapview.Lines
+	// alts are alternative routes, for a route without via points, if the service found some.
+	alts []*routing.Route
+	// line is the route in map coordinates, and altLines the alternatives, for hitting them with the pointer.
+	line     []mapview.Polyline
+	altLines []mapview.Polyline
+	lines    mapview.Lines
 }
+
+// navAlternatives is the largest number of alternative routes asked for.
+const navAlternatives = 2
 
 // navStop is a point of the route, with the field for searching it.
 type navStop struct {
@@ -334,6 +342,10 @@ func (a *App) navPointer(gtx layout.Context, ev mapview.PointerEvent) bool {
 		a.navDrag(ev)
 		return true
 	}
+	if n.swallow {
+		n.swallow = ev.Kind != pointer.Release && ev.Kind != pointer.Cancel
+		return true
+	}
 	if ev.Kind == pointer.Press {
 		if i, ok := a.navHit(gtx, ev.Screen); ok {
 			n.dragging, n.drag, n.dragNew, n.moved = true, i, false, false
@@ -345,6 +357,11 @@ func (a *App) navPointer(gtx layout.Context, ev mapview.PointerEvent) bool {
 			n.stops = slices.Insert(n.stops, i, &navStop{pos: geo.ToLonLat(ev.Pos), set: true})
 			n.dragging, n.drag, n.dragNew, n.moved = true, i, true, false
 			n.pressAt = ev.Screen
+			return true
+		}
+		if k, ok := a.navHitAlt(gtx, ev.Pos); ok {
+			a.selectNavAlt(k)
+			n.swallow = true
 			return true
 		}
 	}
@@ -450,6 +467,24 @@ func (a *App) navHitLine(gtx layout.Context, p geo.Point) (int, bool) {
 	return idx[viaInsertIndex(n.line[0].Points, pts, seg)], true
 }
 
+// navHitAlt returns the alternative route that passes nearest to the map position, if one passes near it.
+func (a *App) navHitAlt(gtx layout.Context, p geo.Point) (int, bool) {
+	n := &a.nav
+	if len(n.altLines) == 0 || n.busy {
+		return 0, false
+	}
+	radius := float64(gtx.Dp(a.style.HoverRadius)) * a.mapView.View.Resolution()
+	k, _, _, ok := nearestSegment(n.altLines, p, radius)
+	return k, ok
+}
+
+// selectNavAlt makes alternative k the route, and the route an alternative.
+func (a *App) selectNavAlt(k int) {
+	n := &a.nav
+	n.route, n.alts[k] = n.alts[k], n.route
+	a.updateNavLines()
+}
+
 // viaInsertIndex returns the index in points at which a new via point on segment seg of the route line is inserted.
 // Each via point is located on the line as the nearest line point after the one of the previous via point,
 // and the new point goes after those located before the segment.
@@ -492,6 +527,9 @@ func (a *App) navCursor(gtx layout.Context) (pointer.Cursor, bool) {
 		if _, ok := a.navHitLine(gtx, m.Hover); ok {
 			return pointer.CursorGrab, true
 		}
+		if _, ok := a.navHitAlt(gtx, m.Hover); ok {
+			return pointer.CursorPointer, true
+		}
 	}
 	if n.picking() {
 		return pointer.CursorCrosshair, true
@@ -529,7 +567,7 @@ func (a *App) closeNav() {
 	for _, st := range n.stops {
 		st.field.clear()
 	}
-	n.open, n.pressing = false, false
+	n.open, n.pressing, n.swallow = false, false, false
 }
 
 // clearNav removes the route and its stops, for picking a new start.
@@ -595,7 +633,7 @@ func (a *App) startRoute() {
 	ctx, cancel := context.WithCancel(context.Background())
 	n.cancel, n.busy = cancel, true
 	pts, _ := n.points()
-	req := routing.Request{Points: pts, Profile: routing.Profiles[n.profile]}
+	req := routing.Request{Points: pts, Profile: routing.Profiles[n.profile], Alternatives: navAlternatives}
 	router := a.router
 	go func() {
 		route, err := router.Route(ctx, req)
@@ -621,25 +659,51 @@ func (a *App) stopRoute() {
 	n.busy = false
 }
 
-// setNavRoute shows a route on the map, or none if nil.
+// setNavRoute shows a route and its alternatives on the map, or none if nil.
 func (a *App) setNavRoute(r *routing.Route) {
 	n := &a.nav
-	n.route = r
-	if r == nil {
-		n.line = nil
+	n.route, n.alts = r, nil
+	if r != nil {
+		n.alts, r.Alternatives = r.Alternatives, nil
+	}
+	a.updateNavLines()
+}
+
+// updateNavLines updates the lines of the route and its alternatives on the map.
+// The alternatives are drawn below the route.
+func (a *App) updateNavLines() {
+	n := &a.nav
+	n.line, n.altLines = nil, nil
+	if n.route == nil {
 		n.lines.Set(nil, nil)
 		return
 	}
+	n.line = []mapview.Polyline{navPolyline(n.route)}
+	for _, r := range n.alts {
+		n.altLines = append(n.altLines, navPolyline(r))
+	}
+	st := a.style
+	var groups []mapview.LineGroup
+	if len(n.altLines) > 0 {
+		groups = append(groups,
+			mapview.LineGroup{Color: st.NavCasing, Width: st.NavAltWidth + 2*st.NavCasingWidth, Lines: n.altLines},
+			mapview.LineGroup{Color: st.NavAlt, Width: st.NavAltWidth, Lines: n.altLines},
+		)
+	}
+	groups = append(groups,
+		mapview.LineGroup{Color: st.NavCasing, Width: st.NavLineWidth + 2*st.NavCasingWidth, Lines: n.line},
+		mapview.LineGroup{Color: st.NavLine, Width: st.NavLineWidth, Lines: n.line},
+	)
+	n.lines.Set(groups, nil)
+}
+
+// navPolyline returns the line of a route in map coordinates.
+func navPolyline(r *routing.Route) mapview.Polyline {
 	pts := make([]geo.Point, len(r.Points))
 	for i, p := range r.Points {
 		pts[i] = geo.ToMercator(p)
 	}
-	n.line = []mapview.Polyline{mapview.NewPolyline(pts)}
-	st := a.style
-	n.lines.Set([]mapview.LineGroup{
-		{Color: st.NavCasing, Width: st.NavLineWidth + 2*st.NavCasingWidth, Lines: n.line},
-		{Color: st.NavLine, Width: st.NavLineWidth, Lines: n.line},
-	}, nil)
+	return mapview.NewPolyline(pts)
 }
 
 // navStatus returns the text about the route for the panel: a hint on what to do,
@@ -845,6 +909,9 @@ func (a *App) layoutNavContent(gtx layout.Context) layout.Dimensions {
 	)
 	if n.route != nil && !n.busy {
 		children = append(children, small("Drag the route to change it", st.HintFg))
+		if len(n.alts) > 0 {
+			children = append(children, small(navAltsHint(n.alts), st.HintFg))
+		}
 	}
 	if a.router != nil {
 		children = append(children, gap, small(a.router.Attribution(), st.HintFg),
@@ -861,6 +928,19 @@ func (a *App) layoutNavContent(gtx layout.Context) layout.Dimensions {
 			}))
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
+}
+
+// navAltsHint returns the hint on the alternative routes, with their lengths and durations.
+func navAltsHint(alts []*routing.Route) string {
+	parts := make([]string, len(alts))
+	for i, r := range alts {
+		parts[i] = formatDistance(r.Distance) + " · " + formatDuration(r.Duration)
+	}
+	what := "an alternative"
+	if len(alts) > 1 {
+		what = "alternatives"
+	}
+	return fmt.Sprintf("Click a grey route for %s: %s", what, strings.Join(parts, ", "))
 }
 
 // layoutNavStop draws the row of stop i: its marker, its search field, and a button to remove a via point.

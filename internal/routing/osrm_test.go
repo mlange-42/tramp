@@ -80,3 +80,35 @@ func TestOSRMErrors(t *testing.T) {
 		t.Error("expected error for unknown profile")
 	}
 }
+
+func TestOSRMAlternatives(t *testing.T) {
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		_, _ = w.Write([]byte(`{"code":"Ok","routes":[
+			{"geometry":{"coordinates":[[0,0],[0,1]]},"distance":100,"duration":60},
+			{"geometry":{"coordinates":[[0,0],[1,1],[0,1]]},"distance":150,"duration":80},
+			{"geometry":{"coordinates":[]},"distance":1,"duration":1}]}`))
+	}))
+	defer srv.Close()
+
+	o := &OSRM{URL: srv.URL}
+	route, err := o.Route(context.Background(), Request{Points: make([]geo.LonLat, 2), Alternatives: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(gotQuery, "&alternatives=2") {
+		t.Errorf("expected alternatives asked for, got %q", gotQuery)
+	}
+	if route.Distance != 100 || len(route.Alternatives) != 1 || route.Alternatives[0].Distance != 150 ||
+		len(route.Alternatives[0].Points) != 3 {
+		t.Errorf("expected one alternative, got %+v", route.Alternatives)
+	}
+
+	if _, err := o.Route(context.Background(), Request{Points: make([]geo.LonLat, 3), Alternatives: 2}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(gotQuery, "alternatives") {
+		t.Errorf("expected no alternatives asked for with intermediate points, got %q", gotQuery)
+	}
+}
