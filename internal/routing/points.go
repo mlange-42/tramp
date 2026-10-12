@@ -9,9 +9,6 @@ import (
 	"github.com/mlange-42/tramp/internal/track"
 )
 
-// DefaultTolerance is the default tolerance of [RoutePoints], in meters.
-const DefaultTolerance = 100.0
-
 // mergeDistance is the distance along the route, in meters, within which turns become one route point,
 // like crossing a road with a small offset.
 const mergeDistance = 30.0

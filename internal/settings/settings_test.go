@@ -37,6 +37,7 @@ func TestSaveLoad(t *testing.T) {
 			Map:      "OpenStreetMap",
 			Overlays: []string{"Hillshade (SRTM)", "Labels & roads"},
 		},
+		Routing: Routing{Tolerance: 50},
 		Window: &Window{Width: 1100, Height: 700, X: new(-8), Y: new(20), Maximized: true, PanelWidth: 300, ChartHeight: 150, ChartClosed: true, ChartAxis: "clock_time"},
 	}
 	if err := save(path, &s); err != nil {
@@ -87,5 +88,21 @@ func TestPaneSizeDefaults(t *testing.T) {
 	}
 	if s.Window.PanelWidth != DefaultPanelWidth {
 		t.Errorf("panel width default not set: %v", s.Window.PanelWidth)
+	}
+}
+
+func TestRouteToleranceDefault(t *testing.T) {
+	for _, tc := range []struct{ tol, want float64 }{{0, DefaultRouteTolerance}, {50, 50}, {-1, -1}} {
+		path := filepath.Join(t.TempDir(), fileName)
+		if err := save(path, &Settings{Routing: Routing{Tolerance: tc.tol}}); err != nil {
+			t.Fatal(err)
+		}
+		s, _, err := load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if s.Routing.Tolerance != tc.want {
+			t.Errorf("tolerance %v: expected %v, got %v", tc.tol, tc.want, s.Routing.Tolerance)
+		}
 	}
 }
