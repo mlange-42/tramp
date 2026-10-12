@@ -34,11 +34,12 @@ search:
 routing:
   service: valhalla        # routing service: valhalla or osrm
   url: ''                  # endpoint of another server; empty for the public FOSSGIS server of the service
+  profile: foot            # last selected means of travel: foot, bike or car
 ```
 
 Sizes are in device-independent pixels.
 See [Live GPS position](usage.md#live-gps-position) for the GPS receiver.
-See [Search](usage.md#search) for the search services.
+See [Search](usage.md#search) for the search services, and [Routing](usage.md#routing) for routing.
 Routes are found with the public servers of [FOSSGIS e.V.](https://www.fossgis.de),
 [Valhalla](https://valhalla1.openstreetmap.de) or [OSRM](https://routing.openstreetmap.de),
 which allow at most one request per second.

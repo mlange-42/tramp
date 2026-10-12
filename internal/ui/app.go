@@ -16,6 +16,7 @@ import (
 	"gioui.org/app"
 	"gioui.org/io/event"
 	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -27,6 +28,7 @@ import (
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/geocode"
 	"github.com/mlange-42/tramp/internal/mapview"
+	"github.com/mlange-42/tramp/internal/routing"
 	"github.com/mlange-42/tramp/internal/settings"
 	"github.com/mlange-42/tramp/internal/tiles"
 	"github.com/mlange-42/tramp/internal/wms"
@@ -137,6 +139,11 @@ type App struct {
 	search    searchBox
 	geocoder  geocode.Searcher
 	searchCfg settings.Search
+	// nav shows a route found by router between two points.
+	// routingCfg is the configured routing service and the selected profile, kept for saving the settings.
+	nav        navigator
+	router     routing.Router
+	routingCfg settings.Routing
 
 	// nextColor is the index of the default color for the next opened file.
 	nextColor int
@@ -179,6 +186,7 @@ func newApp(invalidate func(), opts Options) *App {
 		pending:      map[int][]settings.File{},
 		gps:          gpsView{cfg: opts.State.GPS},
 		searchCfg:    opts.State.Search,
+		routingCfg:   opts.State.Routing,
 	}
 	if opts.State.Window.Valid() {
 		a.win = *opts.State.Window
@@ -193,6 +201,8 @@ func newApp(invalidate func(), opts Options) *App {
 	}
 	a.chart.axis = chartAxisByKey(a.win.ChartAxis)
 	a.geocoder = newGeocoder(opts.State.Search)
+	a.router = newRouter(opts.State.Routing)
+	a.nav.profile = profileIndex(opts.State.Routing.Profile)
 	if c := opts.State.Style.MutedColor; c != "" {
 		if col, err := parseColorAlpha(c); err == nil {
 			a.style.MutedTrack = col
@@ -281,10 +291,11 @@ func (a *App) State() settings.Settings {
 			Zoom: a.mapView.View.Zoom,
 			Map:  a.layerNames[a.layerSelect.Selected()],
 		},
-		GPS:    a.gps.cfg,
-		Search: a.searchCfg,
-		Window: new(a.win),
-		Files:  a.fileState(),
+		GPS:     a.gps.cfg,
+		Search:  a.searchCfg,
+		Routing: a.routingCfg,
+		Window:  new(a.win),
+		Files:   a.fileState(),
 	}
 	s.Window.PanelWidth = float32(a.split.Size)
 	s.Window.ChartHeight = float32(a.chartSplit.Size)
@@ -423,7 +434,11 @@ func (a *App) update(gtx layout.Context) {
 	a.updateFiles(gtx)
 	// The map's hover position is needed before the map is drawn.
 	a.mapView.Update(gtx)
+	a.updateNav(gtx)
 	a.updateEditor(gtx)
+	if a.nav.picking() {
+		a.mapView.Cursor = pointer.CursorCrosshair
+	}
 	a.updateProps(gtx)
 	// The selected item is muted on the map while the chart is zoomed in.
 	zoomed := a.chart.zoomed()
@@ -468,6 +483,7 @@ func (a *App) updateShortcuts(gtx layout.Context) {
 		key.Filter{Name: "N", Required: key.ModShortcut},
 		key.Filter{Name: "S", Required: key.ModShortcut},
 		key.Filter{Name: "F", Required: key.ModShortcut},
+		key.Filter{Name: "D", Required: key.ModShortcut},
 	}
 	if !a.propsFocused(gtx) && !a.searchFocused(gtx) {
 		filters = append(filters,
@@ -493,6 +509,8 @@ func (a *App) updateShortcuts(gtx layout.Context) {
 			a.save()
 		case e.Name == "F":
 			a.focusSearch(gtx)
+		case e.Name == "D":
+			a.toggleNav()
 		case e.Name == "Y", e.Name == "Z" && e.Modifiers.Contain(key.ModShift):
 			a.redo()
 		case e.Name == "Z":
@@ -527,12 +545,14 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	dims := a.mapView.Layout(gtx, a.mapLayers...)
 	a.tracks.Layout(gtx, &a.mapView.View)
 	a.highlight.Layout(gtx, &a.mapView.View)
+	a.layoutNavMap(gtx)
 	a.layoutSearchMarker(gtx)
 	a.layoutEditMap(gtx)
 	a.layoutHoverMap(gtx)
 	a.layoutGPSMarker(gtx)
 	a.layoutLegend(gtx)
 	a.layoutGPSButton(gtx)
+	a.layoutNavPanel(gtx)
 	return dims
 }
 
@@ -572,6 +592,10 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 				return layout.Dimensions{Size: image.Pt(gtx.Constraints.Min.X, 0)}
 			}),
 			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return a.nav.btn.Layout(gtx, st, iconDirections, "Find a route between two points on the map (Ctrl+D)", true, a.nav.open)
+			}),
+			layout.Rigid(layout.Spacer{Width: st.Spacing}.Layout),
 			layout.Rigid(a.layoutSearch),
 		)
 	})

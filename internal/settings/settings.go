@@ -121,6 +121,8 @@ type Routing struct {
 	// For OSRM, {profile} in it is replaced by foot, bike or car.
 	// If empty, the public FOSSGIS server of the service is used.
 	URL string `yaml:"url"`
+	// Profile is the last selected means of travel: foot, bike or car. If empty, foot is used.
+	Profile string `yaml:"profile"`
 }
 
 // File is an opened track file.

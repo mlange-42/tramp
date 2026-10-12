@@ -36,6 +36,22 @@ Nominatim allows at most one search per second for all users of an application t
 and forbids searching while typing; Photon throttles extensive use.
 TRAMP remembers the results of recent searches, so repeated searches don't reach the server again.
 
+## Routing
+
+The directions button left of the search field (Ctrl+D) opens a panel for finding a route between two points.
+Click the map to set the start (A), and again to set the target (B).
+The route is shown on the map, with its length and the estimated travel time.
+Select the means of travel in the panel: on foot, by bike or by car.
+The swap button reverses the route. Close the panel with × or Esc to remove the route.
+
+Routes are found with [Valhalla](https://valhalla1.openstreetmap.de) by default, or [OSRM](https://routing.openstreetmap.de),
+on public servers of [FOSSGIS e.V.](https://www.fossgis.de) using OpenStreetMap data,
+see the [settings](configuration.md#settings). Routing needs an internet connection.
+The Valhalla server finds routes up to 100 km on foot and 150 km by bike.
+Found an error in the route? *Report a map error* in the panel leads to OpenStreetMap, where anyone can fix the map.
+
+The route is independent of the routes in GPX files.
+
 ## Opening files
 
 Open GPX files with the folder button or Ctrl+O, or pass them on the command line:
