@@ -6,6 +6,9 @@
 A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Written in [Go](https://go.dev), for Linux, Windows and MacOS.
 
 [![Tests](https://github.com/mlange-42/tramp/actions/workflows/tests.yml/badge.svg)](https://github.com/mlange-42/tramp/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/mlange-42/tramp/graph/badge.svg?token=SIVgPByIsM)](https://codecov.io/gh/mlange-42/tramp)
+[![GitHub](https://img.shields.io/badge/github-repo-blue?logo=github)](https://github.com/mlange-42/tramp)
+[![MIT license](https://img.shields.io/badge/MIT-brightgreen?label=license)](https://github.com/mlange-42/tramp/blob/main/LICENSE)
 
 > **Status:** early development. Viewing GPX tracks and editing routes and waypoints work, but there is no release yet and things may change.
 
