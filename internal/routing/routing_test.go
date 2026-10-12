@@ -120,3 +120,20 @@ func TestThrottleCanceled(t *testing.T) {
 		t.Errorf("expected deadline error, got %v", err)
 	}
 }
+
+func TestFixTurns(t *testing.T) {
+	// Without turns, the start and the end are added.
+	r := Route{Points: make([]geo.LonLat, 3)}
+	r.fixTurns()
+	checkTurns(t, r.Turns, []Turn{{Index: 0, Kind: TurnStart}, {Index: 2, Kind: TurnEnd}})
+
+	// Turns are clamped and sorted, and the start is moved to the first point.
+	r.Turns = []Turn{{Index: 1, Kind: TurnStart}, {Index: 5, Kind: TurnLeft}, {Index: 1, Kind: TurnRight}}
+	r.fixTurns()
+	checkTurns(t, r.Turns, []Turn{
+		{Index: 0, Kind: TurnStart},
+		{Index: 1, Kind: TurnRight},
+		{Index: 2, Kind: TurnLeft},
+		{Index: 2, Kind: TurnEnd},
+	})
+}
