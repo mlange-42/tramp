@@ -2,10 +2,12 @@ package ui
 
 import (
 	"image"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/mlange-42/tramp/internal/geo"
+	"github.com/mlange-42/tramp/internal/track"
 )
 
 func TestNavRouteName(t *testing.T) {
@@ -99,5 +101,40 @@ func TestNavSaveWarning(t *testing.T) {
 	a.nav.saveCount = maxDevicePoints + 1
 	if w := a.navSaveWarning(); !strings.Contains(w, "251 points") {
 		t.Errorf("expected a warning, got %q", w)
+	}
+}
+
+func TestNavTrackFile(t *testing.T) {
+	a, _, _ := navApp()
+	if !strings.Contains(a.navSaveTrackHelp(), "once the route is found") {
+		t.Errorf("unexpected help without route %q", a.navSaveTrackHelp())
+	}
+	navClick(a, geo.LonLat{Lon: 12.2, Lat: 51.2}, 0)
+	navClick(a, geo.LonLat{Lon: 12.4, Lat: 51.4}, 0)
+	waitRoute(a)
+	a.nav.stops[1].name = "Halle"
+	if h := a.navSaveTrackHelp(); h != "Save as GPX track in a new file, with all 2 points" {
+		t.Errorf("unexpected help %q", h)
+	}
+
+	// The track has all points of the route, without elevation and time, and reads back as such.
+	path := filepath.Join(t.TempDir(), "track.gpx")
+	if err := track.WriteFile(path, a.navTrackFile()); err != nil {
+		t.Fatal(err)
+	}
+	d, err := track.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(d.Tracks) != 1 || d.Tracks[0].Name != "Start → Halle" || len(d.Tracks[0].Segments) != 1 || len(d.Routes) != 0 {
+		t.Fatalf("unexpected file %+v", d)
+	}
+	pts := d.Tracks[0].Segments[0].Points
+	if len(pts) != 2 || !near(pts[0].Pos, a.nav.route.Points[0]) || !near(pts[1].Pos, a.nav.route.Points[1]) ||
+		pts[0].HasEle() || pts[0].HasTime() {
+		t.Errorf("unexpected points %+v", pts)
+	}
+	if f := newOpenFile(path, d); f.editable() {
+		t.Errorf("expected the track file not to be editable")
 	}
 }

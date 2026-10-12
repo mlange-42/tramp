@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/mlange-42/tramp/internal/routing"
@@ -9,7 +10,10 @@ import (
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
-var iconSaveRoute = mustIcon(icons.ContentSave)
+var (
+	iconSaveRoute = mustIcon(icons.EditorLinearScale)
+	iconSaveTrack = mustIcon(icons.ContentGesture)
+)
 
 // maxDevicePoints is the largest number of points of a route that many handheld devices take.
 const maxDevicePoints = 250
@@ -112,6 +116,38 @@ func (a *App) saveNavRoute() {
 	})
 }
 
+// navTrackFile returns the route as a GPX file with a track of all points of the route.
+func (a *App) navTrackFile() *track.File {
+	n := &a.nav
+	seg := track.Segment{Points: make([]track.Point, len(n.route.Points))}
+	for i, p := range n.route.Points {
+		seg.Points[i] = track.Point{Pos: p, Ele: math.NaN()}
+	}
+	return &track.File{
+		Format:  track.FormatGPX,
+		Creator: track.Creator,
+		Tracks:  []track.Track{{Name: navRouteName(n.navStopNames()), Segments: []track.Segment{seg}}},
+	}
+}
+
+// saveNavTrack saves the route as a GPX track with all its points, in a new file, which is opened.
+// Files with tracks are not edited, so it never goes into the edited file.
+func (a *App) saveNavTrack() {
+	if !a.nav.navSavable() {
+		return
+	}
+	data := a.navTrackFile()
+	a.createFile("Save track", fileName(data.Tracks[0].Name)+".gpx", data, func(f *openFile) {
+		for _, it := range f.items {
+			if it.kind == trackItem {
+				a.selected = it
+				a.tracksChanged = true
+				break
+			}
+		}
+	})
+}
+
 // fileName returns name without the characters that are not allowed in file names on some systems,
 // and with the arrow of route names as a dash.
 func fileName(name string) string {
@@ -147,6 +183,15 @@ func (a *App) navSaveHelp() string {
 		where = a.editing.name
 	}
 	return fmt.Sprintf("Save as GPX route in %s, with %s", where, count(n.saveCount, "point"))
+}
+
+// navSaveTrackHelp returns the tooltip of the button for saving the route as track.
+func (a *App) navSaveTrackHelp() string {
+	n := &a.nav
+	if !n.navSavable() {
+		return "Save as GPX track, once the route is found"
+	}
+	return fmt.Sprintf("Save as GPX track in a new file, with all %s", count(len(n.route.Points), "point"))
 }
 
 // navSaveWarning returns a warning about the number of points of the saved route, or an empty string.

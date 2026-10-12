@@ -52,9 +52,9 @@ type navigator struct {
 	// btn opens and closes the panel, from the toolbar.
 	btn iconButton
 	// closeBtn closes the panel, clearBtn removes the route, swapBtn reverses it, viaBtn adds a via point,
-	// saveBtn saves it as GPX route, and profileBtns select the profile.
-	closeBtn, clearBtn, swapBtn, viaBtn, saveBtn iconButton
-	profileBtns                                  []iconButton
+	// saveBtn saves it as GPX route, saveTrackBtn as GPX track, and profileBtns select the profile.
+	closeBtn, clearBtn, swapBtn, viaBtn, saveBtn, saveTrackBtn iconButton
+	profileBtns                                                []iconButton
 	// profile is the index of the selected profile in [routing.Profiles].
 	profile int
 	// report opens the page for reporting map errors.
@@ -229,6 +229,9 @@ func (a *App) updateNav(gtx layout.Context, events []mapview.PointerEvent) []map
 	}
 	if n.saveBtn.Clicked(gtx) && !n.dragging {
 		a.saveNavRoute()
+	}
+	if n.saveTrackBtn.Clicked(gtx) && !n.dragging {
+		a.saveNavTrack()
 	}
 	if n.report.Clicked(gtx) {
 		openURL(routing.FixTheMapURL)
@@ -856,7 +859,7 @@ func (a *App) layoutNavContent(gtx layout.Context) layout.Dimensions {
 	gap := layout.Rigid(layout.Spacer{Height: st.Spacing / 2}.Layout)
 
 	// The panel is at the right edge of the window, so the tooltips extend to the left.
-	for _, b := range []*iconButton{&n.swapBtn, &n.viaBtn, &n.saveBtn, &n.clearBtn, &n.closeBtn} {
+	for _, b := range []*iconButton{&n.swapBtn, &n.viaBtn, &n.saveBtn, &n.saveTrackBtn, &n.clearBtn, &n.closeBtn} {
 		b.tip.right = true
 	}
 	for i := range n.profileBtns {
@@ -884,6 +887,10 @@ func (a *App) layoutNavContent(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(layout.Spacer{Width: 1}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return n.saveBtn.Layout(gtx, st, iconSaveRoute, a.navSaveHelp(), n.navSavable(), false)
+			}),
+			layout.Rigid(layout.Spacer{Width: 1}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return n.saveTrackBtn.Layout(gtx, st, iconSaveTrack, a.navSaveTrackHelp(), n.navSavable(), false)
 			}),
 			layout.Rigid(layout.Spacer{Width: 1}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
