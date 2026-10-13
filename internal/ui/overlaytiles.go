@@ -9,8 +9,8 @@ import (
 )
 
 // timeKeep is the number of times of an overlay whose tiles are kept in memory, besides the shown one.
-// The times loaded in the background are kept in any case.
-const timeKeep = 4
+// The times loaded in the background are kept in any case. See [App.updateCapacity] for their memory.
+const timeKeep = 12
 
 // timeTiles are the tiles of an overlay for a time that is not shown, kept for showing it again,
 // or loaded in the background for the next step of the time control.

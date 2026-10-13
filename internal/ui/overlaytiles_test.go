@@ -1,11 +1,15 @@
 package ui
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"image"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/tiles"
 	"github.com/mlange-42/tramp/internal/wms"
 )
@@ -91,10 +95,62 @@ func TestPruneTimes(t *testing.T) {
 		values = append(values, x.value)
 	}
 	// The least recently shown are dropped, the ones loaded in the background are kept.
-	if fmt.Sprint(values) != "[2 3 4 5 p]" || o.fallback != nil {
+	var want []string
+	for i := 2; i < timeKeep+2; i++ {
+		want = append(want, fmt.Sprint(i))
+	}
+	want = append(want, "p")
+	if fmt.Sprint(values) != fmt.Sprint(want) || o.fallback != nil {
 		t.Errorf("unexpected kept times %v", values)
 	}
 	for _, m := range o.allTiles() {
 		m.Close()
 	}
+}
+
+func TestTimeCapacity(t *testing.T) {
+	a := newApp(func() {}, Options{
+		Maps:     []Map{{Layer: wms.Layer{Name: "None", Type: wms.TypeNone}}},
+		Overlays: []Overlay{{Layer: wms.Layer{Name: "A", URL: "https://example.com"}}},
+	})
+	defer a.closeTiles()
+	a.tileCache = 128 // MB, 512 tiles
+	newManager := func() *tiles.Manager { return tiles.NewManager(failFetcher{}, tiles.Options{Workers: 1}) }
+	o := &a.overlays[0]
+	o.tiles = newManager()
+	var keys []geo.TileKey
+	for x := range 40 {
+		keys = append(keys, geo.TileKey{Z: 6, X: x})
+	}
+	o.tiles.Request(keys)
+
+	// Kept times get twice the visible tiles each.
+	for range 2 {
+		o.others = append(o.others, &timeTiles{tiles: newManager()})
+	}
+	a.updateCapacity()
+	if c := o.others[0].tiles.Capacity(); c != 80 {
+		t.Errorf("kept time capacity %d, want 80", c)
+	}
+	if c := o.tiles.Capacity(); c != 512-160 {
+		t.Errorf("shown capacity %d, want %d", c, 512-160)
+	}
+	// Together at most half of the cache.
+	for range 6 {
+		o.others = append(o.others, &timeTiles{tiles: newManager()})
+	}
+	a.updateCapacity()
+	if c := o.others[0].tiles.Capacity(); c != 32 {
+		t.Errorf("kept time capacity %d, want 32", c)
+	}
+	if c := o.tiles.Capacity(); c != 256 {
+		t.Errorf("shown capacity %d, want 256", c)
+	}
+}
+
+// failFetcher fails to load any tile.
+type failFetcher struct{}
+
+func (failFetcher) Fetch(context.Context, geo.TileKey) (image.Image, error) {
+	return nil, errors.New("no tiles")
 }

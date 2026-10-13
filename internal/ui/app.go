@@ -430,24 +430,44 @@ func (a *App) setOverlay(i int, enabled bool) {
 	a.updateCapacity()
 }
 
-// updateCapacity splits the tile cache evenly between the visible layers.
+// updateCapacity splits the tile cache between the visible layers. The kept times of overlays that change
+// over time get room for about the visible tiles each, at most half of the cache together,
+// and the rest is split evenly between the shown tiles of the layers.
 func (a *App) updateCapacity() {
 	if a.tileCache <= 0 {
 		// Use the tile manager's default.
 		return
 	}
-	var managers []*tiles.Manager
+	var shown, kept []*tiles.Manager
 	if a.tiles != nil {
-		managers = append(managers, a.tiles)
+		shown = append(shown, a.tiles)
 	}
+	perTime := minTimeCapacity
 	for _, o := range a.overlays {
-		managers = append(managers, o.allTiles()...)
+		if o.tiles == nil {
+			continue
+		}
+		shown = append(shown, o.tiles)
+		for _, t := range o.others {
+			kept = append(kept, t.tiles)
+		}
+		perTime = max(perTime, 2*len(o.tiles.Wanted()))
 	}
 	capacity := (a.tileCache << 20) / tiles.TileBytes
-	for _, m := range managers {
-		m.SetCapacity(capacity / len(managers))
+	if len(kept) > 0 {
+		perTime = min(perTime, capacity/2/len(kept))
+		capacity -= perTime * len(kept)
+	}
+	for _, m := range kept {
+		m.SetCapacity(perTime)
+	}
+	for _, m := range shown {
+		m.SetCapacity(capacity / len(shown))
 	}
 }
+
+// minTimeCapacity is the least number of tiles kept for each kept time of an overlay, see [App.updateCapacity].
+const minTimeCapacity = 64
 
 func (a *App) update(gtx layout.Context) {
 	if a.layerSelect.Update(gtx) {

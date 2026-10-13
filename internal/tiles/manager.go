@@ -124,6 +124,13 @@ func (m *Manager) SetCapacity(n int) {
 	m.evict()
 }
 
+// Capacity returns the maximum number of tiles kept in memory.
+func (m *Manager) Capacity() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.opts.Capacity
+}
+
 // Get returns the tile if it is in the cache, and marks it as recently used.
 func (m *Manager) Get(key geo.TileKey) (*Tile, bool) {
 	m.mu.Lock()
