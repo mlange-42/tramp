@@ -25,6 +25,8 @@ type Fetcher interface {
 type Tile struct {
 	Key geo.TileKey
 	Op  paint.ImageOp
+	// gen is the generation of the manager when the tile was loaded, see [Manager.Refresh].
+	gen int
 }
 
 // Options configure a [Manager].
@@ -54,7 +56,7 @@ func DefaultOptions() Options {
 // Manager loads tiles with a pool of workers and caches them with LRU eviction.
 //
 // The map view calls [Manager.Get] for tiles it wants to draw and
-// [Manager.Request] once per frame with the tiles still missing.
+// [Manager.Request] once per frame with all tiles it wants.
 // Requests that are no longer wanted are dropped from the queue.
 type Manager struct {
 	fetcher Fetcher
@@ -69,8 +71,10 @@ type Manager struct {
 	queue    []geo.TileKey
 	inflight map[geo.TileKey]struct{}
 	failed   map[geo.TileKey]time.Time
-	closed   bool
-	wg       sync.WaitGroup
+	// gen is increased by [Manager.Refresh]. Cached tiles of older generations are loaded again.
+	gen    int
+	closed bool
+	wg     sync.WaitGroup
 }
 
 // NewManager creates a manager and starts its workers.
@@ -132,14 +136,17 @@ func (m *Manager) Get(key geo.TileKey) (*Tile, bool) {
 
 // Request replaces the download queue with the given tiles, in order of priority.
 // Tiles that are cached, already loading or failed recently are skipped.
+// Cached tiles from before the last [Manager.Refresh] are loaded again, after the missing tiles.
 func (m *Manager) Request(keys []geo.TileKey) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	now := time.Now()
 	m.queue = m.queue[:0]
+	var stale []geo.TileKey
 	for _, k := range keys {
-		if _, ok := m.cache[k]; ok {
+		el, cached := m.cache[k]
+		if cached && el.Value.(*Tile).gen == m.gen {
 			continue
 		}
 		if _, ok := m.inflight[k]; ok {
@@ -151,11 +158,25 @@ func (m *Manager) Request(keys []geo.TileKey) {
 			}
 			delete(m.failed, k)
 		}
-		m.queue = append(m.queue, k)
+		if cached {
+			stale = append(stale, k)
+		} else {
+			m.queue = append(m.queue, k)
+		}
 	}
+	m.queue = append(m.queue, stale...)
 	if len(m.queue) > 0 {
 		m.wake.Broadcast()
 	}
+}
+
+// Refresh marks all cached tiles as outdated, for layers that change over time.
+// They are still returned by [Manager.Get] until they are loaded again on request.
+func (m *Manager) Refresh() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.gen++
+	clear(m.failed)
 }
 
 // Loading returns the number of tiles currently queued or downloading.
@@ -180,11 +201,11 @@ func (m *Manager) Close() {
 func (m *Manager) work() {
 	defer m.wg.Done()
 	for {
-		key, ok := m.next()
+		key, gen, ok := m.next()
 		if !ok {
 			return
 		}
-		tile, err := m.load(key)
+		tile, err := m.load(key, gen)
 
 		m.mu.Lock()
 		delete(m.inflight, key)
@@ -204,23 +225,24 @@ func (m *Manager) work() {
 	}
 }
 
-// next blocks until a tile is queued, and marks it as in flight.
-func (m *Manager) next() (geo.TileKey, bool) {
+// next blocks until a tile is queued, and marks it as in flight. It returns the current generation.
+func (m *Manager) next() (geo.TileKey, int, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for len(m.queue) == 0 && !m.closed {
 		m.wake.Wait()
 	}
 	if m.closed {
-		return geo.TileKey{}, false
+		return geo.TileKey{}, 0, false
 	}
 	key := m.queue[0]
 	m.queue = m.queue[1:]
 	m.inflight[key] = struct{}{}
-	return key, true
+	return key, m.gen, true
 }
 
-func (m *Manager) load(key geo.TileKey) (*Tile, error) {
+// load fetches a tile, and stamps it with the generation it was requested in.
+func (m *Manager) load(key geo.TileKey, gen int) (*Tile, error) {
 	ctx, cancel := context.WithTimeout(m.ctx, m.opts.Timeout)
 	defer cancel()
 
@@ -229,7 +251,7 @@ func (m *Manager) load(key geo.TileKey) (*Tile, error) {
 		return nil, err
 	}
 	// Converts to RGBA off the UI goroutine.
-	return &Tile{Key: key, Op: paint.NewImageOp(img)}, nil
+	return &Tile{Key: key, Op: paint.NewImageOp(img), gen: gen}, nil
 }
 
 // insert adds a tile to the cache. The caller must hold the lock.

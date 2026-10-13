@@ -14,12 +14,12 @@ import (
 
 type fakeFetcher struct {
 	calls atomic.Int32
-	fail  bool
+	fail  atomic.Bool
 }
 
 func (f *fakeFetcher) Fetch(ctx context.Context, key geo.TileKey) (image.Image, error) {
 	f.calls.Add(1)
-	if f.fail {
+	if f.fail.Load() {
 		return nil, errors.New("failed")
 	}
 	return image.NewRGBA(image.Rect(0, 0, 2, 2)), nil
@@ -94,7 +94,8 @@ func TestManagerSetCapacity(t *testing.T) {
 }
 
 func TestManagerFailedNotRetried(t *testing.T) {
-	f := &fakeFetcher{fail: true}
+	f := &fakeFetcher{}
+	f.fail.Store(true)
 	m := NewManager(f, Options{Workers: 1, RetryAfter: time.Hour})
 	defer m.Close()
 
@@ -104,5 +105,45 @@ func TestManagerFailedNotRetried(t *testing.T) {
 	m.Request([]geo.TileKey{k})
 	if m.Loading() != 0 {
 		t.Error("failed tile should not be queued again before RetryAfter")
+	}
+}
+
+func TestManagerRefresh(t *testing.T) {
+	f := &fakeFetcher{}
+	m := NewManager(f, Options{Workers: 1, RetryAfter: time.Hour})
+	defer m.Close()
+
+	a, b := geo.TileKey{Z: 4, X: 1}, geo.TileKey{Z: 4, X: 2}
+	m.Request([]geo.TileKey{a})
+	waitFor(t, func() bool { _, ok := m.Get(a); return ok })
+	old, _ := m.Get(a)
+
+	// The outdated tile is still drawn, and loaded again after the missing one.
+	m.Refresh()
+	if tile, ok := m.Get(a); !ok || tile != old {
+		t.Fatal("outdated tile should stay cached until it is replaced")
+	}
+	m.Request([]geo.TileKey{a, b})
+	waitFor(t, func() bool { return m.Loading() == 0 && f.calls.Load() == 3 })
+	if tile, _ := m.Get(a); tile == old {
+		t.Error("outdated tile was not replaced")
+	}
+	// Fresh tiles are not requested again.
+	m.Request([]geo.TileKey{a, b})
+	if m.Loading() != 0 {
+		t.Error("fresh tiles should not be queued")
+	}
+
+	// If loading fails, the outdated tile is kept and not retried before RetryAfter.
+	f.fail.Store(true)
+	m.Refresh()
+	m.Request([]geo.TileKey{a})
+	waitFor(t, func() bool { return m.Loading() == 0 && f.calls.Load() == 4 })
+	if _, ok := m.Get(a); !ok {
+		t.Error("outdated tile should be kept if loading fails")
+	}
+	m.Request([]geo.TileKey{a})
+	if m.Loading() != 0 {
+		t.Error("failed refresh should not be retried before RetryAfter")
 	}
 }

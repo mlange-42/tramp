@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/mlange-42/tramp/internal/wms"
 	"go.yaml.in/yaml/v3"
@@ -39,7 +40,13 @@ type Overlay struct {
 	Opacity float32 `yaml:"opacity,omitempty"`
 	// Shade converts a grayscale relief image into a transparent shading.
 	Shade bool `yaml:"shade,omitempty"`
+	// Refresh is the interval for loading the tiles again, for layers that change over time like
+	// weather radar. Zero means never. Such layers are not stored in the disk cache.
+	Refresh time.Duration `yaml:"refresh,omitempty"`
 }
+
+// MinRefresh is the shortest interval for loading an overlay again, see [Overlay.Refresh].
+const MinRefresh = time.Minute
 
 // sectionEntry is how section headings are written, without the empty layer fields.
 type sectionEntry struct {
@@ -125,6 +132,9 @@ const (
 	bkgURL       = "https://sgx.geodatenzentrum.de"
 	cyclosmURL   = "https://a.tile-cyclosm.openstreetmap.fr"
 	waymarkedURL = "https://tile.waymarkedtrails.org"
+	dwdURL       = "https://maps.dwd.de/geoserver/ows"
+	// dwdWorkspaceURL is the start of the addresses of the services for single layers.
+	dwdWorkspaceURL = "https://maps.dwd.de/geoserver/dwd/"
 
 	osmAttribution       = "© OpenStreetMap contributors"
 	eoxOSMAttribution    = "Data © OpenStreetMap contributors and others, Rendering © EOX"
@@ -132,11 +142,14 @@ const (
 	basemapAttribution   = "© basemap.de / BKG, Datenquellen: © GeoBasis-DE"
 	cyclosmAttribution   = osmAttribution + ", Style CyclOSM, Tiles OpenStreetMap France"
 	waymarkedAttribution = osmAttribution + ", Overlay © waymarkedtrails.org"
+	dwdAttribution       = "Data © Deutscher Wetterdienst (DWD), CC BY 4.0"
 
 	// osmShort is the short credit of OpenStreetMap data, shared by many layers.
 	osmShort = "© OpenStreetMap"
 	// osmCopyrightURL is the page with the license and the credits of OpenStreetMap.
 	osmCopyrightURL = "https://www.openstreetmap.org/copyright"
+	// dwdCopyrightURL is the page with the terms of use of the Deutscher Wetterdienst, linked from its WMS.
+	dwdCopyrightURL = "https://www.dwd.de/copyright"
 )
 
 // DefaultOverlays are the built-in overlays, in drawing order, with section headings.
@@ -223,6 +236,36 @@ func DefaultOverlays() []Overlay {
 				AttributionURL:   "https://www.cyclosm.org",
 			},
 		},
+		{Section: "Weather"},
+		{
+			// Gray outside the radar coverage.
+			Layer: dwdLayer("Precipitation radar", "Niederschlagsradar", 11,
+				"Rain and snow from the weather radar, every 5 minutes. Germany and surroundings."),
+			Opacity: 0.7,
+			Refresh: 5 * time.Minute,
+		},
+		{
+			Layer: dwdLayer("Weather warnings", "Warnungen_Gemeinden_vereinigt", 12,
+				"Current official weather warnings for municipalities. Germany only."),
+			Refresh: 10 * time.Minute,
+		},
+		{
+			Layer: dwdLayer("Wind 10 m", "Icon_reg025_fd_sl_UV10M", 0,
+				"Forecast wind barbs at 10 m above ground, from the ICON model. Worldwide."),
+			Refresh: 30 * time.Minute,
+		},
+		{
+			Layer: dwdLayer("Precipitation 1 h", "Icon-eu_reg00625_fd_sl_TOTPREC01H", 9,
+				"Forecast precipitation in the hour up to the shown time, from the ICON-EU model. Europe."),
+			Opacity: 0.6,
+			Refresh: 30 * time.Minute,
+		},
+		{
+			Layer: dwdLayer("Precipitation 6 h", "Icon_reg025_fd_sl_TOTPREC06H", 8,
+				"Forecast precipitation in the 6 hours up to the shown time, from the ICON model. Worldwide."),
+			Opacity: 0.6,
+			Refresh: 30 * time.Minute,
+		},
 		{Section: "Labels"},
 		{
 			// Dark labels, for bright maps.
@@ -252,6 +295,24 @@ func DefaultOverlays() []Overlay {
 				AttributionURL:   "https://maps.eox.at",
 			},
 		},
+	}
+}
+
+// dwdLayer returns a layer of the WMS of the Deutscher Wetterdienst.
+func dwdLayer(name, layer string, maxZoom int, description string) wms.Layer {
+	return wms.Layer{
+		Name:        name,
+		Description: description,
+		URL:         dwdURL,
+		Layers:      "dwd:" + layer,
+		// The capabilities of the single layer are much smaller than those of the whole service.
+		Capabilities:     dwdWorkspaceURL + layer + "/ows",
+		Format:           "image/png",
+		Version:          "1.3.0",
+		MaxZoom:          maxZoom,
+		Attribution:      dwdAttribution,
+		AttributionShort: "© DWD",
+		AttributionURL:   dwdCopyrightURL,
 	}
 }
 

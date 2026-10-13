@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/mlange-42/tramp/internal/diskcache"
@@ -28,6 +29,9 @@ type WMSFetcher struct {
 	// MaxAge is the age after which a stored image is checked with the server.
 	// Older images are still used if the server can't be reached.
 	MaxAge time.Duration
+
+	// layer replaces Layer after [WMSFetcher.SetLayer].
+	layer atomic.Pointer[wms.Layer]
 
 	once sync.Once
 	// dir is the directory of the layer in the cache, and ext the file extension of the images.
@@ -56,7 +60,7 @@ func (f *WMSFetcher) Fetch(ctx context.Context, key geo.TileKey) (image.Image, e
 // fetch returns the image data from the cache, or from the server if it is not stored or too old.
 func (f *WMSFetcher) fetch(ctx context.Context, key geo.TileKey) ([]byte, error) {
 	if f.Cache == nil {
-		d, err := f.Client.GetTileData(ctx, f.Layer, key, time.Time{})
+		d, err := f.Client.GetTileData(ctx, f.CurrentLayer(), key, time.Time{})
 		return d.Body, err
 	}
 	f.once.Do(f.initCache)
@@ -71,7 +75,7 @@ func (f *WMSFetcher) fetch(ctx context.Context, key geo.TileKey) ([]byte, error)
 	if ok {
 		since = mod
 	}
-	d, err := f.Client.GetTileData(ctx, f.Layer, key, since)
+	d, err := f.Client.GetTileData(ctx, f.CurrentLayer(), key, since)
 	if errors.Is(err, wms.ErrNotModified) {
 		if err := f.Cache.Touch(ck); err != nil {
 			log.Printf("tile cache: %v", err)
@@ -91,6 +95,21 @@ func (f *WMSFetcher) fetch(ctx context.Context, key geo.TileKey) ([]byte, error)
 		}
 	}
 	return d.Body, nil
+}
+
+// SetLayer replaces the layer for later requests, like with another time.
+// Loaded tiles are kept, see [Manager.Refresh]. The disk cache still uses the original layer,
+// so it is meant for fetchers without a cache.
+func (f *WMSFetcher) SetLayer(l *wms.Layer) {
+	f.layer.Store(l)
+}
+
+// CurrentLayer returns the layer for requests, see [WMSFetcher.SetLayer].
+func (f *WMSFetcher) CurrentLayer() *wms.Layer {
+	if l := f.layer.Load(); l != nil {
+		return l
+	}
+	return f.Layer
 }
 
 // initCache determines the directory of the layer in the cache, and writes the description of the layer there.

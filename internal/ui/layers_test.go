@@ -5,7 +5,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/mlange-42/tramp/internal/wms"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -61,6 +63,7 @@ overlays:
   - section: Other
   - name: E
     url: https://e.example.com
+    refresh: 5m
 `
 	var got WMSConfig
 	if err := yaml.Unmarshal([]byte(data), &got); err != nil {
@@ -68,7 +71,8 @@ overlays:
 	}
 	maps, mapSections := splitSections(got.Maps, func(m Map) (string, string) { return m.Section, m.Layer.Name })
 	overlays, overlaySections := splitSections(got.Overlays, func(o Overlay) (string, Overlay) { return o.Section, o })
-	if !slices.Equal(maps, []string{"A", "B", "C"}) || len(overlays) != 2 || overlays[0].Opacity != 0.5 {
+	if !slices.Equal(maps, []string{"A", "B", "C"}) || len(overlays) != 2 || overlays[0].Opacity != 0.5 ||
+		overlays[1].Refresh != 5*time.Minute {
 		t.Errorf("unexpected layers %v %+v", maps, overlays)
 	}
 	wantMaps := []Section{{0, "Germany"}, {2, "World"}, {2, "Global"}}
@@ -84,5 +88,19 @@ overlays:
 		if err := yaml.Unmarshal([]byte(bad), new(WMSConfig)); err == nil {
 			t.Errorf("expected error for %q", bad)
 		}
+	}
+}
+
+func TestOverlayRefreshYAML(t *testing.T) {
+	data, err := yaml.Marshal(Overlay{Layer: wms.Layer{Name: "Radar"}, Refresh: 5 * time.Minute})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "refresh: 5m0s") {
+		t.Errorf("unexpected refresh in:\n%s", data)
+	}
+	var o Overlay
+	if err := yaml.Unmarshal(data, &o); err != nil || o.Refresh != 5*time.Minute {
+		t.Errorf("got %v, %v", o.Refresh, err)
 	}
 }
