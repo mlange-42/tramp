@@ -104,3 +104,47 @@ func TestOverlayRefreshYAML(t *testing.T) {
 		t.Errorf("got %v, %v", o.Refresh, err)
 	}
 }
+
+func TestWMSConfigWithoutDisabled(t *testing.T) {
+	data := `
+maps:
+  - section: Germany
+  - name: A
+    url: https://a.example.com
+    enabled: false
+  - section: World
+  - name: B
+    url: https://b.example.com
+  - name: C
+    url: https://c.example.com
+    enabled: false
+  - section: Empty
+overlays:
+  - name: D
+    url: https://d.example.com
+    enabled: true
+  - name: E
+    url: https://e.example.com
+    enabled: false
+`
+	var cfg WMSConfig
+	if err := yaml.Unmarshal([]byte(data), &cfg); err != nil {
+		t.Fatal(err)
+	}
+	got := cfg.WithoutDisabled()
+	var names []string
+	for _, m := range got.Maps {
+		names = append(names, m.Section+m.Layer.Name)
+	}
+	// The section of only disabled maps is dropped, an empty one is kept as before.
+	if !slices.Equal(names, []string{"World", "B", "Empty"}) {
+		t.Errorf("unexpected maps %v", names)
+	}
+	if len(got.Overlays) != 1 || got.Overlays[0].Layer.Name != "D" {
+		t.Errorf("unexpected overlays %+v", got.Overlays)
+	}
+	// The configuration itself is unchanged, so that it is saved with the disabled layers.
+	if len(cfg.Maps) != 6 || len(cfg.Overlays) != 2 {
+		t.Error("configuration was changed")
+	}
+}

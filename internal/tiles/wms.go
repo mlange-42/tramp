@@ -33,6 +33,9 @@ type WMSFetcher struct {
 	// layer replaces Layer after [WMSFetcher.SetLayer].
 	layer atomic.Pointer[wms.Layer]
 
+	// metas are the recent meta tiles, see [wms.Layer.MetaTiles].
+	metas metaCache
+
 	once sync.Once
 	// dir is the directory of the layer in the cache, and ext the file extension of the images.
 	dir, ext string
@@ -41,13 +44,28 @@ type WMSFetcher struct {
 // LayerInfo is the name of the file in the directory of a layer in the cache that describes the layer.
 const LayerInfo = "layer.yaml"
 
-// Fetch implements [Fetcher].
+// Fetch implements [Fetcher]. For layers with meta tiles, the tiles of a meta tile share one download.
 func (f *WMSFetcher) Fetch(ctx context.Context, key geo.TileKey) (image.Image, error) {
-	data, err := f.fetch(ctx, key)
-	if err != nil {
-		return nil, err
+	layer := f.CurrentLayer()
+	first, n := layer.MetaTile(key)
+	u := layer.MetaURL(first, n)
+	load := func() (image.Image, error) {
+		data, err := f.fetch(ctx, u, first, n)
+		if err != nil {
+			return nil, err
+		}
+		return wms.Decode(data)
 	}
-	img, err := wms.Decode(data)
+	var img image.Image
+	var err error
+	if n > 1 {
+		img, err = f.metas.get(ctx, u, load)
+		if err == nil {
+			img = cropTile(img, first, key, n)
+		}
+	} else {
+		img, err = load()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -57,15 +75,21 @@ func (f *WMSFetcher) Fetch(ctx context.Context, key geo.TileKey) (image.Image, e
 	return img, nil
 }
 
-// fetch returns the image data from the cache, or from the server if it is not stored or too old.
-func (f *WMSFetcher) fetch(ctx context.Context, key geo.TileKey) ([]byte, error) {
+// Refresh drops the kept meta tiles, so that they are downloaded again. It is called by [Manager.Refresh].
+func (f *WMSFetcher) Refresh() {
+	f.metas.clear()
+}
+
+// fetch returns the image data of the n×n tiles starting at first from the cache,
+// or from the server at u if it is not stored or too old.
+func (f *WMSFetcher) fetch(ctx context.Context, u string, first geo.TileKey, n int) ([]byte, error) {
 	if f.Cache == nil {
-		d, err := f.Client.GetTileData(ctx, f.CurrentLayer(), key, time.Time{})
+		d, err := f.Client.GetData(ctx, u, time.Time{})
 		return d.Body, err
 	}
 	f.once.Do(f.initCache)
 
-	ck := f.cacheKey(key)
+	ck := f.cacheKey(first, n)
 	cached, mod, ok := f.Cache.Get(ck)
 	ok = ok && len(cached) > 0
 	if ok && time.Since(mod) < f.MaxAge {
@@ -75,7 +99,7 @@ func (f *WMSFetcher) fetch(ctx context.Context, key geo.TileKey) ([]byte, error)
 	if ok {
 		since = mod
 	}
-	d, err := f.Client.GetTileData(ctx, f.CurrentLayer(), key, since)
+	d, err := f.Client.GetData(ctx, u, since)
 	if errors.Is(err, wms.ErrNotModified) {
 		if err := f.Cache.Touch(ck); err != nil {
 			log.Printf("tile cache: %v", err)
@@ -126,8 +150,14 @@ func (f *WMSFetcher) initCache() {
 	}
 }
 
-func (f *WMSFetcher) cacheKey(key geo.TileKey) string {
-	return f.dir + "/" + strconv.Itoa(key.Z) + "/" + strconv.Itoa(key.X) + "/" + strconv.Itoa(key.Y) + f.ext
+// cacheKey returns the path in the cache of the n×n tiles starting at first.
+// Meta tiles are stored by their first tile, with the size appended like "4/8/8-m4.png".
+func (f *WMSFetcher) cacheKey(first geo.TileKey, n int) string {
+	name := f.dir + "/" + strconv.Itoa(first.Z) + "/" + strconv.Itoa(first.X) + "/" + strconv.Itoa(first.Y)
+	if n > 1 {
+		name += "-m" + strconv.Itoa(n)
+	}
+	return name + f.ext
 }
 
 // imageExt returns the file extension of the images of a layer, like ".png", or "" if not known.

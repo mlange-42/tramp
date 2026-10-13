@@ -172,11 +172,15 @@ func (m *Manager) Request(keys []geo.TileKey) {
 
 // Refresh marks all cached tiles as outdated, for layers that change over time.
 // They are still returned by [Manager.Get] until they are loaded again on request.
+// If the fetcher has a Refresh method, it is called too, for dropping its own cached data.
 func (m *Manager) Refresh() {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 	m.gen++
 	clear(m.failed)
+	m.mu.Unlock()
+	if r, ok := m.fetcher.(interface{ Refresh() }); ok {
+		r.Refresh()
+	}
 }
 
 // Loading returns the number of tiles currently queued or downloading.
