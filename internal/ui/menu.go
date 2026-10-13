@@ -35,6 +35,8 @@ type menu struct {
 	panel int
 	// btns are the clickables of the items, in item order.
 	btns []widget.Clickable
+	// bounds is the area of the header in the menu bar, at the last layout.
+	bounds image.Rectangle
 }
 
 // menuItemGap is the space between the label and the shortcut of an item.
@@ -56,6 +58,8 @@ func newMenuBar(titles ...string) menuBar {
 // update handles clicks on the headers and items, and outside open lists.
 // items returns the items of each menu, in the order of the titles.
 func (b *menuBar) update(gtx layout.Context, items [][]menuItem) {
+	// A click on another header while a list is open is caught outside the list, and opens that menu.
+	var next *menu
 	for i, m := range b.menus {
 		if m.header.Clicked(gtx) {
 			m.open = !m.open
@@ -66,10 +70,17 @@ func (b *menuBar) update(gtx layout.Context, items [][]menuItem) {
 			}
 		}
 		for {
-			if _, ok := gtx.Event(pointer.Filter{Target: m, Kinds: pointer.Press}); !ok {
+			ev, ok := gtx.Event(pointer.Filter{Target: m, Kinds: pointer.Press})
+			if !ok {
 				break
 			}
 			m.open = false
+			if e, ok := ev.(pointer.Event); ok {
+				// The position is relative to the header of m.
+				if o := b.headerAt(m.bounds.Min.Add(e.Position.Round())); o != nil && o != m {
+					next = o
+				}
+			}
 		}
 		// The list takes presses, so that they don't reach the widgets below.
 		for {
@@ -88,14 +99,32 @@ func (b *menuBar) update(gtx layout.Context, items [][]menuItem) {
 			}
 		}
 	}
+	if next != nil {
+		next.open = true
+	}
+}
+
+// headerAt returns the menu with the header at a position in the menu bar, or nil.
+func (b *menuBar) headerAt(p image.Point) *menu {
+	for _, m := range b.menus {
+		if p.In(m.bounds) {
+			return m
+		}
+	}
+	return nil
 }
 
 // layout draws the headers, and the list of the open menu.
 func (b *menuBar) layout(gtx layout.Context, st *Style, items [][]menuItem) layout.Dimensions {
 	children := make([]layout.FlexChild, len(b.menus))
+	// The headers are laid out in order, all as high as the bar.
+	x := 0
 	for i, m := range b.menus {
 		children[i] = layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return m.layout(gtx, st, items[i])
+			dims := m.layout(gtx, st, items[i])
+			m.bounds = image.Rectangle{Min: image.Pt(x, 0), Max: image.Pt(x+dims.Size.X, dims.Size.Y)}
+			x += dims.Size.X
+			return dims
 		})
 	}
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
