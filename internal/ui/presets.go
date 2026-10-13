@@ -40,7 +40,8 @@ func DefaultPresets() PresetConfig {
 	return PresetConfig{Presets: []Preset{
 		{Name: "Hiking", Map: "OpenTopoMap", Overlays: []string{hillshade, "Hiking routes"}},
 		{Name: "Cycling", Map: "CyclOSM", Overlays: []string{hillshade, "Cycling routes"}},
-		{Name: "Weather", Map: "Natural Earth", Overlays: []string{"Precipitation radar", "Weather warnings", "Borders & places"}},
+		{Name: "Weather now", Map: "Natural Earth", Overlays: []string{"Precipitation radar", "Weather warnings", "Borders & places"}},
+		{Name: "Weather & wind forecast", Map: "Natural Earth", Overlays: []string{"Wind 10m", "Precipitation 1h", "Borders & places"}},
 		{Name: "Satellite", Map: "Satellite", Overlays: []string{"Labels & roads (bright)"}},
 	}}
 }

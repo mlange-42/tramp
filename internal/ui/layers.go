@@ -291,18 +291,18 @@ func DefaultOverlays() []Overlay {
 			Refresh: 10 * time.Minute,
 		},
 		{
-			Layer: dwdLayer("Wind 10 m", "Icon_reg025_fd_sl_UV10M", 0,
-				"Forecast wind barbs at 10 m above ground, from the ICON model. Worldwide."),
+			Layer: dwdLayer("Wind 10m", "Icon_reg025_fd_sl_UV10M", 0,
+				"Forecast wind barbs at 10m above ground, from the ICON model. Worldwide."),
 			Refresh: 30 * time.Minute,
 		},
 		{
-			Layer: dwdLayer("Precipitation 1 h", "Icon-eu_reg00625_fd_sl_TOTPREC01H", 9,
+			Layer: dwdLayer("Precipitation 1h", "Icon-eu_reg00625_fd_sl_TOTPREC01H", 9,
 				"Forecast precipitation in the hour up to the shown time, from the ICON-EU model. Europe."),
 			Opacity: 0.6,
 			Refresh: 30 * time.Minute,
 		},
 		{
-			Layer: dwdLayer("Precipitation 6 h", "Icon_reg025_fd_sl_TOTPREC06H", 8,
+			Layer: dwdLayer("Precipitation 6h", "Icon_reg025_fd_sl_TOTPREC06H", 8,
 				"Forecast precipitation in the 6 hours up to the shown time, from the ICON model. Worldwide."),
 			Opacity: 0.6,
 			Refresh: 30 * time.Minute,
