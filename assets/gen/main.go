@@ -1,7 +1,8 @@
-// Command gen renders ../logo.svg to the Windows icon ../tramp.ico.
+// Command gen renders ../logo.svg to the Windows icon ../tramp.ico,
+// and ../social.svg to ../social.png for the About window.
 //
-// Run it with go generate in the assets package. It needs Inkscape to render the SVG,
-// either on the PATH or in its default install location. The icon is committed,
+// Run it with go generate in the assets package. It needs Inkscape to render the SVGs,
+// either on the PATH or in its default install location. The results are committed,
 // so building TRAMP does not need Inkscape.
 package main
 
@@ -15,6 +16,9 @@ import (
 	"path/filepath"
 	"strings"
 )
+
+// Size of the rendered social preview in pixels, twice the largest size it is shown at in the About window.
+const socialWidth, socialHeight = 960, 480
 
 // sizes are the icon sizes in pixels. 20, 40 and the larger sizes are used at display scaling above 100%.
 var sizes = []int{16, 20, 24, 32, 40, 48, 64, 256}
@@ -47,7 +51,10 @@ func run() (err error) {
 		}
 		images = append(images, data)
 	}
-	return os.WriteFile("tramp.ico", encodeICO(images), 0o644)
+	if err := os.WriteFile("tramp.ico", encodeICO(images), 0o644); err != nil {
+		return err
+	}
+	return export("social.svg", "social.png", socialWidth, socialHeight)
 }
 
 func pngPath(dir string, size int) string {
@@ -66,6 +73,22 @@ func render(svg, dir string) error {
 			fmt.Sprintf("export-width:%d", s), fmt.Sprintf("export-height:%d", s),
 			"export-filename:"+filepath.ToSlash(pngPath(dir, s)), "export-do")
 	}
+	return runInkscape(ink, actions, svg)
+}
+
+// export renders the SVG to a PNG of the given size.
+func export(svg, png string, width, height int) error {
+	ink, err := inkscape()
+	if err != nil {
+		return err
+	}
+	return runInkscape(ink, []string{
+		fmt.Sprintf("export-width:%d", width), fmt.Sprintf("export-height:%d", height),
+		"export-filename:" + png, "export-do",
+	}, svg)
+}
+
+func runInkscape(ink string, actions []string, svg string) error {
 	cmd := exec.Command(ink, "--actions="+strings.Join(actions, ";"), svg)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Run(); err != nil {
