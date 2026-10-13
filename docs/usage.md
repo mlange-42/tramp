@@ -9,8 +9,10 @@ and weather warnings for Germany, and forecasts of wind and precipitation.
 They are loaded again regularly while enabled.
 The time of the shown data is listed in the legend at the bottom left of the map, in local time.
 A click on an overlay there shows its color legend, if the service provides one.
-The arrows above the list step the time of all these overlays by an hour, into the past or the forecast,
-and the clock button goes back to the current time.
+While such an overlay is enabled, a time strip at the bottom of the map selects the time of all of them.
+Its arrows step by an hour, into the past or the forecast, and the clock button goes back to the current time.
+The bar spans the times of all enabled overlays, with the days marked and the current time as a blue line.
+The highlighted part is where all of them have data. A click or drag on the bar jumps to that time.
 Each overlay shows its data closest to the selected time, and *no data* if the time is outside its range.
 The hours before and after the shown one are loaded in the background, and recently shown times are kept,
 so that stepping back and forth is fast.

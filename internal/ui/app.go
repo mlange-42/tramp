@@ -623,8 +623,12 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	a.layoutEditMap(gtx)
 	a.layoutHoverMap(gtx)
 	a.layoutGPSMarker(gtx)
-	a.layoutLegend(gtx)
-	a.layoutGPSButton(gtx)
+	// The legend and the GPS button are above the time strip, if shown.
+	// The directions place them by the minimum constraints, so both shrink.
+	above := gtx
+	above.Constraints = layout.Exact(image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y-a.layoutTimeline(gtx)))
+	a.layoutLegend(above)
+	a.layoutGPSButton(above)
 	a.layoutNavPanel(gtx)
 	return dims
 }

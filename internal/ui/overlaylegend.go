@@ -90,9 +90,6 @@ func (a *App) toggleLegend(i int) {
 func (a *App) overlayLegendRows(gtx layout.Context, maxHeight int) []layout.FlexChild {
 	st := a.style
 	var rows []layout.FlexChild
-	if _, _, ok := a.timeBounds(); ok {
-		rows = append(rows, layout.Rigid(a.layoutTimeControl))
-	}
 	for i := range a.overlays {
 		o := &a.overlays[i]
 		l := &o.legend
