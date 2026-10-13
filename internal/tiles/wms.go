@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/mlange-42/tramp/internal/diskcache"
@@ -30,9 +29,6 @@ type WMSFetcher struct {
 	// Older images are still used if the server can't be reached.
 	MaxAge time.Duration
 
-	// layer replaces Layer after [WMSFetcher.SetLayer].
-	layer atomic.Pointer[wms.Layer]
-
 	// metas are the recent meta tiles, see [wms.Layer.MetaTiles].
 	metas metaCache
 
@@ -46,7 +42,7 @@ const LayerInfo = "layer.yaml"
 
 // Fetch implements [Fetcher]. For layers with meta tiles, the tiles of a meta tile share one download.
 func (f *WMSFetcher) Fetch(ctx context.Context, key geo.TileKey) (image.Image, error) {
-	layer := f.CurrentLayer()
+	layer := f.Layer
 	first, n := layer.MetaTile(key)
 	u := layer.MetaURL(first, n)
 	load := func() (image.Image, error) {
@@ -119,21 +115,6 @@ func (f *WMSFetcher) fetch(ctx context.Context, u string, first geo.TileKey, n i
 		}
 	}
 	return d.Body, nil
-}
-
-// SetLayer replaces the layer for later requests, like with another time.
-// Loaded tiles are kept, see [Manager.Refresh]. The disk cache still uses the original layer,
-// so it is meant for fetchers without a cache.
-func (f *WMSFetcher) SetLayer(l *wms.Layer) {
-	f.layer.Store(l)
-}
-
-// CurrentLayer returns the layer for requests, see [WMSFetcher.SetLayer].
-func (f *WMSFetcher) CurrentLayer() *wms.Layer {
-	if l := f.layer.Load(); l != nil {
-		return l
-	}
-	return f.Layer
 }
 
 // initCache determines the directory of the layer in the cache, and writes the description of the layer there.

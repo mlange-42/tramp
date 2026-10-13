@@ -62,8 +62,15 @@ type Options struct {
 // overlayState is an overlay with its tiles, which are only loaded while it is enabled.
 type overlayState struct {
 	Overlay
-	tiles   *tiles.Manager
-	fetcher *tiles.WMSFetcher
+	// tiles are the tiles shown, for the time timeValue if the overlay changes over time.
+	tiles     *tiles.Manager
+	timeValue string
+	// others are the tiles of other times, kept or loaded in the background, see overlaytiles.go.
+	others []*timeTiles
+	// fallback are the tiles of the previous time, drawn until the shown ones are loaded.
+	fallback *tiles.Manager
+	// prefetch are the TIME values to load in the background, one step before and after the shown time.
+	prefetch []string
 	// times are the valid times of overlays that change over time, see overlaytime.go.
 	times overlayTimes
 	// legend is the legend image from the capabilities, see overlaylegend.go.
@@ -378,8 +385,8 @@ func (a *App) closeTiles() {
 		a.tiles.Close()
 	}
 	for _, o := range a.overlays {
-		if o.tiles != nil {
-			o.tiles.Close()
+		for _, m := range o.allTiles() {
+			m.Close()
 		}
 	}
 }
@@ -415,11 +422,10 @@ func (a *App) setOverlay(i int, enabled bool) {
 	if enabled && o.tiles == nil {
 		layer := o.Layer
 		layer.Transparent = true
-		o.tiles, o.fetcher = a.newManager(&layer, o.Shade, o.Refresh > 0)
+		o.tiles, _ = a.newManager(&layer, o.Shade, o.Refresh > 0)
 		o.enabled(a, i, time.Now())
 	} else if !enabled && o.tiles != nil {
-		go o.tiles.Close()
-		o.tiles, o.fetcher = nil, nil
+		o.closeOverlayTiles()
 	}
 	a.updateCapacity()
 }
@@ -435,9 +441,7 @@ func (a *App) updateCapacity() {
 		managers = append(managers, a.tiles)
 	}
 	for _, o := range a.overlays {
-		if o.tiles != nil {
-			managers = append(managers, o.tiles)
-		}
+		managers = append(managers, o.allTiles()...)
 	}
 	capacity := (a.tileCache << 20) / tiles.TileBytes
 	for _, m := range managers {
@@ -582,10 +586,12 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	for _, o := range a.overlays {
 		// Overlays waiting for their time are drawn once it is known, so that they are loaded only once.
 		if o.tiles != nil && !o.times.hidden() {
-			a.mapLayers = append(a.mapLayers, mapview.Layer{Tiles: o.tiles, Opacity: o.Opacity, MaxTileLevel: o.Layer.MaxZoom})
+			a.mapLayers = append(a.mapLayers, mapview.Layer{Tiles: o.tiles, Fallback: o.fallback, Opacity: o.Opacity, MaxTileLevel: o.Layer.MaxZoom})
 		}
 	}
 	dims := a.mapView.Layout(gtx, a.mapLayers...)
+	// After the map requested the visible tiles.
+	a.prefetchTimes()
 	a.tracks.Layout(gtx, &a.mapView.View)
 	// The highlight of the found route is drawn with the route, above the tracks.
 	if a.highlightKey.item == nil || a.highlightKey.item != a.nav.item {

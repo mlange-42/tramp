@@ -6,6 +6,7 @@ import (
 	"context"
 	"image"
 	"log"
+	"slices"
 	"sync"
 	"time"
 
@@ -70,7 +71,9 @@ type Manager struct {
 	lru      *list.List
 	queue    []geo.TileKey
 	inflight map[geo.TileKey]struct{}
-	failed   map[geo.TileKey]time.Time
+	// wanted are the tiles of the last request, see [Manager.Wanted].
+	wanted []geo.TileKey
+	failed map[geo.TileKey]time.Time
 	// gen is increased by [Manager.Refresh]. Cached tiles of older generations are loaded again.
 	gen    int
 	closed bool
@@ -165,9 +168,17 @@ func (m *Manager) Request(keys []geo.TileKey) {
 		}
 	}
 	m.queue = append(m.queue, stale...)
+	m.wanted = append(m.wanted[:0], keys...)
 	if len(m.queue) > 0 {
 		m.wake.Broadcast()
 	}
+}
+
+// Wanted returns the tiles of the last [Manager.Request], like the visible tiles of the map.
+func (m *Manager) Wanted() []geo.TileKey {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return slices.Clone(m.wanted)
 }
 
 // Refresh marks all cached tiles as outdated, for layers that change over time.

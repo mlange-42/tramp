@@ -29,7 +29,11 @@ func (c *timeControl) target(now time.Time) time.Time {
 
 // step returns the full hour before (dir < 0) or after (dir > 0) the target time.
 func (c *timeControl) step(now time.Time, dir int) time.Time {
-	t := c.target(now)
+	return c.stepFrom(c.target(now), dir)
+}
+
+// stepFrom returns the full hour before (dir < 0) or after (dir > 0) t.
+func (c *timeControl) stepFrom(t time.Time, dir int) time.Time {
 	base := t.Truncate(timeStep)
 	if dir > 0 {
 		return base.Add(timeStep)
@@ -62,14 +66,14 @@ func (a *App) timeBounds() (first, last time.Time, ok bool) {
 	return first, last, ok
 }
 
-// selectTime selects a time for all overlays, or the current time if t is zero.
-func (a *App) selectTime(t, now time.Time) {
+// selectAllTimes selects a time for all overlays, or the current time if t is zero.
+func (a *App) selectAllTimes(t, now time.Time) {
 	a.timeCtl.selected = t
 	target := a.timeCtl.target(now)
 	for i := range a.overlays {
 		o := &a.overlays[i]
 		if o.tiles != nil && !o.times.waiting {
-			o.selectTime(target)
+			a.selectTime(o, target, true)
 		}
 	}
 }
@@ -85,13 +89,13 @@ func (a *App) layoutTimeControl(gtx layout.Context) layout.Dimensions {
 	prev, next := c.step(now, -1), c.step(now, 1)
 	canPrev, canNext := !prev.Before(first), !next.After(last)
 	if c.prev.Clicked(gtx) && canPrev {
-		a.selectTime(prev, now)
+		a.selectAllTimes(prev, now)
 	}
 	if c.next.Clicked(gtx) && canNext {
-		a.selectTime(next, now)
+		a.selectAllTimes(next, now)
 	}
 	if c.now.Clicked(gtx) {
-		a.selectTime(time.Time{}, now)
+		a.selectAllTimes(time.Time{}, now)
 	}
 
 	label := "Now"
