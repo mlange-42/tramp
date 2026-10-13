@@ -39,13 +39,14 @@ func TestShade(t *testing.T) {
 }
 
 // pngServer serves a PNG image for all tiles, answers If-Modified-Since with 304,
-// and fails while down is set.
+// and fails while down is set. With noStore, it forbids storing the images.
 type pngServer struct {
 	*httptest.Server
 	mu       sync.Mutex
 	requests int
 	checks   int
 	down     bool
+	noStore  bool
 }
 
 func newPNGServer(t *testing.T) *pngServer {
@@ -66,6 +67,9 @@ func newPNGServer(t *testing.T) *pngServer {
 			s.checks++
 			w.WriteHeader(http.StatusNotModified)
 			return
+		}
+		if s.noStore {
+			w.Header().Set("Cache-Control", "no-store")
 		}
 		w.Header().Set("Content-Type", "image/png")
 		_, _ = w.Write(buf.Bytes())
@@ -155,10 +159,49 @@ func TestImageExt(t *testing.T) {
 		{wms.Layer{Type: wms.TypeXYZ, URL: "https://a/tile.php?z={z}&x={x}&y={y}"}, ""},
 		{wms.Layer{URL: "https://a/wms"}, ".png"},
 		{wms.Layer{URL: "https://a/wms", Format: "image/jpeg"}, ".jpg"},
+		{wms.Layer{URL: "https://a/wms", Format: "image/gif"}, ".gif"},
+		{wms.Layer{URL: "https://a/wms", Format: "application/x-unknown"}, ""},
 	}
 	for _, tt := range tests {
 		if got := imageExt(&tt.layer); got != tt.want {
 			t.Errorf("imageExt(%q, %q) = %q, want %q", tt.layer.URL, tt.layer.Format, got, tt.want)
 		}
+	}
+}
+
+func TestWMSFetcherNoStore(t *testing.T) {
+	srv := newPNGServer(t)
+	srv.noStore = true
+	cache := diskcache.New(t.TempDir(), 1<<20)
+	cache.Wait()
+	f := &WMSFetcher{
+		Client: &wms.Client{},
+		Layer:  &wms.Layer{Name: "Test", Type: wms.TypeXYZ, URL: srv.URL + "/{z}/{x}/{y}.png"},
+		Shade:  true,
+		Cache:  cache,
+		MaxAge: time.Hour,
+	}
+	img, err := f.Fetch(context.Background(), geo.TileKey{Z: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := img.(*image.RGBA); !ok {
+		t.Errorf("expected a shaded image, got %T", img)
+	}
+	if _, _, ok := cache.Get(f.dir + "/1/0/0.png"); ok {
+		t.Error("tile stored although the server forbids it")
+	}
+}
+
+func TestWMSFetcherWithoutCache(t *testing.T) {
+	srv := newPNGServer(t)
+	f := &WMSFetcher{Client: &wms.Client{}, Layer: &wms.Layer{Type: wms.TypeXYZ, URL: srv.URL + "/{z}/{x}/{y}.png"}}
+	for range 2 {
+		if _, err := f.Fetch(context.Background(), geo.TileKey{}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if r, _ := srv.counts(); r != 2 {
+		t.Errorf("%d requests, want 2", r)
 	}
 }

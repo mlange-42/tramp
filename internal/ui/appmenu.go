@@ -45,13 +45,19 @@ func (a *App) menuItems() [][]menuItem {
 	}
 }
 
+// question and showError show dialogs. They are variables, so that tests can answer them.
+var (
+	question  = zenity.Question
+	showError = zenity.Error
+)
+
 // clearTileCache asks whether to delete the stored map and elevation tiles, and deletes them.
 // The tiles in memory are kept, so that the map doesn't go blank.
 func (a *App) clearTileCache() {
 	size := a.diskCache.size()
 	opts := a.plat.dialogOptions()
 	a.dialog(func() func() {
-		err := zenity.Question(fmt.Sprintf("Delete %s of stored map and elevation tiles?\n\n"+
+		err := question(fmt.Sprintf("Delete %s of stored map and elevation tiles?\n\n"+
 			"They are downloaded again when needed, and are not available without an internet connection until then.",
 			formatBytes(size)), append([]zenity.Option{
 			zenity.Title("Clear tile cache"),
@@ -63,7 +69,7 @@ func (a *App) clearTileCache() {
 			return nil
 		}
 		if err := a.diskCache.clear(); err != nil {
-			_ = zenity.Error(err.Error(), append([]zenity.Option{zenity.Title("Clearing the tile cache failed")}, opts...)...)
+			_ = showError(err.Error(), append([]zenity.Option{zenity.Title("Clearing the tile cache failed")}, opts...)...)
 		}
 		return nil
 	})

@@ -32,9 +32,11 @@ func terrarium(e float64) color.NRGBA {
 
 // tileServer serves terrarium tiles of 4x4 pixels up to level maxZoom, with the elevation 1000*z + 10*x + y
 // of the tile in all pixels. It answers 404 above maxZoom, and fail for tiles in it.
+// With notModified, it answers requests with If-Modified-Since with 304.
 type tileServer struct {
 	*httptest.Server
-	maxZoom int
+	maxZoom     int
+	notModified bool
 
 	mu       sync.Mutex
 	requests map[string]int
@@ -52,8 +54,12 @@ func newTileServer(t *testing.T, maxZoom int) *tileServer {
 		ts.mu.Lock()
 		ts.requests[r.URL.Path]++
 		fail := ts.fail[r.URL.Path]
+		notModified := ts.notModified && r.Header.Get("If-Modified-Since") != ""
 		ts.mu.Unlock()
 		switch {
+		case notModified:
+			w.WriteHeader(http.StatusNotModified)
+			return
 		case fail:
 			http.Error(w, "broken", http.StatusInternalServerError)
 			return
@@ -369,5 +375,40 @@ func TestDiskCache(t *testing.T) {
 	}
 	if ts.count(5, 17, 10) != 2 || ts.count(3, 4, 2) != 2 {
 		t.Errorf("expected old tiles checked once, got requests %v", ts.requests)
+	}
+}
+
+func TestDiskCacheNotModified(t *testing.T) {
+	ts := newTileServer(t, 3)
+	ts.notModified = true
+	disk := diskcache.New(t.TempDir(), 1<<20)
+	disk.Wait()
+	s := NewService(ts.source(), httpx.Client{}, 0)
+	s.SetDiskCache(disk, time.Hour)
+	p := geo.LonLat{Lon: 12.38, Lat: 51.34}
+	if e, err := s.Elevation(context.Background(), p, 3); err != nil || e != 3042 {
+		t.Fatalf("expected 3042, got %v, %v", e, err)
+	}
+
+	// Too old: checked with the server, which answers that it is unchanged, and touched.
+	dir := diskcache.Name("test", ts.source().URL)
+	path := filepath.Join(disk.Dir(), dir, "3", "4", "2.png")
+	old := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatal(err)
+	}
+	s = NewService(ts.source(), httpx.Client{}, 0)
+	s.SetDiskCache(disk, time.Hour)
+	if e, err := s.Elevation(context.Background(), p, 3); err != nil || e != 3042 {
+		t.Fatalf("expected 3042 from the stored tile, got %v, %v", e, err)
+	}
+	if ts.count(3, 4, 2) != 2 {
+		t.Errorf("expected the tile checked, got requests %v", ts.requests)
+	}
+	if _, mod, _ := disk.Get(dir + "/3/4/2.png"); time.Since(mod) > time.Minute {
+		t.Error("tile not touched")
+	}
+	if s.Source().Name != "test" {
+		t.Errorf("unexpected source %q", s.Source().Name)
 	}
 }
