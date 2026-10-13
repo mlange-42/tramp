@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"image"
 	"reflect"
 	"slices"
 	"testing"
@@ -95,5 +96,32 @@ func TestApplyPreset(t *testing.T) {
 	missing = a.applyPreset(Preset{Name: "Q", Map: "X"})
 	if !reflect.DeepEqual(missing, []string{"X"}) || a.layerSelect.Selected() != 1 {
 		t.Errorf("missing %v, map %d", missing, a.layerSelect.Selected())
+	}
+}
+
+func TestPresetMenu(t *testing.T) {
+	none := func(name string) Map { return Map{Layer: wms.Layer{Name: name, Type: wms.TypeNone}} }
+	a := newApp(func() {}, Options{
+		Maps:     []Map{none("M1"), none("M2")},
+		Overlays: []Overlay{{Layer: wms.Layer{Name: "O1", Type: wms.TypeNone}}},
+		Presets:  []Preset{{Name: "P1", Map: "M1"}, {Name: "P2", Map: "M2", Overlays: []string{"O1"}}},
+	})
+	t.Cleanup(a.closeTiles)
+	u := &uiTester{a: a, size: image.Pt(1000, 700)}
+	u.frame()
+
+	a.presetMenu.open = true
+	u.frame()
+	a.presetMenu.items[1].Click()
+	u.frame()
+	u.frame()
+	if a.presetMenu.open {
+		t.Error("menu still open")
+	}
+	if a.layerSelect.Selected() != 1 || !a.overlaySel.Checked(0) {
+		t.Errorf("map %d, overlay %v", a.layerSelect.Selected(), a.overlaySel.Checked(0))
+	}
+	if a.presetActive(a.presets[0]) || !a.presetActive(a.presets[1]) {
+		t.Error("wrong active preset")
 	}
 }

@@ -3,9 +3,14 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"image"
 	"log"
 	"slices"
 	"strings"
+
+	"gioui.org/layout"
+	"gioui.org/widget"
+	"gioui.org/widget/material"
 )
 
 // PresetsFile is the name of the layer presets file in the settings directory.
@@ -92,4 +97,64 @@ func (a *App) presetActive(p Preset) bool {
 		}
 	}
 	return true
+}
+
+// presetTip returns the tooltip of a preset, listing its map and overlays.
+func presetTip(p Preset) string {
+	return strings.Join(append([]string{p.Map}, p.Overlays...), " + ")
+}
+
+// presetMenu is the drop-down list of the layer presets, opened by a button that shows only an icon.
+type presetMenu struct {
+	popup
+	items []widget.Clickable
+}
+
+// update processes input for n presets, and returns the index of the clicked preset, or -1.
+func (m *presetMenu) update(gtx layout.Context, n int) int {
+	m.popup.update(gtx)
+	if len(m.items) != n {
+		m.items = make([]widget.Clickable, n)
+	}
+	for i := range m.items {
+		if m.items[i].Clicked(gtx) {
+			m.open = false
+			return i
+		}
+	}
+	return -1
+}
+
+// layout draws the button, and the list of presets if open. The active ones have a check mark.
+func (m *presetMenu) layout(gtx layout.Context, st *Style, presets []Preset, active func(Preset) bool) layout.Dimensions {
+	m.tips = m.tips[:0]
+	for _, p := range presets {
+		m.tips = append(m.tips, presetTip(p))
+	}
+	return m.popup.layout(gtx, st, "", nil, func(gtx layout.Context) layout.Dimensions {
+		if len(presets) == 0 {
+			l := st.Label("No presets")
+			l.Color = st.HintFg
+			return l.Layout(gtx)
+		}
+		return m.layoutOptions(gtx, st, len(presets), func(i int) layout.Widget {
+			return func(gtx layout.Context) layout.Dimensions {
+				return material.Clickable(gtx, &m.items[i], func(gtx layout.Context) layout.Dimensions {
+					return layout.UniformInset(st.Spacing/2).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						size := gtx.Dp(st.IconSize)
+						return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+							layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+								if active(presets[i]) {
+									layoutIcon(gtx, iconCheck, image.Point{}, size, st.Theme.ContrastBg)
+								}
+								return layout.Dimensions{Size: image.Pt(size, size)}
+							}),
+							layout.Rigid(layout.Spacer{Width: st.Spacing / 2}.Layout),
+							layout.Rigid(st.Label(presets[i].Name).Layout),
+						)
+					})
+				})
+			}
+		}, func(i int) bool { return m.items[i].Hovered() })
+	})
 }

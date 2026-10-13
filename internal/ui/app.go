@@ -111,6 +111,7 @@ type App struct {
 	// presets are the stored combinations of map and overlays, see presets.go.
 	presets     []Preset
 	savePresets func([]Preset) error
+	presetMenu  presetMenu
 
 	split      Split
 	chartSplit Split
@@ -271,6 +272,7 @@ func newApp(invalidate func(), opts Options) *App {
 	a.layerSelect.help, a.layerSelect.icon = "Background map", iconMap
 	a.overlaySel.help = "Overlays on the background map, like hillshading"
 	a.overlaySel.icon = iconLayers
+	a.presetMenu.help, a.presetMenu.icon = "Presets of map and overlays", iconPresets
 	a.layerSelect.sections, a.overlaySel.sections = layerSections, overlaySections
 	a.colorBy.help, a.colorBy.icon = "Color tracks and routes by speed, elevation or slope", iconPalette
 	a.gradientSel.help, a.gradientSel.icon = "Color gradient", iconGradient
@@ -495,6 +497,9 @@ func (a *App) update(gtx layout.Context) {
 	for _, i := range a.overlaySel.Update(gtx) {
 		a.setOverlay(i, a.overlaySel.Checked(i))
 	}
+	if i := a.presetMenu.update(gtx, len(a.presets)); i >= 0 {
+		a.applyPreset(a.presets[i])
+	}
 	a.refreshOverlays(gtx)
 	a.updateTimeControl(gtx)
 
@@ -674,6 +679,10 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.overlaySel.Layout(gtx, st, a.overlayNames)
+			}),
+			layout.Rigid(layout.Spacer{Width: 1}.Layout),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return a.presetMenu.layout(gtx, st, a.presets, a.presetActive)
 			}),
 			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
 			layout.Rigid(a.layoutColoring),
