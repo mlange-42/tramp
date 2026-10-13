@@ -14,6 +14,7 @@ import (
 	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/geocode"
 	"github.com/mlange-42/tramp/internal/routing"
+	"golang.org/x/exp/shiny/materialdesign/icons"
 )
 
 // Pages of the routing and search services, linked in the list of data sources.
@@ -23,6 +24,8 @@ const (
 	photonPage   = "https://photon.komoot.io"
 	nominatimURL = "https://nominatim.org"
 )
+
+var iconInfo = mustIcon(icons.ActionInfoOutline)
 
 // sourcesWidth is the largest width of the list of data sources.
 const sourcesWidth unit.Dp = 420
@@ -99,18 +102,38 @@ func (a *App) updateSources(gtx layout.Context) {
 	}
 }
 
-// layoutSourcesLink draws the link to the list of data sources.
+// layoutSourcesLink draws the link to the list of data sources, with an info icon in front,
+// separated from the short credits before it.
 func (a *App) layoutSourcesLink(gtx layout.Context) layout.Dimensions {
 	st, s := a.style, &a.sources
-	return s.btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		l := st.SmallLabel("Data sources")
-		l.Color = st.Theme.ContrastBg
-		if s.btn.Hovered() || s.open {
-			l.Color = st.Theme.Fg
-		}
-		pointer.CursorPointer.Add(gtx.Ops)
-		return l.Layout(gtx)
-	})
+	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			l := st.SmallLabel("|")
+			l.Color = st.HintFg
+			return layout.Inset{Left: st.Spacing, Right: st.Spacing}.Layout(gtx, l.Layout)
+		}),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return s.btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				col := st.Theme.ContrastBg
+				if s.btn.Hovered() || s.open {
+					col = st.Theme.Fg
+				}
+				pointer.CursorPointer.Add(gtx.Ops)
+				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						size := gtx.Sp(st.SmallTextSize)
+						layoutIcon(gtx, iconInfo, image.Point{}, size, col)
+						return layout.Dimensions{Size: image.Pt(size+gtx.Dp(st.Spacing/2), size)}
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						l := st.SmallLabel("Data sources")
+						l.Color = col
+						return l.Layout(gtx)
+					}),
+				)
+			})
+		}),
+	)
 }
 
 // layoutSources draws the list of data sources above the status bar at the right edge of the window, if open.
@@ -136,7 +159,9 @@ func (a *App) layoutSources(gtx layout.Context, bar image.Point) {
 	w := min(gtx.Dp(sourcesWidth), bar.X)
 	lgtx.Constraints = layout.Constraints{Min: image.Pt(w, 0), Max: image.Pt(w, gtx.Dp(800))}
 	inner := op.Record(gtx.Ops)
-	dims := layoutPanel(lgtx, st, &s.panel, a.layoutSourcesContent)
+	dims := layoutPanel(lgtx, st, &s.panel, func(gtx layout.Context) layout.Dimensions {
+		return layout.UniformInset(st.Spacing).Layout(gtx, a.layoutSourcesContent)
+	})
 	panel := inner.Stop()
 	op.Offset(image.Pt(bar.X-dims.Size.X, -dims.Size.Y)).Add(gtx.Ops)
 	panel.Add(gtx.Ops)

@@ -660,7 +660,6 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 				l.MaxLines = 1
 				return l.Layout(gtx)
 			}),
-			layout.Rigid(layout.Spacer{Width: st.Spacing}.Layout),
 			layout.Rigid(a.layoutSourcesLink),
 		)
 	})
