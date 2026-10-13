@@ -121,11 +121,3 @@ func formatHoverElevation(e float64, state elevState) string {
 	}
 	return strings.Repeat(" ", elevationWidth)
 }
-
-// elevationAttribution returns the attribution of the elevation source, or an empty string.
-func (a *App) elevationAttribution() string {
-	if a.elev.service == nil {
-		return ""
-	}
-	return a.elev.service.Source().Attribution
-}

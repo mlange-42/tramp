@@ -55,8 +55,13 @@ type Layer struct {
 	// Transparent requests a transparent background, for overlays.
 	// It is set automatically for overlays, so it is not part of the configuration file.
 	Transparent bool `yaml:"-"`
-	// Attribution is shown on the map.
+	// Attribution is the full credit of the layer, listed with the data sources.
 	Attribution string `yaml:"attribution,omitempty"`
+	// AttributionShort is the short credit shown on the map, with parts separated by " · ", like
+	// "© OpenStreetMap · CyclOSM". Parts shared with other layers are shown once. If empty, Attribution is shown.
+	AttributionShort string `yaml:"attribution_short,omitempty"`
+	// AttributionURL links to the terms or the credits of the data, for the list of data sources.
+	AttributionURL string `yaml:"attribution_url,omitempty"`
 }
 
 // IsXYZ reports whether the layer is an XYZ tile service.

@@ -89,11 +89,15 @@ maps:
     format: image/png
     version: 1.3.0
     attribution: Data © OpenStreetMap contributors and others, Rendering © EOX
+    attribution_short: © OpenStreetMap · EOX  # shown on the map, optional
+    attribution_url: https://maps.eox.at       # terms or credits of the data, optional
   - name: OpenTopoMap
     type: xyz
     url: https://tile.opentopomap.org/{z}/{x}/{y}.png
     max_zoom: 17  # highest level served, the map is magnified beyond
     attribution: Map data © OpenStreetMap contributors, SRTM | Map style © OpenTopoMap (CC-BY-SA)
+    attribution_short: © OpenStreetMap · OpenTopoMap
+    attribution_url: https://opentopomap.org/about
   - name: None
     type: none
 overlays:
@@ -107,6 +111,10 @@ overlays:
     opacity: 0.6  # 0 or missing means opaque
     shade: true   # turn a grayscale relief into a transparent shading
 ```
+
+The status bar shows the short credits of the selected map, the enabled overlays and the elevation source,
+with parts separated by ` · ` shown only once, like `© OpenStreetMap · CyclOSM · Waymarked Trails`.
+Without `attribution_short`, the full `attribution` is shown.
 
 Delete the file to restore the built-in maps.
 

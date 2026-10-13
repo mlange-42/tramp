@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -632,21 +631,13 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	}
 
 	var loading int
-	var attribution []string
 	if a.tiles != nil {
 		loading = a.tiles.Loading()
-		attribution = append(attribution, a.layers[a.layerSelect.Selected()].Attribution)
 	}
 	for _, o := range a.overlays {
 		if o.tiles != nil {
 			loading += o.tiles.Loading()
-			if o.Layer.Attribution != "" && !slices.Contains(attribution, o.Layer.Attribution) {
-				attribution = append(attribution, o.Layer.Attribution)
-			}
 		}
-	}
-	if e := a.elevationAttribution(); e != "" {
-		attribution = append(attribution, e)
 	}
 	if loading > 0 {
 		status += fmt.Sprintf("   loading %d", loading)
@@ -661,7 +652,7 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Min.X = gtx.Constraints.Max.X
-				l := st.SmallLabel(strings.Join(attribution, " | "))
+				l := st.SmallLabel(shortCredits(a.mapCredits()))
 				l.Alignment = text.End
 				l.MaxLines = 1
 				return l.Layout(gtx)
