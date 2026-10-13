@@ -205,3 +205,18 @@ func TestWMSFetcherWithoutCache(t *testing.T) {
 		t.Errorf("%d requests, want 2", r)
 	}
 }
+
+func TestWMSFetcherSetLayer(t *testing.T) {
+	srv := newPNGServer(t)
+	f := &WMSFetcher{Client: &wms.Client{}, Layer: &wms.Layer{Type: wms.TypeXYZ, URL: srv.URL + "/{z}/{x}/{y}.png"}}
+	if _, err := f.Fetch(context.Background(), geo.TileKey{}); err != nil {
+		t.Fatal(err)
+	}
+	// Later requests go to the new layer.
+	other := newPNGServer(t)
+	other.down = true
+	f.SetLayer(&wms.Layer{Type: wms.TypeXYZ, URL: other.URL + "/{z}/{x}/{y}.png"})
+	if _, err := f.Fetch(context.Background(), geo.TileKey{}); err == nil {
+		t.Error("expected an error from the replaced layer")
+	}
+}

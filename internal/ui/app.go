@@ -62,9 +62,10 @@ type Options struct {
 // overlayState is an overlay with its tiles, which are only loaded while it is enabled.
 type overlayState struct {
 	Overlay
-	tiles *tiles.Manager
-	// refreshed is when the tiles were last marked for loading again, see [Overlay.Refresh].
-	refreshed time.Time
+	tiles   *tiles.Manager
+	fetcher *tiles.WMSFetcher
+	// times are the valid times of overlays that change over time, see overlaytime.go.
+	times overlayTimes
 }
 
 // App is the main application state.
@@ -378,16 +379,17 @@ func (a *App) closeTiles() {
 	}
 }
 
-// newManager creates the tile manager of a layer. Layers that change over time (refresh)
-// are not stored on disk, so that old images are never shown as current, e.g. when offline.
-func (a *App) newManager(layer *wms.Layer, shade, refresh bool) *tiles.Manager {
+// newManager creates the tile manager of a layer, and returns it with its fetcher.
+// Layers that change over time (refresh) are not stored on disk,
+// so that old images are never shown as current, e.g. when offline.
+func (a *App) newManager(layer *wms.Layer, shade, refresh bool) (*tiles.Manager, *tiles.WMSFetcher) {
 	opts := tiles.DefaultOptions()
 	opts.OnUpdate = a.invalidate
 	f := &tiles.WMSFetcher{Client: a.client, Layer: layer, Shade: shade}
 	if !refresh {
 		f.Cache, f.MaxAge = a.diskCache.tiles, a.diskCache.maxAge()
 	}
-	return tiles.NewManager(f, opts)
+	return tiles.NewManager(f, opts), f
 }
 
 func (a *App) setLayer(i int) {
@@ -398,7 +400,7 @@ func (a *App) setLayer(i int) {
 	a.layerSelect.SetSelected(i)
 	a.tiles = nil
 	if !a.layers[i].IsNone() {
-		a.tiles = a.newManager(&a.layers[i], false, false)
+		a.tiles, _ = a.newManager(&a.layers[i], false, false)
 	}
 	a.updateCapacity()
 }
@@ -408,37 +410,13 @@ func (a *App) setOverlay(i int, enabled bool) {
 	if enabled && o.tiles == nil {
 		layer := o.Layer
 		layer.Transparent = true
-		o.tiles = a.newManager(&layer, o.Shade, o.Refresh > 0)
-		o.refreshed = time.Now()
+		o.tiles, o.fetcher = a.newManager(&layer, o.Shade, o.Refresh > 0)
+		o.enabled(a, i, time.Now())
 	} else if !enabled && o.tiles != nil {
 		go o.tiles.Close()
-		o.tiles = nil
+		o.tiles, o.fetcher = nil, nil
 	}
 	a.updateCapacity()
-}
-
-// refreshOverlays marks the tiles of enabled overlays with a refresh interval for loading again when due,
-// and schedules a frame for the next one.
-func (a *App) refreshOverlays(gtx layout.Context) {
-	var next time.Time
-	for i := range a.overlays {
-		o := &a.overlays[i]
-		if o.tiles == nil || o.Refresh <= 0 {
-			continue
-		}
-		due := o.refreshed.Add(max(o.Refresh, MinRefresh))
-		if !gtx.Now.Before(due) {
-			o.tiles.Refresh()
-			o.refreshed = gtx.Now
-			due = gtx.Now.Add(max(o.Refresh, MinRefresh))
-		}
-		if next.IsZero() || due.Before(next) {
-			next = due
-		}
-	}
-	if !next.IsZero() {
-		gtx.Execute(op.InvalidateCmd{At: next})
-	}
 }
 
 // updateCapacity splits the tile cache evenly between the visible layers.
@@ -597,7 +575,8 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	base := &a.layers[a.layerSelect.Selected()]
 	a.mapLayers = append(a.mapLayers[:0], mapview.Layer{Tiles: a.tiles, MaxTileLevel: base.MaxZoom})
 	for _, o := range a.overlays {
-		if o.tiles != nil {
+		// Overlays waiting for their time are drawn once it is known, so that they are loaded only once.
+		if o.tiles != nil && !o.times.waiting {
 			a.mapLayers = append(a.mapLayers, mapview.Layer{Tiles: o.tiles, Opacity: o.Opacity, MaxTileLevel: o.Layer.MaxZoom})
 		}
 	}

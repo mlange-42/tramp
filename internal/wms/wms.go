@@ -54,6 +54,13 @@ type Layer struct {
 	// MaxZoom is the highest tile level the service provides. Zero means no limit.
 	// The map is magnified beyond that.
 	MaxZoom int `yaml:"max_zoom,omitempty"`
+	// Capabilities is the address of WMS capabilities that list the layer, if not the service URL.
+	// Some servers offer smaller documents for single layers, which load faster.
+	// The capabilities are read for the valid times of overlays that change over time.
+	Capabilities string `yaml:"capabilities,omitempty"`
+	// Time is the TIME parameter of requests, for layers that change over time.
+	// It is set by the application, so it is not part of the configuration file.
+	Time string `yaml:"-"`
 	// Transparent requests a transparent background, for overlays.
 	// It is set automatically for overlays, so it is not part of the configuration file.
 	Transparent bool `yaml:"-"`
@@ -110,6 +117,9 @@ func (l *Layer) MapURL(bbox geo.Rect, width, height int) string {
 	q.Set("HEIGHT", strconv.Itoa(height))
 	if l.Transparent {
 		q.Set("TRANSPARENT", "TRUE")
+	}
+	if l.Time != "" {
+		q.Set("TIME", l.Time)
 	}
 	// EPSG:3857 has easting/northing axis order in both versions.
 	if version == "1.1.1" {

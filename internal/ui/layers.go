@@ -133,6 +133,8 @@ const (
 	cyclosmURL   = "https://a.tile-cyclosm.openstreetmap.fr"
 	waymarkedURL = "https://tile.waymarkedtrails.org"
 	dwdURL       = "https://maps.dwd.de/geoserver/ows"
+	// dwdWorkspaceURL is the start of the addresses of the services for single layers.
+	dwdWorkspaceURL = "https://maps.dwd.de/geoserver/dwd/"
 
 	osmAttribution       = "© OpenStreetMap contributors"
 	eoxOSMAttribution    = "Data © OpenStreetMap contributors and others, Rendering © EOX"
@@ -238,7 +240,7 @@ func DefaultOverlays() []Overlay {
 		{
 			// Gray outside the radar coverage.
 			Layer: dwdLayer("Precipitation radar", "Niederschlagsradar", 11,
-				"Current rain and snow from the weather radar, every 5 minutes. Germany and surroundings."),
+				"Rain and snow from the weather radar, every 5 minutes. Germany and surroundings."),
 			Opacity: 0.7,
 			Refresh: 5 * time.Minute,
 		},
@@ -249,18 +251,18 @@ func DefaultOverlays() []Overlay {
 		},
 		{
 			Layer: dwdLayer("Wind 10 m", "Icon_reg025_fd_sl_UV10M", 0,
-				"Wind barbs at 10 m above ground, from the ICON forecast model. Worldwide."),
+				"Forecast wind barbs at 10 m above ground, from the ICON model. Worldwide."),
 			Refresh: 30 * time.Minute,
 		},
 		{
 			Layer: dwdLayer("Precipitation 1 h", "Icon-eu_reg00625_fd_sl_TOTPREC01H", 9,
-				"Forecast precipitation of the current hour, from the ICON-EU model. Europe."),
+				"Forecast precipitation in the hour up to the shown time, from the ICON-EU model. Europe."),
 			Opacity: 0.6,
 			Refresh: 30 * time.Minute,
 		},
 		{
 			Layer: dwdLayer("Precipitation 6 h", "Icon_reg025_fd_sl_TOTPREC06H", 8,
-				"Forecast precipitation of the last 6 hours, from the ICON model. Worldwide."),
+				"Forecast precipitation in the 6 hours up to the shown time, from the ICON model. Worldwide."),
 			Opacity: 0.6,
 			Refresh: 30 * time.Minute,
 		},
@@ -299,10 +301,12 @@ func DefaultOverlays() []Overlay {
 // dwdLayer returns a layer of the WMS of the Deutscher Wetterdienst.
 func dwdLayer(name, layer string, maxZoom int, description string) wms.Layer {
 	return wms.Layer{
-		Name:             name,
-		Description:      description,
-		URL:              dwdURL,
-		Layers:           "dwd:" + layer,
+		Name:        name,
+		Description: description,
+		URL:         dwdURL,
+		Layers:      "dwd:" + layer,
+		// The capabilities of the single layer are much smaller than those of the whole service.
+		Capabilities:     dwdWorkspaceURL + layer + "/ows",
 		Format:           "image/png",
 		Version:          "1.3.0",
 		MaxZoom:          maxZoom,

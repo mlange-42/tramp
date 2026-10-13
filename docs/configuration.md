@@ -140,11 +140,17 @@ overlays:
     attribution_short: © DWD
     attribution_url: https://www.dwd.de/copyright
     refresh: 5m   # load the tiles again every 5 minutes
+    capabilities: https://maps.dwd.de/geoserver/dwd/Niederschlagsradar/ows  # optional, see below
 ```
 
 Overlays that change over time, like weather radar, can be loaded again regularly with `refresh`,
 given like `30s`, `5m` or `1h`. The shortest interval is one minute.
 Outdated tiles stay visible until the new ones arrive.
+For WMS overlays with `refresh`, the valid times of the layer are read from the capabilities of the service
+at each refresh, and the time closest to now is shown. It is listed with the overlay in the legend at the bottom left of the map.
+The tiles are only loaded again when the time or the data changed.
+Some servers offer much smaller capabilities for single layers, which load faster; they can be given with `capabilities`.
+Without it, the capabilities of the service URL are read.
 Such overlays are not stored in the disk cache (`disk_cache`), so that old weather is never shown as current.
 
 The status bar shows the short credits of the selected map, the enabled overlays and the elevation source,

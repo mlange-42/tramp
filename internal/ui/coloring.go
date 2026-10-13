@@ -150,6 +150,19 @@ func (a *App) layoutLegend(gtx layout.Context) {
 			macro := op.Record(gtx.Ops)
 			dims := layout.UniformInset(st.Spacing).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				var rows []layout.FlexChild
+				for _, o := range a.overlays {
+					if o.tiles == nil || o.times.time.IsZero() {
+						continue
+					}
+					text := o.Layer.Name + "  " + formatDataTime(o.times.time, gtx.Now)
+					rows = append(rows,
+						layout.Rigid(st.SmallLabel(text).Layout),
+						layout.Rigid(layout.Spacer{Height: st.Spacing / 2}.Layout),
+					)
+				}
+				if len(rows) > 0 {
+					rows = append(rows, layout.Rigid(layout.Spacer{Height: st.Spacing / 2}.Layout))
+				}
 				if l != nil {
 					rows = append(rows,
 						layout.Rigid(st.SmallLabel(fmt.Sprintf("%s (%s)", l.info.name, l.info.unit)).Layout),
