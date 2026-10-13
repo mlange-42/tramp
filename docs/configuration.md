@@ -136,9 +136,9 @@ overlays:
     layers: dwd:Niederschlagsradar
     format: image/png
     version: 1.3.0
-    attribution: © Deutscher Wetterdienst
+    attribution: Data © Deutscher Wetterdienst (DWD), CC BY 4.0
     attribution_short: © DWD
-    attribution_url: https://www.dwd.de/EN/service/copyright/copyright_node.html
+    attribution_url: https://www.dwd.de/copyright
     refresh: 5m   # load the tiles again every 5 minutes
 ```
 

@@ -4,6 +4,9 @@ Run `tramp` to open the map. Drag to pan, scroll to zoom.
 
 The background map and overlays like hillshading can be selected in the toolbar.
 Further maps can be added in the [maps configuration](configuration.md#maps).
+Weather overlays from the Deutscher Wetterdienst (DWD) show the current precipitation radar
+and weather warnings for Germany, and forecasts of wind and precipitation.
+They are loaded again regularly while enabled.
 
 The status bar shows the position under the mouse pointer and its terrain elevation,
 and at the right the short credits of the map, the overlays and the elevation data.
