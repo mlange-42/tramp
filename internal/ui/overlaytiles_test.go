@@ -154,3 +154,43 @@ type failFetcher struct{}
 func (failFetcher) Fetch(context.Context, geo.TileKey) (image.Image, error) {
 	return nil, errors.New("no tiles")
 }
+
+func TestOverlayReferences(t *testing.T) {
+	o := &overlayState{}
+	if refs := o.references("2026-10-13T09:00:00.000Z"); refs != nil {
+		t.Errorf("expected no reference times without them, got %v", refs)
+	}
+	o.times.refs = &wms.TimeDimension{Values: "2026-10-12T18:00:00.000Z,2026-10-13T00:00:00.000Z,2026-10-13T06:00:00.000Z,2026-10-13T12:00:00.000Z"}
+	// The latest runs not after the time, so that times before the latest run have data.
+	want := "[2026-10-13T06:00:00.000Z 2026-10-13T00:00:00.000Z 2026-10-12T18:00:00.000Z]"
+	if refs := o.references("2026-10-13T09:00:00.000Z"); fmt.Sprint(refs) != want {
+		t.Errorf("got %v, want %s", refs, want)
+	}
+	if refs := o.references("2026-10-14T09:00:00.000Z"); len(refs) != referenceTries || refs[0] != "2026-10-13T12:00:00.000Z" {
+		t.Errorf("expected the latest run first for later times, got %v", refs)
+	}
+	if refs := o.references(""); refs != nil {
+		t.Errorf("expected no reference times for the default time, got %v", refs)
+	}
+}
+
+func TestOverlayTimeStep(t *testing.T) {
+	at := func(d, h int) time.Time { return time.Date(2026, 10, d, h, 0, 0, 0, time.UTC) }
+	o := &overlayState{Overlay: Overlay{TimeStep: 6 * time.Hour}}
+	o.times.dim = &wms.TimeDimension{Values: "2026-10-12T12:00:00Z/2026-10-21T00:00:00Z/PT3H"}
+	for _, tc := range []struct{ target, want time.Time }{
+		{at(13, 15), at(13, 18)},
+		{at(13, 14), at(13, 12)},
+		{at(12, 12), at(12, 12)},
+		{at(21, 0), at(21, 0)},
+	} {
+		if got, ok := o.validTime(tc.target); !ok || !got.Equal(tc.want) {
+			t.Errorf("at %v: got %v, %v, want %v", tc.target, got, ok, tc.want)
+		}
+	}
+	// Steps are kept within the valid times.
+	o.times.dim = &wms.TimeDimension{Values: "2026-10-13T15:00:00Z/2026-10-13T21:00:00Z/PT3H"}
+	if got, ok := o.validTime(at(13, 16)); !ok || !got.Equal(at(13, 18)) {
+		t.Errorf("got %v, %v", got, ok)
+	}
+}

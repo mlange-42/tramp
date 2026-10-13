@@ -2,6 +2,7 @@ package wms
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -202,5 +203,69 @@ func TestTimeDimensionBounds(t *testing.T) {
 	}
 	if _, _, ok := (&TimeDimension{Values: "bad"}).Bounds(); ok {
 		t.Error("expected no bounds")
+	}
+}
+
+func TestTimeDimensionLatest(t *testing.T) {
+	at := func(s string) time.Time {
+		v, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	runs := TimeDimension{Values: "2026-10-12T18:00:00.000Z,2026-10-13T00:00:00.000Z,2026-10-13T06:00:00.000Z,2026-10-13T12:00:00.000Z"}
+	got := runs.Latest(at("2026-10-13T09:00:00Z"), 4)
+	if len(got) != 3 || !got[0].Equal(at("2026-10-13T06:00:00Z")) || !got[2].Equal(at("2026-10-12T18:00:00Z")) {
+		t.Errorf("unexpected runs %v", got)
+	}
+	if got := runs.Latest(at("2026-10-13T12:00:00Z"), 1); len(got) != 1 || !got[0].Equal(at("2026-10-13T12:00:00Z")) {
+		t.Errorf("a run at the time itself should be first, got %v", got)
+	}
+	if got := runs.Latest(at("2026-10-12T00:00:00Z"), 4); len(got) != 0 {
+		t.Errorf("expected no runs before the first, got %v", got)
+	}
+	// Intervals, also between and after their steps.
+	steps := TimeDimension{Values: "2026-10-13T00:00:00Z/2026-10-13T10:00:00Z/PT5M"}
+	got = steps.Latest(at("2026-10-13T09:03:00Z"), 2)
+	if len(got) != 2 || !got[0].Equal(at("2026-10-13T09:00:00Z")) || !got[1].Equal(at("2026-10-13T08:55:00Z")) {
+		t.Errorf("unexpected steps %v", got)
+	}
+	if got := steps.Latest(at("2026-10-14T00:00:00Z"), 1); len(got) != 1 || !got[0].Equal(at("2026-10-13T10:00:00Z")) {
+		t.Errorf("expected the last step, got %v", got)
+	}
+}
+
+func TestReferenceRequests(t *testing.T) {
+	doc := `<WMS_Capabilities><Capability><Layer><Name>A</Name>
+<Dimension name="time">2026-10-13T00:00:00Z/2026-10-14T00:00:00Z/PT1H</Dimension>
+<Dimension name="REFERENCE_TIME" default="2026-10-13T12:00:00.000Z">2026-10-13T06:00:00.000Z,2026-10-13T12:00:00.000Z</Dimension>
+</Layer></Capability></WMS_Capabilities>`
+	c, err := ParseCapabilities(strings.NewReader(doc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, _ := c.Layer("A")
+	if l.Reference != "2026-10-13T12:00:00.000Z" || l.References == nil || !strings.Contains(l.References.Values, "06:00") {
+		t.Errorf("unexpected reference times %+v", l)
+	}
+	layer := &Layer{URL: "https://example.com/wms", Layers: "A", Reference: "2026-10-13T06:00:00.000Z"}
+	if u := layer.TileURL(geo.TileKey{}); !strings.Contains(u, "DIM_REFERENCE_TIME=2026-10-13T06%3A00%3A00.000Z") {
+		t.Errorf("missing reference time in %s", u)
+	}
+}
+
+func TestServiceException(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/xml;charset=UTF-8")
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><ServiceExceptionReport version="1.3.0">   <ServiceException>
+      Rendering process failed. No data available
+</ServiceException></ServiceExceptionReport>`))
+	}))
+	defer srv.Close()
+	c := &Client{Client: httpx.Client{HTTP: srv.Client()}}
+	_, err := c.GetData(context.Background(), srv.URL, time.Time{})
+	if !errors.Is(err, ErrServiceException) || !strings.HasSuffix(err.Error(), ": Rendering process failed. No data available") {
+		t.Errorf("unexpected error %v", err)
 	}
 }

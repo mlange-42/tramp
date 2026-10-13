@@ -6,6 +6,7 @@ import (
 
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/tiles"
+	"github.com/mlange-42/tramp/internal/wms"
 )
 
 // timeKeep is the number of times of an overlay whose tiles are kept in memory, besides the shown one.
@@ -16,8 +17,9 @@ const timeKeep = 12
 // or loaded in the background for the next step of the time control.
 type timeTiles struct {
 	// value is the TIME parameter, "" for the server's default.
-	value string
-	tiles *tiles.Manager
+	value   string
+	tiles   *tiles.Manager
+	fetcher *tiles.WMSFetcher
 	// used is when the time was last shown.
 	used time.Time
 }
@@ -31,30 +33,54 @@ func (a *App) showTime(o *overlayState, value string, keep bool) {
 	}
 	old := o.tiles
 	if keep {
-		o.others = append(o.others, &timeTiles{value: o.timeValue, tiles: old, used: time.Now()})
+		o.others = append(o.others, &timeTiles{value: o.timeValue, tiles: old, fetcher: o.fetcher, used: time.Now()})
 		o.fallback = old
 	} else {
 		go old.Close()
 		o.fallback = nil
 	}
-	o.tiles, o.timeValue = nil, value
+	o.timeValue = value
 	if k := slices.IndexFunc(o.others, func(t *timeTiles) bool { return t.value == value }); k >= 0 {
-		o.tiles = o.others[k].tiles
+		o.tiles, o.fetcher = o.others[k].tiles, o.others[k].fetcher
 		o.others = slices.Delete(o.others, k, k+1)
 	} else {
-		o.tiles = a.newOverlayTiles(o, value)
+		t := a.newOverlayTiles(o, value)
+		o.tiles, o.fetcher = t.tiles, t.fetcher
 	}
 	a.pruneTimes(o)
 	a.updateCapacity()
 }
 
-// newOverlayTiles creates the tile manager of an overlay for a TIME value.
-func (a *App) newOverlayTiles(o *overlayState, value string) *tiles.Manager {
+// newOverlayTiles creates the tiles of an overlay for a TIME value.
+func (a *App) newOverlayTiles(o *overlayState, value string) *timeTiles {
 	layer := o.Layer
 	layer.Transparent = true
 	layer.Time = value
-	m, _ := a.newManager(&layer, o.Shade, o.Refresh > 0)
-	return m
+	m, f := a.newManager(&layer, o.Shade, o.Refresh > 0)
+	f.SetReferences(o.references(value))
+	return &timeTiles{value: value, tiles: m, fetcher: f}
+}
+
+// referenceTries is the number of reference times tried for a time, see [overlayState.references].
+const referenceTries = 4
+
+// references returns the reference times to request the data of a TIME value for: the latest ones
+// not after the time, the latest first. A model run covers only times after its start, and some data,
+// like sums over hours, only from later. The server's default is the latest run, which fails for earlier times.
+func (o *overlayState) references(value string) []string {
+	refs := o.times.refs
+	if refs == nil || value == "" {
+		return nil
+	}
+	t, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil
+	}
+	var values []string
+	for _, r := range refs.Latest(t, referenceTries) {
+		values = append(values, wms.FormatTime(r))
+	}
+	return values
 }
 
 // pruneTimes drops the least recently shown tiles of other times beyond [timeKeep],
@@ -95,35 +121,44 @@ func (o *overlayState) closeOverlayTiles() {
 	for _, m := range o.allTiles() {
 		go m.Close()
 	}
-	o.tiles, o.others, o.fallback, o.prefetch, o.timeValue = nil, nil, nil, nil, ""
+	o.tiles, o.fetcher, o.others, o.fallback, o.prefetch, o.timeValue = nil, nil, nil, nil, nil, ""
 }
 
 // prefetchTimes loads the tiles of the neighboring times of the overlays in the background,
 // for the tiles shown, once these are loaded. Meanwhile, the background loading pauses.
 // The tiles of the previous time are no longer drawn below once the shown ones are loaded.
+// The tiles of other times stop loading, as do those of hidden overlays.
 func (a *App) prefetchTimes() {
 	for i := range a.overlays {
 		o := &a.overlays[i]
-		if o.tiles == nil || o.times.hidden() {
+		if o.tiles == nil {
 			continue
+		}
+		hidden := o.times.hidden()
+		o.tiles.SetBackground(false)
+		if hidden {
+			// Not drawn, so the map doesn't request its tiles.
+			o.tiles.Request(nil)
 		}
 		busy := o.tiles.Loading() > 0
 		var wanted []geo.TileKey
-		if !busy {
+		if !busy && !hidden {
 			o.fallback = nil
 			wanted = o.tiles.Wanted()
-		}
-		for _, value := range o.prefetch {
-			k := slices.IndexFunc(o.others, func(t *timeTiles) bool { return t.value == value })
-			if k < 0 {
-				if busy {
-					continue
+			for _, value := range o.prefetch {
+				if !slices.ContainsFunc(o.others, func(t *timeTiles) bool { return t.value == value }) {
+					o.others = append(o.others, a.newOverlayTiles(o, value))
+					a.updateCapacity()
 				}
-				o.others = append(o.others, &timeTiles{value: value, tiles: a.newOverlayTiles(o, value)})
-				k = len(o.others) - 1
-				a.updateCapacity()
 			}
-			o.others[k].tiles.Request(wanted)
+		}
+		for _, t := range o.others {
+			if hidden || !slices.Contains(o.prefetch, t.value) {
+				t.tiles.Request(nil)
+				continue
+			}
+			t.tiles.SetBackground(true)
+			t.tiles.Request(wanted)
 		}
 	}
 }

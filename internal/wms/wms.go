@@ -56,6 +56,10 @@ type Layer struct {
 	// MetaTiles is the number of tiles per side requested in one image from a WMS, like 4 for 4×4 tiles.
 	// Larger images are much faster for services that need long to render each image. Zero or one means single tiles.
 	MetaTiles int `yaml:"meta_tiles,omitempty"`
+	// Connections is the number of simultaneous downloads from the server of the layer, for servers
+	// that don't like many. Zero means the default. With different numbers for layers of the same server,
+	// the lowest applies.
+	Connections int `yaml:"connections,omitempty"`
 	// MaxZoom is the highest tile level the service provides. Zero means no limit.
 	// The map is magnified beyond that.
 	MaxZoom int `yaml:"max_zoom,omitempty"`
@@ -66,6 +70,9 @@ type Layer struct {
 	// Time is the TIME parameter of requests, for layers that change over time.
 	// It is set by the application, so it is not part of the configuration file.
 	Time string `yaml:"-"`
+	// Reference is the reference time of the data, like the start of a model run, requested as DIM_REFERENCE_TIME.
+	// Empty for the server's default, usually the latest. It is set by the application.
+	Reference string `yaml:"-"`
 	// Transparent requests a transparent background, for overlays.
 	// It is set automatically for overlays, so it is not part of the configuration file.
 	Transparent bool `yaml:"-"`
@@ -81,6 +88,15 @@ type Layer struct {
 // IsXYZ reports whether the layer is an XYZ tile service.
 func (l *Layer) IsXYZ() bool {
 	return strings.EqualFold(l.Type, TypeXYZ)
+}
+
+// Host returns the server of the layer, for limiting the downloads from it.
+func (l *Layer) Host() string {
+	u, err := url.Parse(l.URL)
+	if err != nil {
+		return l.URL
+	}
+	return u.Host
 }
 
 // IsEnabled reports whether the layer is enabled, see [Layer.Enabled].
@@ -155,6 +171,9 @@ func (l *Layer) MapURL(bbox geo.Rect, width, height int) string {
 	if l.Time != "" {
 		q.Set("TIME", l.Time)
 	}
+	if l.Reference != "" {
+		q.Set("DIM_REFERENCE_TIME", l.Reference)
+	}
 	// EPSG:3857 has easting/northing axis order in both versions.
 	if version == "1.1.1" {
 		q.Set("SRS", "EPSG:3857")
@@ -191,6 +210,31 @@ func (c *Client) GetTile(ctx context.Context, layer *Layer, key geo.TileKey) (im
 		return nil, err
 	}
 	return Decode(d.Body)
+}
+
+// ErrServiceException is returned if the server reports an error instead of an image,
+// like for a time without data.
+var ErrServiceException = errors.New("wms: service exception")
+
+// exceptionText returns the message of a service exception report, or the whole body if it has none.
+func exceptionText(body []byte) []byte {
+	s := string(body)
+	// Not the enclosing ServiceExceptionReport.
+	start := strings.Index(s, "<ServiceException>")
+	if start < 0 {
+		start = strings.Index(s, "<ServiceException ")
+	}
+	if start < 0 {
+		return body
+	}
+	s = s[start:]
+	if i := strings.IndexByte(s, '>'); i >= 0 {
+		s = s[i+1:]
+	}
+	if i := strings.Index(s, "</ServiceException>"); i >= 0 {
+		s = s[:i]
+	}
+	return []byte(strings.Join(strings.Fields(s), " "))
 }
 
 // ErrNotModified is returned by [Client.GetTileData] if the tile has not changed since the given time.
@@ -251,7 +295,7 @@ func (c *Client) fetch(ctx context.Context, u string, since time.Time) (Data, er
 	}
 	// Servers report errors as XML service exceptions, often with status 200.
 	if ct := resp.Header.Get("Content-Type"); strings.Contains(ct, "xml") || strings.HasPrefix(ct, "text/") {
-		return Data{}, fmt.Errorf("wms: service exception: %s", excerpt(body))
+		return Data{}, fmt.Errorf("%w: %s", ErrServiceException, excerpt(exceptionText(body)))
 	}
 	noStore := strings.Contains(strings.ToLower(resp.Header.Get("Cache-Control")), "no-store")
 	return Data{Body: body, NoStore: noStore}, nil

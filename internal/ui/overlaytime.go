@@ -30,8 +30,10 @@ type overlayTimes struct {
 	waiting bool
 	// dim are the valid times from the capabilities, nil if the layer has none.
 	dim *wms.TimeDimension
-	// reference is the reference time of the data, like the start of a model run, if given.
+	// reference is the default reference time of the data, like the start of the latest model run, if given.
 	reference string
+	// refs are the valid reference times, nil if the layer has none.
+	refs *wms.TimeDimension
 	// time is the requested time, zero if none.
 	time time.Time
 	// outside is set if the selected time is outside the valid times. The overlay is not drawn then.
@@ -128,17 +130,18 @@ func (a *App) updateTime(o *overlayState, caps *wms.Capabilities, target time.Ti
 	}
 
 	info, _ := caps.Layer(firstLayer(o.Layer.Layers))
-	t.dim = nil
+	t.dim, t.refs = nil, nil
 	reference, legendURL := "", ""
 	if info != nil {
-		t.dim, reference, legendURL = info.Time, info.Reference, info.LegendURL
+		t.dim, t.refs, reference, legendURL = info.Time, info.References, info.Reference, info.LegendURL
 	}
 	o.legend.setURL(legendURL)
 	newData := reference == "" || reference != t.reference
 	t.reference = reference
 	if newData && !first {
-		// The kept tiles of other times are outdated too.
+		// The kept tiles of other times are outdated too. The shown ones are loaded again, for the new runs.
 		a.dropOtherTimes(o)
+		o.fetcher.SetReferences(o.references(o.timeValue))
 		o.tiles.Refresh()
 	}
 	a.selectTime(o, target, !first)
@@ -175,10 +178,22 @@ func (o *overlayState) validTime(target time.Time) (time.Time, bool) {
 	if dim == nil {
 		return time.Time{}, false
 	}
-	if first, last, ok := dim.Bounds(); ok && (target.Before(first) || target.After(last)) {
+	first, last, ok := dim.Bounds()
+	if ok && (target.Before(first) || target.After(last)) {
 		return time.Time{}, false
 	}
-	return dim.Nearest(target)
+	if o.TimeStep <= 0 || !ok {
+		return dim.Nearest(target)
+	}
+	// Coarser steps than the capabilities tell, within the valid times.
+	v := target.Round(o.TimeStep)
+	for v.Before(first) {
+		v = v.Add(o.TimeStep)
+	}
+	for v.After(last) {
+		v = v.Add(-o.TimeStep)
+	}
+	return v, !v.Before(first)
 }
 
 // timeValue returns the TIME parameter for a valid time, or "" for the server's default if there is none.

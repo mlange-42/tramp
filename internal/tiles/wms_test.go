@@ -3,6 +3,8 @@ package tiles
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -203,5 +205,45 @@ func TestWMSFetcherWithoutCache(t *testing.T) {
 	}
 	if r, _ := srv.counts(); r != 2 {
 		t.Errorf("%d requests, want 2", r)
+	}
+}
+
+func TestWMSFetcherReferences(t *testing.T) {
+	var mu sync.Mutex
+	var refs []string
+	var buf bytes.Buffer
+	if err := png.Encode(&buf, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
+		t.Fatal(err)
+	}
+	// Only the run at 06:00 has data, like for a time before the latest run.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ref := r.URL.Query().Get("DIM_REFERENCE_TIME")
+		mu.Lock()
+		refs = append(refs, ref)
+		mu.Unlock()
+		if ref != "06" {
+			w.Header().Set("Content-Type", "text/xml")
+			_, _ = w.Write([]byte("<ServiceExceptionReport><ServiceException>No data</ServiceException></ServiceExceptionReport>"))
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(buf.Bytes())
+	}))
+	defer srv.Close()
+	f := &WMSFetcher{Client: &wms.Client{}, Layer: &wms.Layer{URL: srv.URL, Layers: "a"}}
+	f.SetReferences([]string{"12", "06", "00"})
+	for range 2 {
+		if _, err := f.Fetch(context.Background(), geo.TileKey{Z: 2}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The second tile starts with the run that worked.
+	if fmt.Sprint(refs) != "[12 06 06]" {
+		t.Errorf("unexpected requests %v", refs)
+	}
+	// Without any working run, the error is reported.
+	f.SetReferences([]string{"12"})
+	if _, err := f.Fetch(context.Background(), geo.TileKey{Z: 2}); !errors.Is(err, wms.ErrServiceException) {
+		t.Errorf("unexpected error %v", err)
 	}
 }

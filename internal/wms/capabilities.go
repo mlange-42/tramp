@@ -22,6 +22,8 @@ type LayerInfo struct {
 	Time *TimeDimension
 	// Reference is the default reference time, like the start of the latest model run. Empty if not given.
 	Reference string
+	// References are the valid reference times, like the starts of the available model runs. Nil if not given.
+	References *TimeDimension
 	// LegendURL is the address of the legend image of the default style. Empty if not given.
 	LegendURL string
 }
@@ -123,7 +125,7 @@ func ParseCapabilities(r io.Reader) (*Capabilities, error) {
 func (c *Capabilities) add(l *xmlLayer, parent *LayerInfo) {
 	info := &LayerInfo{Name: l.Name}
 	if parent != nil {
-		info.Time, info.Reference = parent.Time, parent.Reference
+		info.Time, info.Reference, info.References = parent.Time, parent.Reference, parent.References
 	}
 	for _, dims := range [][]xmlDimension{l.Dimensions, l.Extents} {
 		for _, d := range dims {
@@ -131,8 +133,13 @@ func (c *Capabilities) add(l *xmlLayer, parent *LayerInfo) {
 			switch {
 			case strings.EqualFold(d.Name, "time") && values != "":
 				info.Time = &TimeDimension{Default: d.Default, Values: values}
-			case strings.EqualFold(d.Name, "reference_time") && d.Default != "":
-				info.Reference = d.Default
+			case strings.EqualFold(d.Name, "reference_time"):
+				if d.Default != "" {
+					info.Reference = d.Default
+				}
+				if values != "" {
+					info.References = &TimeDimension{Default: d.Default, Values: values}
+				}
 			}
 		}
 	}
@@ -182,6 +189,53 @@ func (d *TimeDimension) Nearest(t time.Time) (time.Time, bool) {
 		}
 	}
 	return best, bestDist >= 0
+}
+
+// Latest returns up to n valid times not after t, the latest first.
+func (d *TimeDimension) Latest(t time.Time, n int) []time.Time {
+	var times []time.Time
+	for len(times) < n {
+		v, ok := d.latestBefore(t)
+		if !ok {
+			break
+		}
+		times = append(times, v)
+		t = v.Add(-time.Nanosecond)
+	}
+	return times
+}
+
+// latestBefore returns the latest valid time not after t.
+func (d *TimeDimension) latestBefore(t time.Time) (time.Time, bool) {
+	var best time.Time
+	ok := false
+	for item := range strings.SplitSeq(d.Values, ",") {
+		v, valid := latestIn(strings.TrimSpace(item), t)
+		if valid && (!ok || v.After(best)) {
+			best, ok = v, true
+		}
+	}
+	return best, ok
+}
+
+// latestIn returns the latest time not after t in a single time or an interval with a period.
+func latestIn(item string, t time.Time) (time.Time, bool) {
+	first, ok1 := nearestIn(item, time.Time{})
+	last, ok2 := nearestIn(item, maxTime)
+	if !ok1 || !ok2 || t.Before(first) {
+		return time.Time{}, false
+	}
+	if !t.Before(last) {
+		return last, true
+	}
+	// Within an interval: the step at or before t.
+	v, _ := nearestIn(item, t)
+	if v.After(t) {
+		parts := strings.Split(item, "/")
+		period, _ := ParsePeriod(parts[2])
+		v = v.Add(-period)
+	}
+	return v, true
 }
 
 // Bounds returns the first and the last valid time, or false if there is none or the values are not understood.
