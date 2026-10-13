@@ -206,6 +206,11 @@ func TestTimeline(t *testing.T) {
 	}
 	a.timeCtl.selected = now
 	a.setOverlay(0, true)
+	// The strip is shown at once, with an empty bar until the times are known.
+	frame()
+	if height == 0 || a.timeCtl.barWidth != 0 {
+		t.Errorf("expected the empty strip while loading, height %d, bar %d", height, a.timeCtl.barWidth)
+	}
 	waitOverlayTime(a, 0)
 	frame()
 	if height == 0 || a.timeCtl.barWidth <= 0 {

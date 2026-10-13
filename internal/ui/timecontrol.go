@@ -159,7 +159,8 @@ func (a *App) updateTimeControl(gtx layout.Context) {
 		case pointer.Press, pointer.Drag:
 			c.dragging, c.dragTime = true, c.timeAt(e.Position.X)
 		case pointer.Release:
-			if c.dragging {
+			// Without times, the bar has no width.
+			if c.dragging && c.barWidth > 0 {
 				a.selectAllTimes(c.dragTime, now)
 			}
 			c.dragging = false
@@ -189,14 +190,26 @@ func (a *App) updateTimeControl(gtx layout.Context) {
 	}
 }
 
+// timelineShown reports whether the time strip is shown: while an enabled overlay has times,
+// or may have them but its capabilities are not read yet.
+func (a *App) timelineShown() bool {
+	for i := range a.overlays {
+		o := &a.overlays[i]
+		if o.tiles != nil && (o.times.dim != nil || (o.timed() && o.times.waiting)) {
+			return true
+		}
+	}
+	return false
+}
+
 // layoutTimeline draws the time strip at the bottom of the map if an enabled overlay has times,
 // and returns its height. It has buttons for an hour earlier and later and back to the current time,
 // the selected time, and a bar over the times of the overlays to click or drag on.
 func (a *App) layoutTimeline(gtx layout.Context) int {
-	r, ok := a.timeRanges()
-	if !ok {
+	if !a.timelineShown() {
 		return 0
 	}
+	r, ok := a.timeRanges()
 	c, st, now := &a.timeCtl, a.style, gtx.Now
 	_, _, canPrev, canNext, _ := a.timeSteps(now)
 
@@ -224,7 +237,7 @@ func (a *App) layoutTimeline(gtx layout.Context) int {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 			button(&c.prev, iconPrev, "One hour earlier", canPrev),
 			// Always there, so that the bar doesn't move.
-			button(&c.now, iconNow, "Back to the current time", !c.selected.IsZero()),
+			button(&c.now, iconNow, "Back to the current time", ok && !c.selected.IsZero()),
 			button(&c.next, iconNext, "One hour later", canNext),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				// A fixed width, so that the bar doesn't move while stepping.
@@ -233,7 +246,7 @@ func (a *App) layoutTimeline(gtx layout.Context) int {
 			}),
 			layout.Rigid(layout.Spacer{Width: st.Spacing}.Layout),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
-				return a.layoutTimeBar(gtx, r)
+				return a.layoutTimeBar(gtx, r, ok)
 			}),
 		)
 	})
@@ -252,10 +265,14 @@ func (a *App) layoutTimeline(gtx layout.Context) int {
 
 // layoutTimeBar draws the bar over the times of all enabled overlays: day labels above,
 // the range where all overlays have data highlighted, the current time, and a handle at the selected time.
-func (a *App) layoutTimeBar(gtx layout.Context, r timeRange) layout.Dimensions {
+// Without times (ok false), like while they are loaded, only the empty bar is drawn.
+func (a *App) layoutTimeBar(gtx layout.Context, r timeRange, ok bool) layout.Dimensions {
 	c, st, now := &a.timeCtl, a.style, gtx.Now
 	w := gtx.Constraints.Max.X
 	c.barWidth, c.barFirst, c.barLast = w, r.first, r.last
+	if !ok {
+		c.barWidth = 0
+	}
 	span := r.last.Sub(r.first)
 	xOf := func(t time.Time) int {
 		if span <= 0 {
@@ -281,9 +298,12 @@ func (a *App) layoutTimeBar(gtx layout.Context, r timeRange) layout.Dimensions {
 		return clip.UniformRRect(rect, min(rect.Dx(), rect.Dy())/2).Op(gtx.Ops)
 	}
 	paint.FillShape(gtx.Ops, st.DividerColor, rounded(image.Rect(0, trackY, w, trackY+trackH)))
+	if !ok {
+		return layout.Dimensions{Size: image.Pt(w, h)}
+	}
 	if r.common {
 		x0 := xOf(r.commonFirst)
-		paint.FillShape(gtx.Ops, st.SelectedBg, rounded(image.Rect(x0, trackY, max(xOf(r.commonLast), x0+trackH), trackY+trackH)))
+		paint.FillShape(gtx.Ops, st.TimeBand, rounded(image.Rect(x0, trackY, max(xOf(r.commonLast), x0+trackH), trackY+trackH)))
 	}
 
 	// A tick at each midnight, and the weekday and date after it if there is room.
@@ -319,6 +339,8 @@ func (a *App) layoutTimeBar(gtx layout.Context, r timeRange) layout.Dimensions {
 	if !sel.Before(r.first) && !sel.After(r.last) {
 		cx, cy := xOf(sel), trackY+trackH/2
 		handle := image.Rect(cx-handleR, cy-handleR, cx+handleR, cy+handleR)
+		// A light ring, so that the handle stands out on the band.
+		paint.FillShape(gtx.Ops, st.Theme.ContrastFg, clip.Ellipse(handle.Inset(-gtx.Dp(2))).Op(gtx.Ops))
 		paint.FillShape(gtx.Ops, st.Theme.ContrastBg, clip.Ellipse(handle).Op(gtx.Ops))
 	}
 	return layout.Dimensions{Size: image.Pt(w, h)}
