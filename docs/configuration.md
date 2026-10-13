@@ -180,6 +180,26 @@ Maps and overlays with `enabled: false` are not listed, but stay in the file to 
 
 Delete the file to restore the built-in maps.
 
+## Presets
+
+Stored combinations of a background map and overlays are kept in `presets.yaml`.
+It is created with the built-in presets on the first start.
+Each preset has a unique name, and refers to the map and the overlays by their names in `wms.yaml`:
+
+```yaml
+presets:
+  - name: Weather
+    map: Natural Earth
+    overlays:
+      - Precipitation radar
+      - Weather warnings
+      - Borders & places
+```
+
+Applying a preset turns off all other overlays.
+Maps and overlays that are not available are skipped and reported in the log file.
+Delete the file to restore the built-in presets.
+
 ## Gradients
 
 The color gradients for coloring tracks by speed, elevation or slope are configured in `gradients.yaml`.

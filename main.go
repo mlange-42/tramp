@@ -32,15 +32,18 @@ func main() {
 
 	wmsConfig := loadWMS()
 	gradients := loadGradients()
+	presets, savePresets := loadPresets()
 
 	go func() {
 		w := new(app.Window)
 		w.Option(ui.WindowOptions(state.Window)...)
 		a := ui.New(w, ui.Options{
-			Maps:      wmsConfig.Maps,
-			Overlays:  wmsConfig.Overlays,
-			Gradients: gradients,
-			State:     state,
+			Maps:        wmsConfig.Maps,
+			Overlays:    wmsConfig.Overlays,
+			Gradients:   gradients,
+			Presets:     presets,
+			SavePresets: savePresets,
+			State:       state,
 			// Track files to open, e.g. from "Open with" or dropping files on the executable.
 			Files: os.Args[1:],
 		})
@@ -106,6 +109,33 @@ func loadGradients() []ui.Gradient {
 		log.Printf("no valid gradients in %s, using default gradients", ui.GradientsFile)
 	}
 	return grads
+}
+
+// loadPresets reads the layer presets file, or creates it with the built-in presets if it doesn't exist.
+// Invalid presets are skipped. It returns the function for storing changed presets,
+// which is nil if the file could not be read, so that it is not overwritten.
+func loadPresets() ([]ui.Preset, func([]ui.Preset) error) {
+	var cfg ui.PresetConfig
+	exists, err := settings.LoadFile(ui.PresetsFile, &cfg)
+	if err != nil {
+		log.Printf("using default presets: %v", err)
+		cfg = ui.DefaultPresets()
+		return cfg.Presets, nil
+	}
+	if !exists {
+		cfg = ui.DefaultPresets()
+		if err := settings.SaveFile(ui.PresetsFile, &cfg); err != nil {
+			log.Printf("saving %s: %v", ui.PresetsFile, err)
+		}
+	}
+	presets, err := cfg.Valid()
+	if err != nil {
+		log.Printf("invalid presets in %s: %v", ui.PresetsFile, err)
+	}
+	save := func(p []ui.Preset) error {
+		return settings.SaveFile(ui.PresetsFile, &ui.PresetConfig{Presets: p})
+	}
+	return presets, save
 }
 
 // setupLog writes the log and crash reports to [logFile] in the settings directory, in addition to stderr.

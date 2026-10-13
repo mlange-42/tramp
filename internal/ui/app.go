@@ -50,6 +50,10 @@ type Options struct {
 	Overlays []Overlay
 	// Gradients are the color gradients for coloring tracks. If empty, the built-in ones are used.
 	Gradients []Gradient
+	// Presets are the stored combinations of map and overlays.
+	Presets []Preset
+	// SavePresets stores the presets after they were changed. If nil, changes are not stored.
+	SavePresets func([]Preset) error
 	// State is the initial map, overlays and view, as returned by [App.State].
 	// Unknown map and overlay names are ignored.
 	// If State.View is nil, the map shows the whole world.
@@ -104,6 +108,9 @@ type App struct {
 	overlays     []overlayState
 	overlayNames []string
 	overlaySel   *MultiSelect
+	// presets are the stored combinations of map and overlays, see presets.go.
+	presets     []Preset
+	savePresets func([]Preset) error
 
 	split      Split
 	chartSplit Split
@@ -204,6 +211,8 @@ func newApp(invalidate func(), opts Options) *App {
 		tileCache:    opts.State.TileCache,
 		diskCache:    newDiskCache(opts.State.DiskCache),
 		layers:       layers,
+		presets:      opts.Presets,
+		savePresets:  opts.SavePresets,
 		overlaySel:   NewMultiSelect("Overlays", len(overlays)),
 		mapView:      mapview.New(geo.LonLat{}, 0),
 		trackWidth:   dpOr(opts.State.Style.TrackWidth, settings.DefaultTrackWidth),
