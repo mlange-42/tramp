@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/track"
 	"github.com/ncruces/zenity"
 )
@@ -25,6 +26,8 @@ type editState struct {
 	saved fileSnapshot
 	// overwriteOK is set once the user agreed to overwrite a file not written by TRAMP.
 	overwriteOK bool
+	// needEle are the positions of new or moved points without elevation, see [openFile.noteNewPoints].
+	needEle []geo.LonLat
 }
 
 // fileSnapshot is a copy of the editable content of a file: its routes and waypoints.
@@ -79,6 +82,7 @@ func (f *openFile) change(fn func(d *track.File)) {
 	fn(f.data)
 	f.edit.nextRev++
 	f.edit.rev = f.edit.nextRev
+	f.noteNewPoints(f.edit.undo[len(f.edit.undo)-1])
 	f.rebuild()
 }
 
@@ -103,6 +107,8 @@ func (f *openFile) redo() bool {
 	f.edit.undo = append(f.edit.undo, f.snapshot())
 	f.restore(f.edit.redo[n-1])
 	f.edit.redo = f.edit.redo[:n-1]
+	// Points redone before their elevation arrived get it now.
+	f.noteNewPoints(f.edit.undo[len(f.edit.undo)-1])
 	return true
 }
 
