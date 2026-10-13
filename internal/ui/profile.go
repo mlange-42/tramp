@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"time"
 
 	"github.com/mlange-42/tramp/internal/geo"
@@ -54,6 +55,72 @@ func (a *App) updateProfiles() {
 	if it := a.nav.item; it != nil && it.profile == profileNone {
 		a.startProfile(it)
 	}
+	// Tracks have their own points along the way, so their terrain is looked up there,
+	// only for the track shown in the chart.
+	if it := a.selected; it != nil && it.kind == trackItem && it.profile == profileNone {
+		a.startTrackProfile(it)
+	}
+}
+
+// startTrackProfile requests the terrain elevation at the points of a track item in the background.
+func (a *App) startTrackProfile(it *fileItem) {
+	var pos []geo.LonLat
+	for _, pts := range it.points {
+		for _, p := range pts {
+			pos = append(pos, p.Pos)
+		}
+	}
+	if len(pos) < 2 {
+		it.profile = profileDone
+		return
+	}
+	it.profile = profileLoading
+	src := it.points
+	center := geo.ToLonLat(geo.Point{X: (it.bounds.Min.X + it.bounds.Max.X) / 2, Y: (it.bounds.Min.Y + it.bounds.Max.Y) / 2})
+	svc := a.elev.service
+	zoom := svc.Source().ZoomFor(profileResolution, center.Lat)
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), profileTimeout)
+		defer cancel()
+		eles, err := svc.Elevations(ctx, pos, zoom)
+		a.runOnUI(func() { a.applyTrackProfile(it, src, eles, err) })
+	}()
+}
+
+// applyTrackProfile keeps the terrain elevations eles at the points src of a track item,
+// if the item still has these points.
+func (a *App) applyTrackProfile(it *fileItem, src [][]track.Point, eles []float64, err error) {
+	if len(it.points) != len(src) || len(src) == 0 || &it.points[0] != &src[0] {
+		return
+	}
+	if err != nil {
+		log.Printf("terrain elevation of %s: %v", it.name, err)
+		it.profile = profileFailed
+		return
+	}
+	gaps := it.gaps()
+	it.terrain = make([][]float64, len(src))
+	k := 0
+	for i, pts := range src {
+		// The values per segment are computed like those of the recorded elevation.
+		tp := make([]track.Point, len(pts))
+		for j, p := range pts {
+			tp[j] = track.Point{Pos: p.Pos, Ele: eles[k]}
+			k++
+		}
+		vals := track.SegmentValues(tp, track.ElevationMetric)
+		if vals != nil && gaps != nil {
+			for j, gap := range gaps[i] {
+				if gap {
+					vals[j] = math.NaN()
+				}
+			}
+		}
+		it.terrain[i] = vals
+	}
+	it.ascent, it.descent = track.Climb(eles, climbThreshold)
+	it.profile = profileDone
+	a.tracksChanged = true
 }
 
 // startProfile requests the elevation profile of a route item in the background.

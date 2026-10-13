@@ -21,7 +21,8 @@ type trackHover struct {
 	x   float64
 	pos geo.Point
 	// value is the value of the chart's metric at the position, NaN if there is none.
-	value float64
+	// terrain is the terrain elevation, NaN if not shown.
+	value, terrain float64
 }
 
 // updateHover finds the hovered position on the selected item: from the pointer position in the chart,
@@ -57,12 +58,22 @@ func (c *chart) hoverAt(lines []mapview.Polyline, i, j int, t float64) trackHove
 		pos:   geo.Point{X: a.X + (b.X-a.X)*t, Y: a.Y + (b.Y-a.Y)*t},
 		value: math.NaN(),
 	}
-	// Values are interpolated between points like in the chart, see [columnMeans].
-	if v := c.vals[i]; j < len(v) && !math.IsNaN(v[j]) {
-		v0, v1 := pointValue(v, j), pointValue(v, j+1)
-		h.value = v0 + (v1-v0)*t
+	h.value = segmentValue(c.vals, i, j, t)
+	h.terrain = math.NaN()
+	if c.terrain != nil {
+		h.terrain = segmentValue(c.terrain, i, j, t)
 	}
 	return h
+}
+
+// segmentValue returns the value at fraction t of segment j of line i, interpolated between the points
+// like in the chart, see [columnMeans]. It is NaN if the segment has no value.
+func segmentValue(vals [][]float64, i, j int, t float64) float64 {
+	if v := vals[i]; j < len(v) && !math.IsNaN(v[j]) {
+		v0, v1 := pointValue(v, j), pointValue(v, j+1)
+		return v0 + (v1-v0)*t
+	}
+	return math.NaN()
 }
 
 // locate returns the line i and segment j at position d on the horizontal axis, given the non-decreasing
@@ -113,6 +124,9 @@ func nearestSegment(lines []mapview.Polyline, p geo.Point, radius float64) (i, j
 // hoverText returns the label for the hovered position: the value, if any, and the position on the horizontal axis.
 func (a *App) hoverText() string {
 	x := a.chart.formatX(a.hover.x)
+	if !math.IsNaN(a.hover.terrain) {
+		x = "terrain " + a.chart.info.formatValue(a.hover.terrain) + " · " + x
+	}
 	if math.IsNaN(a.hover.value) {
 		return x
 	}

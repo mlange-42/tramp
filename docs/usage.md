@@ -112,6 +112,10 @@ It is shown in the chart, and its ascent and descent in the side panel, like ↑
 The elevations are downloaded in the background when the file is opened or the route is changed,
 see the [settings](configuration.md#settings) for the elevation source.
 
+For the track shown in the chart, the terrain elevation along it is drawn as a second, orange line in the elevation profile,
+for comparing it with the recorded elevation, which is often off by some meters.
+Tracks without recorded elevation show the terrain as their profile.
+
 ## Coloring
 
 Use the palette drop-down in the toolbar to color all tracks by speed, elevation or slope, with a choice of color gradients.

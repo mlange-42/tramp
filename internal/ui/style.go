@@ -93,6 +93,8 @@ type Style struct {
 	ChartGrid color.NRGBA
 	// ChartLine is the color of the line on top of the chart's filled area.
 	ChartLine color.NRGBA
+	// ChartTerrain is the color of the line of the terrain elevation below a track, in the chart.
+	ChartTerrain color.NRGBA
 	// ChartLineWidth is the width of the chart line.
 	ChartLineWidth unit.Dp
 	// MinChartHeight is the minimum height of the chart. Below 2/3 of it, the chart snaps closed.
@@ -185,6 +187,7 @@ func DefaultStyle() *Style {
 		MutedCasing:  color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
 		ChartGrid:    color.NRGBA{A: 0x20},
 		ChartLine:    color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xd0},
+		ChartTerrain: color.NRGBA{R: 0xd0, G: 0x50, B: 0x10, A: 0xe0},
 
 		ChartLineWidth:   1.5,
 		ChartTickSpacing: 32,

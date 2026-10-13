@@ -85,9 +85,11 @@ type fileItem struct {
 	// ascent and descent are from the profile, once done.
 	profile         profileState
 	ascent, descent float64
-	dots            []mapview.Dot
-	bounds          geo.Rect
-	color           color.NRGBA
+	// terrain is the terrain elevation per line segment of a track, like [fileItem.lineValues], once its profile is done.
+	terrain [][]float64
+	dots    []mapview.Dot
+	bounds  geo.Rect
+	color   color.NRGBA
 	// index is the position of the item in the file, independent of the panel order.
 	index int
 	// nth is the position of the item among the items of its kind in the file.
@@ -260,7 +262,7 @@ func (f *openFile) waypointsFirst() {
 func (it *fileItem) setContent(n *fileItem) {
 	it.name, it.summary = n.name, n.summary
 	it.lines, it.points, it.dots, it.bounds = n.lines, n.points, n.dots, n.bounds
-	it.profile = profileNone
+	it.profile, it.terrain = profileNone, nil
 	it.clearCaches()
 }
 
