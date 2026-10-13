@@ -223,9 +223,9 @@ func (a *App) layoutTimeline(gtx layout.Context) int {
 	dims := layout.Inset{Left: st.Spacing, Right: st.Spacing * 3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 			button(&c.prev, iconPrev, "One hour earlier", canPrev),
-			button(&c.next, iconNext, "One hour later", canNext),
 			// Always there, so that the bar doesn't move.
 			button(&c.now, iconNow, "Back to the current time", !c.selected.IsZero()),
+			button(&c.next, iconNext, "One hour later", canNext),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				// A fixed width, so that the bar doesn't move while stepping.
 				gtx.Constraints.Min.X = gtx.Sp(st.SmallTextSize) * 6
@@ -265,6 +265,9 @@ func (a *App) layoutTimeBar(gtx layout.Context, r timeRange) layout.Dimensions {
 	}
 
 	labelH := gtx.Sp(st.SmallTextSize) * 3 / 2
+	// The flex gives the bar its width as minimum, which the day labels must not take.
+	lgtx := gtx
+	lgtx.Constraints.Min = image.Point{}
 	trackH, handleR := gtx.Dp(6), gtx.Dp(6)
 	trackY := labelH + handleR - trackH/2
 	h := trackY + trackH/2 + handleR + gtx.Dp(2)
@@ -294,7 +297,7 @@ func (a *App) layoutTimeBar(gtx layout.Context, r timeRange) layout.Dimensions {
 		lbl := st.SmallLabel(day.Format("Mon 2"))
 		lbl.Color = st.HintFg
 		m := op.Record(gtx.Ops)
-		ld := lbl.Layout(gtx)
+		ld := lbl.Layout(lgtx)
 		lc := m.Stop()
 		lx := max(x, 0) + gtx.Dp(3)
 		if ld.Size.X+gtx.Dp(6) <= dayW && lx+ld.Size.X <= min(x+dayW, w) {
