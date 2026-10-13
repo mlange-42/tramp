@@ -141,6 +141,24 @@ func TestNavTrackFile(t *testing.T) {
 	}
 }
 
+func TestAddTrackElevations(t *testing.T) {
+	srv, _, _ := elevationServer(t)
+	svc := newElevationService(settings.Elevation{URL: srv.URL + "/{z}/{x}/{y}.png", TileSize: 4})
+	tr := track.Track{Segments: []track.Segment{
+		{Points: []track.Point{{Pos: geo.LonLat{Lon: 12.5, Lat: 51.5}, Ele: math.NaN()}}},
+		{Points: []track.Point{{Pos: geo.LonLat{Lon: 12.6, Lat: 51.5}, Ele: math.NaN()}, {Pos: geo.LonLat{Lon: 12.7, Lat: 51.5}, Ele: math.NaN()}}},
+	}}
+	addTrackElevations(svc, &tr)
+	if tr.Segments[0].Points[0].Ele != 123 || tr.Segments[1].Points[1].Ele != 123 {
+		t.Errorf("expected elevations for all points, got %+v", tr.Segments)
+	}
+	tr.Segments[0].Points[0].Ele = math.NaN()
+	addTrackElevations(nil, &tr)
+	if !math.IsNaN(tr.Segments[0].Points[0].Ele) {
+		t.Error("expected no elevation without service")
+	}
+}
+
 func TestAddRouteElevations(t *testing.T) {
 	srv, failing, _ := elevationServer(t)
 	svc := newElevationService(settings.Elevation{URL: srv.URL + "/{z}/{x}/{y}.png", TileSize: 4})

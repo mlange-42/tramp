@@ -81,7 +81,8 @@ All names in a file are unique, as devices merge points with the same name.
 The points get the terrain elevation at their position.
 The button's tooltip shows the number of points. The panel warns when the route has more than 250, as many devices take no more.
 
-The *Save as GPX track* button next to it stores the route with all its points as a GPX track, in a new file.
+The *Save as GPX track* button next to it stores the route with all its points as a GPX track, in a new file,
+with the terrain elevation at the points.
 Devices show the exact line of a track, so a track together with the route is a common pair for navigating.
 Files with tracks are not edited in TRAMP, so the track never goes into the edited file.
 
