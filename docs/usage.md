@@ -6,6 +6,8 @@ The background map and overlays like hillshading can be selected in the toolbar.
 Further maps can be added in the [maps configuration](configuration.md#maps).
 The button next to the overlays selects a [preset](configuration.md#presets), a stored combination of map and overlays,
 like *Weather* or *Hiking*. The check mark shows the preset that matches the current map and overlays.
+*Save current as…* stores the current map and overlays as a new preset, or replaces one with the same name.
+The bin next to a preset deletes it.
 Weather overlays from the Deutscher Wetterdienst (DWD) show the current precipitation radar
 and weather warnings for Germany, and forecasts of wind and precipitation.
 They are loaded again regularly while enabled.

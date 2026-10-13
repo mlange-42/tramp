@@ -5,8 +5,11 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 
+	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/wms"
+	"github.com/ncruces/zenity"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -123,5 +126,87 @@ func TestPresetMenu(t *testing.T) {
 	}
 	if a.presetActive(a.presets[0]) || !a.presetActive(a.presets[1]) {
 		t.Error("wrong active preset")
+	}
+}
+
+func TestSaveDeletePreset(t *testing.T) {
+	none := func(name string) Map { return Map{Layer: wms.Layer{Name: name, Type: wms.TypeNone}} }
+	var saved []Preset
+	a := newApp(func() {}, Options{
+		Maps:        []Map{none("M1"), none("M2")},
+		Overlays:    []Overlay{{Layer: wms.Layer{Name: "O1", Type: wms.TypeNone}}},
+		Presets:     []Preset{{Name: "P1", Map: "M1"}},
+		SavePresets: func(p []Preset) error { saved = p; return nil },
+	})
+	t.Cleanup(a.closeTiles)
+	u := &uiTester{a: a, size: image.Pt(1000, 700)}
+	u.frame()
+
+	var entered string
+	var confirm error
+	askText = func(string, ...zenity.Option) (string, error) {
+		if entered == "" {
+			return "", zenity.ErrCanceled
+		}
+		return entered, nil
+	}
+	question = func(string, ...zenity.Option) error { return confirm }
+	t.Cleanup(func() { askText, question = zenity.Entry, zenity.Question })
+	// choose clicks an entry of the opened menu, and waits for the dialogs.
+	choose := func(btn func() *widget.Clickable) {
+		t.Helper()
+		a.presetMenu.open = true
+		u.frame()
+		btn().Click()
+		u.frame()
+		for start := time.Now(); a.dialogOpen.Load(); {
+			if time.Since(start) > 5*time.Second {
+				t.Fatal("dialog not finished")
+			}
+			time.Sleep(time.Millisecond)
+		}
+		u.frame()
+	}
+	save := func() *widget.Clickable { return &a.presetMenu.save }
+
+	a.setLayer(1)
+	a.overlaySel.SetChecked(0, true)
+	a.setOverlay(0, true)
+
+	// Canceled: nothing stored.
+	choose(save)
+	if len(a.presets) != 1 || saved != nil {
+		t.Fatalf("presets %v, saved %v", a.presets, saved)
+	}
+	// A new name is added.
+	entered = " P2 "
+	choose(save)
+	want := []Preset{{Name: "P1", Map: "M1"}, {Name: "P2", Map: "M2", Overlays: []string{"O1"}}}
+	if !reflect.DeepEqual(a.presets, want) || !reflect.DeepEqual(saved, want) {
+		t.Fatalf("presets %v, saved %v", a.presets, saved)
+	}
+	// An existing name is replaced only if confirmed.
+	entered, confirm = "P1", zenity.ErrCanceled
+	choose(save)
+	if !reflect.DeepEqual(a.presets, want) {
+		t.Fatalf("replaced without confirmation: %v", a.presets)
+	}
+	confirm = nil
+	choose(save)
+	want[0] = Preset{Name: "P1", Map: "M2", Overlays: []string{"O1"}}
+	if !reflect.DeepEqual(a.presets, want) || !reflect.DeepEqual(saved, want) {
+		t.Fatalf("presets %v, saved %v", a.presets, saved)
+	}
+
+	// Deleting asks first.
+	confirm = zenity.ErrCanceled
+	choose(func() *widget.Clickable { return &a.presetMenu.removes[0] })
+	if len(a.presets) != 2 {
+		t.Fatalf("deleted without confirmation: %v", a.presets)
+	}
+	confirm = nil
+	choose(func() *widget.Clickable { return &a.presetMenu.removes[0] })
+	if want = want[1:]; !reflect.DeepEqual(a.presets, want) || !reflect.DeepEqual(saved, want) {
+		t.Fatalf("presets %v, saved %v", a.presets, saved)
 	}
 }

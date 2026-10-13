@@ -183,7 +183,7 @@ Delete the file to restore the built-in maps.
 ## Presets
 
 Stored combinations of a background map and overlays are kept in `presets.yaml`.
-It is created with the built-in presets on the first start.
+It is created with the built-in presets on the first start, and updated when presets are saved or deleted in the app.
 Each preset has a unique name, and refers to the map and the overlays by their names in `wms.yaml`:
 
 ```yaml

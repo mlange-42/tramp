@@ -497,8 +497,13 @@ func (a *App) update(gtx layout.Context) {
 	for _, i := range a.overlaySel.Update(gtx) {
 		a.setOverlay(i, a.overlaySel.Checked(i))
 	}
-	if i := a.presetMenu.update(gtx, len(a.presets)); i >= 0 {
-		a.applyPreset(a.presets[i])
+	switch act := a.presetMenu.update(gtx, len(a.presets)); {
+	case act.apply >= 0:
+		a.applyPreset(a.presets[act.apply])
+	case act.remove >= 0:
+		a.deletePreset(act.remove)
+	case act.save:
+		a.savePresetAs()
 	}
 	a.refreshOverlays(gtx)
 	a.updateTimeControl(gtx)
