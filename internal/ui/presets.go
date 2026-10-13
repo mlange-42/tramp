@@ -38,9 +38,9 @@ type Preset struct {
 func DefaultPresets() PresetConfig {
 	const hillshade = "Hillshade Germany (basemap.de)"
 	return PresetConfig{Presets: []Preset{
-		{Name: "Weather", Map: "Natural Earth", Overlays: []string{"Precipitation radar", "Weather warnings", "Borders & places"}},
 		{Name: "Hiking", Map: "OpenTopoMap", Overlays: []string{hillshade, "Hiking routes"}},
 		{Name: "Cycling", Map: "CyclOSM", Overlays: []string{hillshade, "Cycling routes"}},
+		{Name: "Weather", Map: "Natural Earth", Overlays: []string{"Precipitation radar", "Weather warnings", "Borders & places"}},
 		{Name: "Satellite", Map: "Satellite", Overlays: []string{"Labels & roads (bright)"}},
 	}}
 }
