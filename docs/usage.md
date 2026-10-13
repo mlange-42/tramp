@@ -5,7 +5,10 @@ Run `tramp` to open the map. Drag to pan, scroll to zoom.
 The background map and overlays like hillshading can be selected in the toolbar.
 Further maps can be added in the [maps configuration](configuration.md#maps).
 
-The status bar shows the position under the mouse pointer and its terrain elevation.
+The status bar shows the position under the mouse pointer and its terrain elevation,
+and at the right the short credits of the map, the overlays and the elevation data.
+*Data sources* next to them lists all sources in use, with their full credits and links,
+also those of the routing and search services.
 The elevation comes from elevation tiles downloaded from the internet, see the [settings](configuration.md#settings).
 
 ## Search

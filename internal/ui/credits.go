@@ -43,7 +43,12 @@ func (a *App) mapCredits() []credit {
 	}
 	if s := a.elev.service; s != nil {
 		src := s.Source()
-		add(credit{use: "Elevation", name: src.Name, full: src.Attribution, short: src.AttributionShort, url: src.AttributionURL})
+		// The short credit is the readable name of the source, like "© Mapterhorn".
+		name := strings.TrimSpace(strings.TrimPrefix(src.AttributionShort, "©"))
+		if name == "" {
+			name = src.Name
+		}
+		add(credit{use: "Elevation", name: name, full: src.Attribution, short: src.AttributionShort, url: src.AttributionURL})
 	}
 	return cs
 }
