@@ -3,6 +3,7 @@
 package elevation
 
 import (
+	"bytes"
 	"container/list"
 	"context"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"image"
 	_ "image/png" // Tiles of AWS Terrain Tiles.
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -17,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mlange-42/tramp/internal/diskcache"
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/httpx"
 	_ "golang.org/x/image/webp" // Tiles of Mapterhorn.
@@ -170,6 +173,12 @@ type Service struct {
 	size, maxSize int
 	// loading are the tiles being downloaded, so that each is downloaded once.
 	loading map[geo.TileKey]*download
+
+	// disk stores the downloaded tiles, nil for none, and maxAge is the age after which they are checked
+	// with the server. diskDir is the directory of the source in it, and diskExt the file extension of the tiles.
+	disk             *diskcache.Cache
+	maxAge           time.Duration
+	diskDir, diskExt string
 }
 
 // cacheEntry is a cached tile. grid is nil for a tile the source doesn't have.
@@ -199,6 +208,15 @@ func NewService(src Source, client httpx.Client, cacheSize int) *Service {
 		maxSize: cacheSize,
 		loading: map[geo.TileKey]*download{},
 	}
+}
+
+// SetDiskCache stores the downloaded tiles on disk, in a directory for the source.
+// Tiles older than maxAge are checked with the server, and still used if it can't be reached.
+// Tiles the source doesn't have are stored as empty files. It must be called before the service is used.
+func (s *Service) SetDiskCache(c *diskcache.Cache, maxAge time.Duration) {
+	s.disk, s.maxAge = c, maxAge
+	s.diskDir = diskcache.Name(s.src.Name, s.src.URL)
+	s.diskExt = diskcache.ImageExt(s.src.URL)
 }
 
 // Source returns the source of the service.
@@ -364,30 +382,105 @@ func (s *Service) download(k geo.TileKey, d *download) {
 	close(d.done)
 }
 
-// fetch downloads and decodes a tile.
+// fetch loads and decodes a tile.
 func (s *Service) fetch(ctx context.Context, k geo.TileKey) (*grid, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.src.tileURL(k), nil)
+	data, err := s.load(ctx, k)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("elevation tile %d/%d/%d: %w", k.Z, k.X, k.Y, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	switch resp.StatusCode {
-	case http.StatusOK:
-	case http.StatusNotFound, http.StatusForbidden, http.StatusNoContent:
-		// AWS answers 403 for tiles not in its bucket.
-		return nil, errMissing
-	default:
-		return nil, fmt.Errorf("elevation tile %d/%d/%d: %s", k.Z, k.X, k.Y, resp.Status)
-	}
-	img, _, err := image.Decode(io.LimitReader(resp.Body, 16<<20))
+	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("elevation tile %d/%d/%d: %w", k.Z, k.X, k.Y, err)
 	}
 	return decode(img, s.src.Encoding)
+}
+
+// load returns the image data of a tile from the disk cache, or downloads it if it is not stored or too old.
+// It returns [errMissing] for tiles the source doesn't have.
+func (s *Service) load(ctx context.Context, k geo.TileKey) ([]byte, error) {
+	if s.disk == nil {
+		data, _, err := s.get(ctx, k, time.Time{})
+		return data, err
+	}
+	key := s.diskDir + "/" + strconv.Itoa(k.Z) + "/" + strconv.Itoa(k.X) + "/" + strconv.Itoa(k.Y) + s.diskExt
+	cached, mod, ok := s.disk.Get(key)
+	stored := func() ([]byte, error) {
+		if len(cached) == 0 {
+			return nil, errMissing
+		}
+		return cached, nil
+	}
+	if ok && time.Since(mod) < s.maxAge {
+		return stored()
+	}
+	var since time.Time
+	if ok && len(cached) > 0 {
+		since = mod
+	}
+	data, noStore, err := s.get(ctx, k, since)
+	switch {
+	case errors.Is(err, errNotModified):
+		if err := s.disk.Touch(key); err != nil {
+			log.Printf("elevation cache: %v", err)
+		}
+		return stored()
+	case errors.Is(err, errMissing):
+		data, noStore = nil, false
+	case err != nil:
+		if ok {
+			// Offline, or the server fails: the old tile is better than none.
+			return stored()
+		}
+		return nil, err
+	}
+	if !noStore {
+		if err := s.disk.Put(key, data); err != nil {
+			log.Printf("elevation cache: %v", err)
+		}
+	}
+	if data == nil {
+		return nil, errMissing
+	}
+	return data, nil
+}
+
+// errNotModified is returned by [Service.get] if the tile has not changed since the given time.
+var errNotModified = errors.New("not modified")
+
+// get downloads a tile. If since is not zero, the server is asked whether the tile changed since then,
+// and [errNotModified] is returned if not. noStore is whether the server forbids storing the tile.
+func (s *Service) get(ctx context.Context, k geo.TileKey, since time.Time) (data []byte, noStore bool, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.src.tileURL(k), nil)
+	if err != nil {
+		return nil, false, err
+	}
+	if !since.IsZero() {
+		req.Header.Set("If-Modified-Since", since.UTC().Format(http.TimeFormat))
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, false, fmt.Errorf("elevation tile %d/%d/%d: %w", k.Z, k.X, k.Y, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	switch resp.StatusCode {
+	case http.StatusOK:
+	case http.StatusNotModified:
+		if !since.IsZero() {
+			return nil, false, errNotModified
+		}
+		return nil, false, fmt.Errorf("elevation tile %d/%d/%d: %s", k.Z, k.X, k.Y, resp.Status)
+	case http.StatusNotFound, http.StatusForbidden, http.StatusNoContent:
+		// AWS answers 403 for tiles not in its bucket.
+		return nil, false, errMissing
+	default:
+		return nil, false, fmt.Errorf("elevation tile %d/%d/%d: %s", k.Z, k.X, k.Y, resp.Status)
+	}
+	data, err = io.ReadAll(io.LimitReader(resp.Body, 16<<20))
+	if err != nil {
+		return nil, false, fmt.Errorf("elevation tile %d/%d/%d: %w", k.Z, k.X, k.Y, err)
+	}
+	noStore = strings.Contains(strings.ToLower(resp.Header.Get("Cache-Control")), "no-store")
+	return data, noStore, nil
 }
 
 // insert caches a tile, nil for a tile the source doesn't have, and evicts the least recently used ones

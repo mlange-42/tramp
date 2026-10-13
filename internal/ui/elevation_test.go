@@ -54,7 +54,7 @@ func TestHoverElevation(t *testing.T) {
 	srv, failing, requests := elevationServer(t)
 	cfg := settings.Elevation{URL: srv.URL + "/{z}/{x}/{y}.png", TileSize: 4}
 	a := &App{mapView: mapview.New(geo.LonLat{Lon: 12.38, Lat: 51.34}, 12), invalidate: func() {}}
-	a.elev = elevationView{cfg: cfg, service: newElevationService(cfg)}
+	a.elev = elevationView{cfg: cfg, service: newElevationService(cfg, 0)}
 
 	// Nothing without the pointer on the map.
 	if _, st := a.hoverElevation(); st != elevOff || a.elev.busy {
@@ -92,10 +92,10 @@ func TestHoverElevation(t *testing.T) {
 }
 
 func TestElevationNone(t *testing.T) {
-	if s := newElevationService(settings.Elevation{Source: " None "}); s != nil {
+	if s := newElevationService(settings.Elevation{Source: " None "}, 0); s != nil {
 		t.Error("expected no service for source none")
 	}
-	if s := newElevationService(settings.Elevation{Source: "srtm"}); s == nil || s.Source().Name != "mapterhorn" {
+	if s := newElevationService(settings.Elevation{Source: "srtm"}, 0); s == nil || s.Source().Name != "mapterhorn" {
 		t.Error("expected the default source for an unknown one")
 	}
 	a := &App{mapView: mapview.New(geo.LonLat{}, 3)}

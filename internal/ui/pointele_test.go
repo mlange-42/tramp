@@ -17,7 +17,7 @@ func pointEleApp(t *testing.T) (*App, *openFile) {
 	srv, _, _ := elevationServer(t)
 	a, f := editApp(t, testPlanGPX)
 	cfg := settings.Elevation{URL: srv.URL + "/{z}/{x}/{y}.png", TileSize: 4}
-	a.elev = elevationView{cfg: cfg, service: newElevationService(cfg)}
+	a.elev = elevationView{cfg: cfg, service: newElevationService(cfg, 0)}
 	a.toggleEdit(f)
 	return a, f
 }

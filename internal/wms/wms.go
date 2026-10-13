@@ -4,6 +4,7 @@ package wms
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"image"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	// Register decoders for the image formats WMS servers commonly deliver.
 	_ "image/jpeg"
@@ -131,43 +133,79 @@ type Client struct {
 
 // GetMap fetches and decodes the map image for the given layer and extent.
 func (c *Client) GetMap(ctx context.Context, layer *Layer, bbox geo.Rect, width, height int) (image.Image, error) {
-	return c.get(ctx, layer.MapURL(bbox, width, height))
+	d, err := c.fetch(ctx, layer.MapURL(bbox, width, height), time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	return Decode(d.Body)
 }
 
 // GetTile fetches and decodes a tile image of the given layer.
 func (c *Client) GetTile(ctx context.Context, layer *Layer, key geo.TileKey) (image.Image, error) {
-	return c.get(ctx, layer.TileURL(key))
+	d, err := c.GetTileData(ctx, layer, key, time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	return Decode(d.Body)
 }
 
-func (c *Client) get(ctx context.Context, u string) (image.Image, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := c.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
+// ErrNotModified is returned by [Client.GetTileData] if the tile has not changed since the given time.
+var ErrNotModified = errors.New("wms: not modified")
 
-	// Limit reads in case a misconfigured server sends something huge.
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("wms: HTTP %d: %s", resp.StatusCode, excerpt(body))
-	}
-	// Servers report errors as XML service exceptions, often with status 200.
-	if ct := resp.Header.Get("Content-Type"); strings.Contains(ct, "xml") || strings.HasPrefix(ct, "text/") {
-		return nil, fmt.Errorf("wms: service exception: %s", excerpt(body))
-	}
+// Data is an image as delivered by the server, not decoded.
+type Data struct {
+	Body []byte
+	// NoStore is whether the server forbids storing the image.
+	NoStore bool
+}
 
-	img, _, err := image.Decode(bytes.NewReader(body))
+// GetTileData fetches a tile image of the given layer without decoding it.
+// If since is not zero, the server is asked whether the tile changed since then,
+// and [ErrNotModified] is returned if not.
+func (c *Client) GetTileData(ctx context.Context, layer *Layer, key geo.TileKey, since time.Time) (Data, error) {
+	return c.fetch(ctx, layer.TileURL(key), since)
+}
+
+// Decode decodes an image as delivered by the server.
+func Decode(data []byte) (image.Image, error) {
+	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("wms: decoding image: %w", err)
 	}
 	return img, nil
+}
+
+func (c *Client) fetch(ctx context.Context, u string, since time.Time) (Data, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return Data{}, err
+	}
+	if !since.IsZero() {
+		req.Header.Set("If-Modified-Since", since.UTC().Format(http.TimeFormat))
+	}
+	resp, err := c.Do(req)
+	if err != nil {
+		return Data{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusNotModified && !since.IsZero() {
+		return Data{}, ErrNotModified
+	}
+
+	// Limit reads in case a misconfigured server sends something huge.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 32<<20))
+	if err != nil {
+		return Data{}, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return Data{}, fmt.Errorf("wms: HTTP %d: %s", resp.StatusCode, excerpt(body))
+	}
+	// Servers report errors as XML service exceptions, often with status 200.
+	if ct := resp.Header.Get("Content-Type"); strings.Contains(ct, "xml") || strings.HasPrefix(ct, "text/") {
+		return Data{}, fmt.Errorf("wms: service exception: %s", excerpt(body))
+	}
+	noStore := strings.Contains(strings.ToLower(resp.Header.Get("Cache-Control")), "no-store")
+	return Data{Body: body, NoStore: noStore}, nil
 }
 
 func excerpt(b []byte) string {

@@ -30,7 +30,7 @@ func navFileApp(t *testing.T) (*App, *fileItem) {
 	a.mapView.View.Size = image.Pt(800, 600)
 	a.router = &fakeRouter{}
 	cfg := settings.Elevation{URL: srv.URL + "/{z}/{x}/{y}.png", TileSize: 4}
-	a.elev = elevationView{cfg: cfg, service: newElevationService(cfg)}
+	a.elev = elevationView{cfg: cfg, service: newElevationService(cfg, 0)}
 	fileIt := f.routeItem(0)
 	a.selected = fileIt
 	return a, fileIt

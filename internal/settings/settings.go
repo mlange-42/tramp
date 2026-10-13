@@ -16,9 +16,18 @@ const (
 	fileName = "settings.yaml"
 )
 
-// DefaultTileCache is the default for [Settings.TileCache].
-// A tile takes 256 KB of memory, so this is about 512 MB.
-const DefaultTileCache = 2048
+// Defaults for [Settings.TileCache] and [Settings.ElevationTileCache], in MB.
+const (
+	DefaultTileCache          = 512
+	DefaultElevationTileCache = 128
+)
+
+// Defaults for [DiskCache].
+const (
+	DefaultDiskCacheSize          = 2048
+	DefaultDiskCacheElevationSize = 1024
+	DefaultDiskCacheAge           = 30
+)
 
 // DefaultPanelWidth is the default for [Window.PanelWidth].
 const DefaultPanelWidth = 280
@@ -39,9 +48,12 @@ const DefaultMutedColor = "#808080c0"
 
 // Settings are the persisted user preferences.
 type Settings struct {
-	// TileCache is the maximum number of map tiles kept in memory, shared by all visible layers.
-	// A tile takes 256 KB.
+	// TileCache is the maximum memory in MB for the map tiles kept in memory, shared by all visible layers.
 	TileCache int `yaml:"tile_cache"`
+	// ElevationTileCache is the maximum memory in MB for the elevation tiles kept in memory.
+	ElevationTileCache int `yaml:"elevation_tile_cache"`
+	// DiskCache keeps downloaded map and elevation tiles on disk, for offline use.
+	DiskCache DiskCache `yaml:"disk_cache"`
 	// Style is how tracks, routes and waypoints are drawn on the map.
 	Style Style `yaml:"style"`
 	// View is the last map view, with the selected map and overlays. Nil if not known yet.
@@ -78,6 +90,21 @@ type Style struct {
 	// in the zoomed chart, and of segments without value in tracks colored by value, like gaps in the recording.
 	// Like "#808080", or with opacity like "#808080c0".
 	MutedColor string `yaml:"muted_color"`
+}
+
+// DiskCache keeps downloaded map and elevation tiles on disk.
+type DiskCache struct {
+	// Dir is the directory of the cache. If empty, the tramp directory in the user's cache directory is used,
+	// see [CacheDir].
+	Dir string `yaml:"dir"`
+	// MaxSize is the maximum size of the map tiles in MB. Negative turns the cache off, 0 for the default.
+	MaxSize int `yaml:"max_size"`
+	// ElevationMaxSize is the maximum size of the elevation tiles in MB. Negative turns the cache off,
+	// 0 for the default.
+	ElevationMaxSize int `yaml:"elevation_max_size"`
+	// MaxAge is the age in days after which a tile is checked with the server again.
+	// Older tiles are still used if the server can't be reached. 0 for the default.
+	MaxAge int `yaml:"max_age"`
 }
 
 // GPS selects the serial port of the GPS receiver for showing the live position.
@@ -224,6 +251,16 @@ func Dir() (string, error) {
 	return filepath.Join(base, dirName), nil
 }
 
+// CacheDir returns the directory for cached data, e.g. %LocalAppData%\tramp on Windows,
+// ~/.cache/tramp on Linux or ~/Library/Caches/tramp on macOS.
+func CacheDir() (string, error) {
+	base, err := os.UserCacheDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(base, dirName), nil
+}
+
 // Path returns the path of the settings file.
 func Path() (string, error) {
 	return FilePath(fileName)
@@ -287,6 +324,18 @@ func load(path string) (s Settings, exists bool, err error) {
 func (s *Settings) setDefaults() {
 	if s.TileCache <= 0 {
 		s.TileCache = DefaultTileCache
+	}
+	if s.ElevationTileCache <= 0 {
+		s.ElevationTileCache = DefaultElevationTileCache
+	}
+	if s.DiskCache.MaxSize == 0 {
+		s.DiskCache.MaxSize = DefaultDiskCacheSize
+	}
+	if s.DiskCache.ElevationMaxSize == 0 {
+		s.DiskCache.ElevationMaxSize = DefaultDiskCacheElevationSize
+	}
+	if s.DiskCache.MaxAge <= 0 {
+		s.DiskCache.MaxAge = DefaultDiskCacheAge
 	}
 	if s.Window != nil && s.Window.PanelWidth <= 0 {
 		s.Window.PanelWidth = DefaultPanelWidth

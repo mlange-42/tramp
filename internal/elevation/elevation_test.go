@@ -10,9 +10,13 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/mlange-42/tramp/internal/diskcache"
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/httpx"
 )
@@ -318,5 +322,52 @@ func TestSourceByName(t *testing.T) {
 	}
 	if _, err := SourceByName("srtm"); err == nil {
 		t.Error("expected an error for an unknown source")
+	}
+}
+
+func TestDiskCache(t *testing.T) {
+	ts := newTileServer(t, 3)
+	disk := diskcache.New(t.TempDir(), 1<<20)
+	disk.Wait()
+	newService := func() *Service {
+		s := NewService(ts.source(), httpx.Client{}, 0)
+		s.SetDiskCache(disk, time.Hour)
+		return s
+	}
+	p := geo.LonLat{Lon: 12.38, Lat: 51.34}
+	if e, err := newService().Elevation(context.Background(), p, 5); err != nil || e != 3042 {
+		t.Fatalf("expected 3042, got %v, %v", e, err)
+	}
+	dir := diskcache.Name("test", ts.source().URL)
+	if data, _, ok := disk.Get(dir + "/3/4/2.png"); !ok || len(data) == 0 {
+		t.Error("tile not stored")
+	}
+	if data, _, ok := disk.Get(dir + "/5/17/10.png"); !ok || len(data) != 0 {
+		t.Error("missing tile not stored as empty file")
+	}
+
+	// A new service uses the stored tiles, also for knowing which are missing.
+	if e, err := newService().Elevation(context.Background(), p, 5); err != nil || e != 3042 {
+		t.Fatalf("expected 3042, got %v, %v", e, err)
+	}
+	if ts.count(5, 17, 10) != 1 || ts.count(4, 8, 5) != 1 || ts.count(3, 4, 2) != 1 {
+		t.Errorf("expected stored tiles, got requests %v", ts.requests)
+	}
+
+	// Too old, and the server fails: the old tiles are used.
+	old := time.Now().Add(-2 * time.Hour)
+	for _, f := range []string{"5/17/10", "4/8/5", "3/4/2"} {
+		if err := os.Chtimes(filepath.Join(disk.Dir(), dir, filepath.FromSlash(f+".png")), old, old); err != nil {
+			t.Fatal(err)
+		}
+		ts.mu.Lock()
+		ts.fail["/"+f+".png"] = true
+		ts.mu.Unlock()
+	}
+	if e, err := newService().Elevation(context.Background(), p, 5); err != nil || e != 3042 {
+		t.Fatalf("expected 3042 from old tiles, got %v, %v", e, err)
+	}
+	if ts.count(5, 17, 10) != 2 || ts.count(3, 4, 2) != 2 {
+		t.Errorf("expected old tiles checked once, got requests %v", ts.requests)
 	}
 }

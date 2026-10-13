@@ -13,6 +13,9 @@ import (
 	"github.com/mlange-42/tramp/internal/geo"
 )
 
+// TileBytes is the memory of a loaded tile, with 4 bytes per pixel.
+const TileBytes = geo.TileSize * geo.TileSize * 4
+
 // Fetcher retrieves the image for a single tile.
 type Fetcher interface {
 	Fetch(ctx context.Context, key geo.TileKey) (image.Image, error)

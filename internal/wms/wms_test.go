@@ -2,6 +2,7 @@ package wms
 
 import (
 	"context"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mlange-42/tramp/internal/geo"
 )
@@ -88,5 +90,38 @@ func TestGetMap(t *testing.T) {
 	_, err = c.GetMap(context.Background(), &Layer{URL: srv.URL, Layers: "bad"}, geo.Rect{}, 4, 4)
 	if err == nil || !strings.Contains(err.Error(), "Layer not found") {
 		t.Errorf("expected service exception, got %v", err)
+	}
+}
+
+func TestGetTileData(t *testing.T) {
+	modified := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if since, err := http.ParseTime(r.Header.Get("If-Modified-Since")); err == nil && !modified.After(since) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		if r.URL.Path == "/1/0/0.png" {
+			w.Header().Set("Cache-Control", "private, no-store")
+		}
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write([]byte("png"))
+	}))
+	defer srv.Close()
+
+	c := Client{}
+	l := &Layer{Type: TypeXYZ, URL: srv.URL + "/{z}/{x}/{y}.png"}
+	d, err := c.GetTileData(context.Background(), l, geo.TileKey{}, time.Time{})
+	if err != nil || string(d.Body) != "png" || d.NoStore {
+		t.Errorf("got %+v, %v", d, err)
+	}
+	d, err = c.GetTileData(context.Background(), l, geo.TileKey{}, modified.Add(-time.Hour))
+	if err != nil || string(d.Body) != "png" {
+		t.Errorf("got %+v, %v for a modified tile", d, err)
+	}
+	if _, err := c.GetTileData(context.Background(), l, geo.TileKey{}, modified); !errors.Is(err, ErrNotModified) {
+		t.Errorf("got %v for an unmodified tile", err)
+	}
+	if d, err := c.GetTileData(context.Background(), l, geo.TileKey{Z: 1}, time.Time{}); err != nil || !d.NoStore {
+		t.Errorf("got %+v, %v for a tile not to be stored", d, err)
 	}
 }

@@ -28,13 +28,15 @@ type elevationView struct {
 	// busy is set while a tile is downloaded, and failed is the time of the last failed download.
 	busy   bool
 	failed time.Time
-	// cfg is the configured source, kept for saving the settings.
-	cfg settings.Elevation
+	// cfg is the configured source, and cacheSize the memory in MB for the tiles, kept for saving the settings.
+	cfg       settings.Elevation
+	cacheSize int
 }
 
 // newElevationService returns the service for the configured elevation source, or nil if turned off.
 // An invalid configuration is logged, and the default source is used.
-func newElevationService(cfg settings.Elevation) *elevation.Service {
+// cacheSize is the memory in MB for the tiles, the default if 0 or less.
+func newElevationService(cfg settings.Elevation, cacheSize int) *elevation.Service {
 	if strings.EqualFold(strings.TrimSpace(cfg.Source), elevationNone) {
 		return nil
 	}
@@ -44,7 +46,7 @@ func newElevationService(cfg settings.Elevation) *elevation.Service {
 		src = elevation.Sources[0]
 	}
 	client := httpx.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent}
-	return elevation.NewService(src, client, 0)
+	return elevation.NewService(src, client, cacheSize<<20)
 }
 
 // elevState is the state of the elevation under the pointer.

@@ -81,8 +81,9 @@ type App struct {
 	style      *Style
 	client     *wms.Client
 
-	// tileCache is the number of tiles kept in memory, shared by all visible layers.
+	// tileCache is the memory in MB for the tiles kept in memory, shared by all visible layers.
 	tileCache    int
+	diskCache    diskCacheView
 	layers       []wms.Layer
 	layerNames   []string
 	layerSelect  Select
@@ -177,6 +178,7 @@ func newApp(invalidate func(), opts Options) *App {
 		style:        DefaultStyle(),
 		client:       &wms.Client{Client: httpx.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent}},
 		tileCache:    opts.State.TileCache,
+		diskCache:    newDiskCache(opts.State.DiskCache),
 		layers:       layers,
 		overlaySel:   NewMultiSelect("Overlays", len(overlays)),
 		mapView:      mapview.New(geo.LonLat{}, 0),
@@ -189,7 +191,11 @@ func newApp(invalidate func(), opts Options) *App {
 		gps:          gpsView{cfg: opts.State.GPS},
 		searchCfg:    opts.State.Search,
 		routingCfg:   opts.State.Routing,
-		elev:         elevationView{cfg: opts.State.Elevation, service: newElevationService(opts.State.Elevation)},
+		elev: elevationView{cfg: opts.State.Elevation, cacheSize: opts.State.ElevationTileCache,
+			service: newElevationService(opts.State.Elevation, opts.State.ElevationTileCache)},
+	}
+	if a.elev.service != nil && a.diskCache.elevation != nil {
+		a.elev.service.SetDiskCache(a.diskCache.elevation, a.diskCache.maxAge())
 	}
 	if opts.State.Window.Valid() {
 		a.win = *opts.State.Window
@@ -281,7 +287,9 @@ func dpOr(v, def float32) unit.Dp {
 func (a *App) State() settings.Settings {
 	ll := geo.ToLonLat(a.mapView.View.Center)
 	s := settings.Settings{
-		TileCache: a.tileCache,
+		TileCache:          a.tileCache,
+		ElevationTileCache: a.elev.cacheSize,
+		DiskCache:          a.diskCache.cfg,
 		Style: settings.Style{
 			TrackWidth:   float32(a.trackWidth),
 			RouteWidth:   float32(a.routeWidth),
@@ -366,7 +374,10 @@ func (a *App) closeTiles() {
 func (a *App) newManager(layer *wms.Layer, shade bool) *tiles.Manager {
 	opts := tiles.DefaultOptions()
 	opts.OnUpdate = a.invalidate
-	return tiles.NewManager(&tiles.WMSFetcher{Client: a.client, Layer: layer, Shade: shade}, opts)
+	return tiles.NewManager(&tiles.WMSFetcher{
+		Client: a.client, Layer: layer, Shade: shade,
+		Cache: a.diskCache.tiles, MaxAge: a.diskCache.maxAge(),
+	}, opts)
 }
 
 func (a *App) setLayer(i int) {
@@ -410,8 +421,9 @@ func (a *App) updateCapacity() {
 			managers = append(managers, o.tiles)
 		}
 	}
+	capacity := (a.tileCache << 20) / tiles.TileBytes
 	for _, m := range managers {
-		m.SetCapacity(a.tileCache / len(managers))
+		m.SetCapacity(capacity / len(managers))
 	}
 }
 
