@@ -173,6 +173,9 @@ type App struct {
 	// pending are the files being read, by batch, for saving the settings.
 	nextBatch int
 	pending   map[int][]settings.File
+	// limiter limits the simultaneous tile downloads per server, for all layers.
+	limiter *tiles.Limiter
+
 	// timeCtl selects the time of overlays that change over time.
 	timeCtl timeControl
 
@@ -196,6 +199,7 @@ func newApp(invalidate func(), opts Options) *App {
 	a := &App{
 		invalidate:   invalidate,
 		style:        DefaultStyle(),
+		limiter:      tiles.NewLimiter(),
 		client:       &wms.Client{Client: httpx.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent}},
 		tileCache:    opts.State.TileCache,
 		diskCache:    newDiskCache(opts.State.DiskCache),
@@ -398,6 +402,11 @@ func (a *App) closeTiles() {
 func (a *App) newManager(layer *wms.Layer, shade, refresh bool) (*tiles.Manager, *tiles.WMSFetcher) {
 	opts := tiles.DefaultOptions()
 	opts.OnUpdate = a.invalidate
+	opts.Limiter, opts.Host, opts.Connections = a.limiter, layer.Host(), layer.Connections
+	opts.Name = layer.Name
+	if layer.Time != "" {
+		opts.Name += " at " + layer.Time
+	}
 	f := &tiles.WMSFetcher{Client: a.client, Layer: layer, Shade: shade}
 	if !refresh {
 		f.Cache, f.MaxAge = a.diskCache.tiles, a.diskCache.maxAge()

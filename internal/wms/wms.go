@@ -56,6 +56,10 @@ type Layer struct {
 	// MetaTiles is the number of tiles per side requested in one image from a WMS, like 4 for 4×4 tiles.
 	// Larger images are much faster for services that need long to render each image. Zero or one means single tiles.
 	MetaTiles int `yaml:"meta_tiles,omitempty"`
+	// Connections is the number of simultaneous downloads from the server of the layer, for servers
+	// that don't like many. Zero means the default. With different numbers for layers of the same server,
+	// the lowest applies.
+	Connections int `yaml:"connections,omitempty"`
 	// MaxZoom is the highest tile level the service provides. Zero means no limit.
 	// The map is magnified beyond that.
 	MaxZoom int `yaml:"max_zoom,omitempty"`
@@ -84,6 +88,15 @@ type Layer struct {
 // IsXYZ reports whether the layer is an XYZ tile service.
 func (l *Layer) IsXYZ() bool {
 	return strings.EqualFold(l.Type, TypeXYZ)
+}
+
+// Host returns the server of the layer, for limiting the downloads from it.
+func (l *Layer) Host() string {
+	u, err := url.Parse(l.URL)
+	if err != nil {
+		return l.URL
+	}
+	return u.Host
 }
 
 // IsEnabled reports whether the layer is enabled, see [Layer.Enabled].

@@ -171,6 +171,11 @@ With `meta_tiles: 4`, 4×4 tiles are requested in one image of 1024×1024 pixels
 which loads such layers several times faster. It also avoids symbols cut off at the tile edges, like wind barbs.
 It has no effect for XYZ tile services.
 
+At most 4 tiles or images are downloaded at the same time from each server, for all layers together.
+For servers that don't like that many, `connections: 2` sets a lower number; with different numbers
+for layers of the same server, the lowest applies.
+Tiles of the times next to the shown one of weather overlays are loaded only when no other downloads from the server wait.
+
 Maps and overlays with `enabled: false` are not listed, but stay in the file to turn them on again later.
 
 Delete the file to restore the built-in maps.

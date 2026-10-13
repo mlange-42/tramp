@@ -127,29 +127,38 @@ func (o *overlayState) closeOverlayTiles() {
 // prefetchTimes loads the tiles of the neighboring times of the overlays in the background,
 // for the tiles shown, once these are loaded. Meanwhile, the background loading pauses.
 // The tiles of the previous time are no longer drawn below once the shown ones are loaded.
+// The tiles of other times stop loading, as do those of hidden overlays.
 func (a *App) prefetchTimes() {
 	for i := range a.overlays {
 		o := &a.overlays[i]
-		if o.tiles == nil || o.times.hidden() {
+		if o.tiles == nil {
 			continue
+		}
+		hidden := o.times.hidden()
+		o.tiles.SetBackground(false)
+		if hidden {
+			// Not drawn, so the map doesn't request its tiles.
+			o.tiles.Request(nil)
 		}
 		busy := o.tiles.Loading() > 0
 		var wanted []geo.TileKey
-		if !busy {
+		if !busy && !hidden {
 			o.fallback = nil
 			wanted = o.tiles.Wanted()
-		}
-		for _, value := range o.prefetch {
-			k := slices.IndexFunc(o.others, func(t *timeTiles) bool { return t.value == value })
-			if k < 0 {
-				if busy {
-					continue
+			for _, value := range o.prefetch {
+				if !slices.ContainsFunc(o.others, func(t *timeTiles) bool { return t.value == value }) {
+					o.others = append(o.others, a.newOverlayTiles(o, value))
+					a.updateCapacity()
 				}
-				o.others = append(o.others, a.newOverlayTiles(o, value))
-				k = len(o.others) - 1
-				a.updateCapacity()
 			}
-			o.others[k].tiles.Request(wanted)
+		}
+		for _, t := range o.others {
+			if hidden || !slices.Contains(o.prefetch, t.value) {
+				t.tiles.Request(nil)
+				continue
+			}
+			t.tiles.SetBackground(true)
+			t.tiles.Request(wanted)
 		}
 	}
 }

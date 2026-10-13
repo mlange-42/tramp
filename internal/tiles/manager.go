@@ -8,6 +8,7 @@ import (
 	"log"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"gioui.org/op/paint"
@@ -53,6 +54,13 @@ type Options struct {
 	RetryAfter time.Duration
 	// OnUpdate is called from a worker goroutine whenever a tile has been loaded or failed.
 	OnUpdate func()
+	// Limiter limits the simultaneous downloads from the server Host, shared with other managers,
+	// to Connections, see [Limiter.Acquire]. Nil for no limit besides Workers.
+	Limiter     *Limiter
+	Host        string
+	Connections int
+	// Name identifies the tiles in log messages, like the name of the layer.
+	Name string
 }
 
 // DefaultOptions returns sensible defaults for interactive use.
@@ -92,7 +100,9 @@ type Manager struct {
 	// gen is increased by [Manager.Refresh]. Cached tiles of older generations are loaded again.
 	gen    int
 	closed bool
-	wg     sync.WaitGroup
+	// background is set for managers that load tiles not shown yet, see [Manager.SetBackground].
+	background atomic.Bool
+	wg         sync.WaitGroup
 }
 
 // NewManager creates a manager and starts its workers.
@@ -202,6 +212,12 @@ func (m *Manager) Request(keys []geo.TileKey) {
 	}
 }
 
+// SetBackground sets whether the manager loads tiles in the background, not shown yet.
+// Its downloads then wait for those of other managers from the same server, see [Options.Limiter].
+func (m *Manager) SetBackground(b bool) {
+	m.background.Store(b)
+}
+
 // Wanted returns the tiles of the last [Manager.Request], like the visible tiles of the map.
 func (m *Manager) Wanted() []geo.TileKey {
 	m.mu.Lock()
@@ -258,7 +274,7 @@ func (m *Manager) work() {
 		delete(m.inflight, key)
 		if err != nil {
 			if m.ctx.Err() == nil {
-				log.Printf("tile %v: %v", key, err)
+				log.Printf("tile %v of %s: %v", key, m.opts.Name, err)
 				m.failed[key] = time.Now()
 			}
 		} else {
@@ -292,6 +308,14 @@ func (m *Manager) next() (geo.TileKey, int, bool) {
 
 // load fetches the tiles of a unit, and stamps them with the generation they were requested in.
 func (m *Manager) load(first geo.TileKey, gen int) ([]*Tile, error) {
+	// Waiting for a free connection doesn't count for the timeout.
+	if m.opts.Limiter != nil {
+		release, err := m.opts.Limiter.Acquire(m.ctx, m.opts.Host, m.opts.Connections, m.background.Load())
+		if err != nil {
+			return nil, err
+		}
+		defer release()
+	}
 	ctx, cancel := context.WithTimeout(m.ctx, m.opts.Timeout)
 	defer cancel()
 
