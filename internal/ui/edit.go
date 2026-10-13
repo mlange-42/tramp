@@ -374,12 +374,22 @@ func (a *App) newFile() {
 // createFile asks for a file name, suggesting name if not empty, writes data to it and opens it for editing.
 // then, if not nil, is called with the opened file.
 func (a *App) createFile(title, name string, data *track.File, then func(f *openFile)) {
+	a.createFileFrom(title, name, func() (*track.File, error) { return data, nil }, then)
+}
+
+// createFileFrom is like [App.createFile], with the data made by build after the file name was chosen.
+// build runs in the background.
+func (a *App) createFileFrom(title, name string, build func() (*track.File, error), then func(f *openFile)) {
 	a.dialog(func() func() {
 		path, ok := a.askSavePath(title, name)
 		if !ok {
 			return nil
 		}
-		if err := track.WriteFile(path, data); err != nil {
+		data, err := build()
+		if err == nil {
+			err = track.WriteFile(path, data)
+		}
+		if err != nil {
 			log.Printf("creating file: %v", err)
 			_ = zenity.Error(err.Error(), append([]zenity.Option{zenity.Title("Creating file failed")}, a.plat.dialogOptions()...)...)
 			return nil

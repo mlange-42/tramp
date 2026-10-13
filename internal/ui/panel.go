@@ -90,6 +90,9 @@ func (a *App) updateFiles(gtx layout.Context) {
 		if f.editBtn.Clicked(gtx) {
 			a.toggleEdit(f)
 		}
+		if f.terrainBtn.Clicked(gtx) {
+			a.saveWithTerrain(f)
+		}
 		if f.visible.Update(gtx) {
 			a.tracksChanged = true
 		}
@@ -244,6 +247,13 @@ func (a *App) layoutFileRow(gtx layout.Context, f *openFile) layout.Dimensions {
 				func(gtx layout.Context) layout.Dimensions { return a.layoutSwatch(gtx, &f.colorBtn, f.colors()) })
 		}),
 		layout.Flexed(1, a.rowText(&f.click, &f.tips.name, a.fileTitle(f), f.summary, f.visible.Value)),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// Files with tracks are not edited, so they have this button in place of the edit button.
+			if !a.terrainSavable(f) {
+				return layout.Dimensions{}
+			}
+			return f.terrainBtn.LayoutFlat(gtx, st, iconTerrain, st.HintFg, "Save a copy with the terrain elevation for all track points")
+		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if !f.editable() {
 				return layout.Dimensions{}

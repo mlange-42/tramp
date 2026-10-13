@@ -42,9 +42,11 @@ type openFile struct {
 	expand   iconButton
 	colorBtn widget.Clickable
 	editBtn  iconButton
-	tips     rowTips
-	expanded bool
-	drag     rowDrag
+	// terrainBtn saves a copy of a file with tracks with the terrain elevation, see [App.saveWithTerrain].
+	terrainBtn iconButton
+	tips       rowTips
+	expanded   bool
+	drag       rowDrag
 	// defColor is the color for new items of a file without items.
 	defColor color.NRGBA
 

@@ -115,6 +115,8 @@ see the [settings](configuration.md#settings) for the elevation source.
 For the track shown in the chart, the terrain elevation along it is drawn as a second, orange line in the elevation profile,
 for comparing it with the recorded elevation, which is often off by some meters.
 Tracks without recorded elevation use the terrain instead, for the profile and for coloring by elevation or slope.
+The mountain button of a file with tracks saves a copy with the terrain elevation for all track points,
+as a new GPX file that is opened. The original file is not changed.
 
 ## Coloring
 
