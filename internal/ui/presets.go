@@ -99,9 +99,9 @@ func (a *App) presetActive(p Preset) bool {
 	return true
 }
 
-// presetTip returns the tooltip of a preset, listing its map and overlays.
+// presetTip returns the tooltip of a preset, with its map and its overlays on separate lines.
 func presetTip(p Preset) string {
-	return strings.Join(append([]string{p.Map}, p.Overlays...), " + ")
+	return strings.Join(append([]string{p.Map}, p.Overlays...), "\n")
 }
 
 // presetMenu is the drop-down list of the layer presets, opened by a button that shows only an icon.
