@@ -11,6 +11,11 @@ and at the right the short credits of the map, the overlays and the elevation da
 also those of the routing and search services.
 The elevation comes from elevation tiles downloaded from the internet, see the [settings](configuration.md#settings).
 
+Map and elevation tiles are stored on disk, so that areas already viewed work without an internet connection.
+*Map › Clear tile cache* deletes them, and shows how much space they take.
+The size of the cache is limited in the [settings](configuration.md#settings).
+The *File* menu opens the folder with the settings files, and *Help* links to this documentation.
+
 ## Search
 
 The search field at the right of the toolbar (Ctrl+F) moves the map to a place or to coordinates.

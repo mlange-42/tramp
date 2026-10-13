@@ -20,11 +20,11 @@ A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Wr
 - [x] Profile chart, linked to the map
 - [x] Route and waypoint editing
 - [x] Live GPS position from USB and Bluetooth receivers
-- [x] Search for places and coordinates
+- [x] Search for places and coordinates, routing
+- [x] Offline tile cache
 - [ ] FIT and KML/KMZ files
 - [ ] Elevation for routes
 - [ ] Weather overlays
-- [ ] Offline tile cache
 
 ## Installation
 
