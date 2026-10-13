@@ -4,6 +4,13 @@ import (
 	"image"
 	"strings"
 	"testing"
+	"time"
+
+	"gioui.org/f32"
+	"gioui.org/io/input"
+	"gioui.org/io/pointer"
+	"gioui.org/layout"
+	"gioui.org/op"
 
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/mapview"
@@ -137,5 +144,88 @@ func TestChartElevationFallback(t *testing.T) {
 	a.updateChart()
 	if a.chart.info == nil || a.chart.info.metric != track.ElevationMetric || a.chart.coloring != nil {
 		t.Errorf("expected the elevation in the item's color, hint %q", a.chart.hint)
+	}
+}
+
+// navRouteGroup returns the group of the found route on the map, above its casing.
+func navRouteGroup(a *App) mapview.LineGroup {
+	g := a.nav.lines.Groups()
+	return g[len(g)-1]
+}
+
+func TestNavRouteColoring(t *testing.T) {
+	a, fileIt := navFileApp(t)
+	// The file is hidden, so the color range comes from the found route alone.
+	a.files[0].visible.Value = false
+	a.initColoring(nil, "elevation", nil)
+	a.toggleNav()
+	findNavRoute(a)
+	it := a.nav.item
+	a.updateProfiles()
+	waitProfile(t, a, it)
+	waitProfile(t, a, fileIt)
+	a.updateTracks()
+
+	if a.legend == nil {
+		t.Fatal("expected a legend from the found route")
+	}
+	g := navRouteGroup(a)
+	if g.Values == nil || len(g.Lines) != 1 || len(g.Lines[0].Points) != len(it.points[0]) || a.nav.lines.Coloring() == nil {
+		t.Errorf("expected the route colored along its profile")
+	}
+	if a.chart.item != it || a.chart.coloring == nil {
+		t.Errorf("expected the profile colored in the chart")
+	}
+
+	// Zoomed in on the route, it is muted, with the shown part highlighted.
+	a.chart.setRange(0, a.chart.total/2)
+	a.updateTracks()
+	a.updateHighlight()
+	if g := navRouteGroup(a); g.Values != nil || g.Color != a.style.MutedTrack {
+		t.Errorf("expected the route muted while zoomed in")
+	}
+	if a.highlightKey.item != it || len(a.highlight.Groups()) != 1 {
+		t.Errorf("expected the shown part highlighted")
+	}
+
+	// Without coloring, the route has its own color.
+	a.chart.setRange(0, a.chart.total)
+	a.colorBy.SetSelected(metricIndex(track.NoMetric))
+	a.updateTracks()
+	if g := navRouteGroup(a); g.Values != nil || g.Color != a.style.NavLine || a.legend != nil {
+		t.Errorf("expected the route in its own color")
+	}
+}
+
+func TestNavPanelClick(t *testing.T) {
+	a, fileIt := navFileApp(t)
+	a.toggleNav()
+	findNavRoute(a)
+	a.selected = fileIt
+
+	var r input.Router
+	var ops op.Ops
+	size := image.Pt(800, 600)
+	frame := func() {
+		ops.Reset()
+		gtx := layout.Context{Ops: &ops, Source: r.Source(), Now: time.Now(), Constraints: layout.Exact(size)}
+		gtx.Metric.PxPerDp, gtx.Metric.PxPerSp = 1, 1
+		a.updateNav(gtx, nil)
+		a.layoutNavPanel(gtx)
+		r.Frame(&ops)
+	}
+	frame()
+	// A press on the panel shows the profile, here on the field of the start, which still gets the press.
+	at := f32.Pt(float32(size.X)-float32(a.style.NavWidth)/2, float32(a.style.Spacing)+50)
+	r.Queue(
+		pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: at},
+		pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, Position: at},
+	)
+	frame()
+	if a.selected != a.nav.item {
+		t.Errorf("expected the profile shown")
+	}
+	if !r.Source().Focused(&a.nav.stops[0].field.ed) {
+		t.Errorf("expected the press passed on to the field")
 	}
 }

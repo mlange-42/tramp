@@ -548,7 +548,10 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	}
 	dims := a.mapView.Layout(gtx, a.mapLayers...)
 	a.tracks.Layout(gtx, &a.mapView.View)
-	a.highlight.Layout(gtx, &a.mapView.View)
+	// The highlight of the found route is drawn with the route, above the tracks.
+	if a.highlightKey.item == nil || a.highlightKey.item != a.nav.item {
+		a.highlight.Layout(gtx, &a.mapView.View)
+	}
 	a.layoutNavMap(gtx)
 	a.layoutSearchMarker(gtx)
 	a.layoutEditMap(gtx)

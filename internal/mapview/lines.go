@@ -150,6 +150,12 @@ func (l *Lines) Set(groups []LineGroup, coloring *Coloring) {
 	}
 }
 
+// Groups returns the drawn groups, and Coloring the coloring, as last set.
+func (l *Lines) Groups() []LineGroup { return l.groups }
+
+// Coloring returns the coloring for groups with values, as last set. Nil if not colored.
+func (l *Lines) Coloring() *Coloring { return l.coloring }
+
 // Layout draws the lines for the given view, which must have its size set.
 func (l *Lines) Layout(gtx layout.Context, v *View) {
 	if len(l.groups) == 0 {

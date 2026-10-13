@@ -655,7 +655,12 @@ func (a *App) fileState() []settings.File {
 func (a *App) updateTracks() {
 	items := a.shownItems()
 	groups := a.lineGroups(items)
-	a.legend = a.newLegend(groups)
+	// The found route counts for the color range while it is shown.
+	ranged := groups
+	if it := a.nav.item; it != nil && a.shown(it) {
+		ranged = append(slices.Clone(groups), mapview.LineGroup{Values: it.lineValues(a.colorMetric())})
+	}
+	a.legend = a.newLegend(ranged)
 	// While the chart is zoomed in, the selected item is muted, and the part visible in the chart
 	// is drawn on top, see [App.updateHighlight]. Its values still count for the color range.
 	for i, it := range items {
@@ -668,6 +673,7 @@ func (a *App) updateTracks() {
 		c = a.legend.coloring()
 	}
 	a.tracks.Set(groups, c)
+	a.updateNavLines()
 	a.updateChart()
 }
 

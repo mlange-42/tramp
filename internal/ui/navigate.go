@@ -14,6 +14,7 @@ import (
 
 	"gioui.org/f32"
 	"gioui.org/font"
+	"gioui.org/io/event"
 	"gioui.org/io/key"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
@@ -59,8 +60,8 @@ type navigator struct {
 	profile int
 	// report opens the page for reporting map errors.
 	report widget.Clickable
-	// panel is the event tag for the panel background.
-	panel int
+	// panel is the event tag for the panel background, and panelClick for presses anywhere on the panel.
+	panel, panelClick int
 
 	// stops are the start, the via points, and the target, in route order. There are at least two.
 	// Stops without position are set by a click on the map, or by searching them.
@@ -239,6 +240,15 @@ func (a *App) updateNav(gtx layout.Context, events []mapview.PointerEvent) []map
 	}
 	if n.report.Clicked(gtx) {
 		openURL(routing.FixTheMapURL)
+	}
+	for {
+		ev, ok := gtx.Event(pointer.Filter{Target: &n.panelClick, Kinds: pointer.Press})
+		if !ok {
+			break
+		}
+		if e, ok := ev.(pointer.Event); ok && e.Kind == pointer.Press {
+			a.showNavProfile()
+		}
 	}
 	// The panel takes presses and scrolling, so that they don't reach the map below.
 	for {
@@ -495,9 +505,9 @@ func (a *App) navHitAlt(gtx layout.Context, p geo.Point) (int, bool) {
 func (a *App) selectNavAlt(k int) {
 	n := &a.nav
 	n.route, n.alts[k] = n.alts[k], n.route
+	a.setNavItem()
 	a.updateNavLines()
 	a.updateNavSaveCount()
-	a.setNavItem()
 }
 
 // viaInsertIndex returns the index in points at which a new via point on segment seg of the route line is inserted.
@@ -683,9 +693,9 @@ func (a *App) setNavRoute(r *routing.Route) {
 	if r != nil {
 		n.alts, r.Alternatives = r.Alternatives, nil
 	}
+	a.setNavItem()
 	a.updateNavLines()
 	a.updateNavSaveCount()
-	a.setNavItem()
 }
 
 // updateNavLines updates the lines of the route and its alternatives on the map.
@@ -709,11 +719,25 @@ func (a *App) updateNavLines() {
 			mapview.LineGroup{Color: st.NavAlt, Width: st.NavAltWidth, Lines: n.altLines},
 		)
 	}
+	route := mapview.LineGroup{Color: st.NavLine, Width: st.NavLineWidth, Lines: n.line}
+	var coloring *mapview.Coloring
+	switch it := n.item; {
+	case a.chart.zoomedOn(it):
+		// Like the tracks, the route is muted while the chart is zoomed in on it,
+		// with the part shown in the chart drawn on top, see [App.layoutNavMap].
+		route.Color = a.style.MutedTrack
+	case it != nil && a.legend != nil:
+		// Colored by value along the lines of the profile, which follow the route.
+		if vals := it.lineValues(a.colorMetric()); vals != nil {
+			route.Lines, route.Values = it.lines, vals
+			coloring = a.legend.coloring()
+		}
+	}
 	groups = append(groups,
 		mapview.LineGroup{Color: st.NavCasing, Width: st.NavLineWidth + 2*st.NavCasingWidth, Lines: n.line},
-		mapview.LineGroup{Color: st.NavLine, Width: st.NavLineWidth, Lines: n.line},
+		route,
 	)
-	n.lines.Set(groups, nil)
+	n.lines.Set(groups, coloring)
 }
 
 // navPolyline returns the line of a route in map coordinates.
@@ -763,6 +787,9 @@ func (a *App) layoutNavMap(gtx layout.Context) {
 	}
 	st := a.style
 	n.lines.Layout(gtx, &a.mapView.View)
+	if n.item != nil && a.highlightKey.item == n.item {
+		a.highlight.Layout(gtx, &a.mapView.View)
+	}
 	a.drawNavBand(gtx)
 	last := len(n.stops) - 1
 	for i := 1; i < last; i++ {
@@ -851,9 +878,16 @@ func (a *App) layoutNavPanel(gtx layout.Context) {
 			w := min(gtx.Dp(st.NavWidth), gtx.Constraints.Max.X)
 			gtx.Constraints.Min.X, gtx.Constraints.Max.X = w, w
 			gtx.Constraints.Min.Y = 0
-			return layoutPanel(gtx, st, &n.panel, func(gtx layout.Context) layout.Dimensions {
+			dims := layoutPanel(gtx, st, &n.panel, func(gtx layout.Context) layout.Dimensions {
 				return layout.UniformInset(st.Spacing/2).Layout(gtx, a.layoutNavContent)
 			})
+			// Presses anywhere on the panel show the route's profile. They pass through to the buttons and fields.
+			pass := pointer.PassOp{}.Push(gtx.Ops)
+			area := clip.Rect{Max: dims.Size}.Push(gtx.Ops)
+			event.Op(gtx.Ops, &n.panelClick)
+			area.Pop()
+			pass.Pop()
+			return dims
 		})
 	})
 }
