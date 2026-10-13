@@ -2,6 +2,7 @@ package ui
 
 import (
 	"log"
+	"os"
 	"os/exec"
 	"runtime"
 )
@@ -23,4 +24,20 @@ func openURL(url string) {
 			log.Printf("opening %s: %v", url, err)
 		}
 	}()
+}
+
+// openFolder opens a directory in the file manager, in the background, creating it if necessary.
+// Errors are logged.
+func openFolder(dir string) {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		log.Printf("opening %s: %v", dir, err)
+		return
+	}
+	if runtime.GOOS != "windows" {
+		openURL(dir)
+		return
+	}
+	// Explorer exits with status 1 even when it succeeds, so its error is not logged.
+	cmd := exec.Command("explorer", dir)
+	go func() { _ = cmd.Run() }()
 }

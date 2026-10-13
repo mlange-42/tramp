@@ -149,6 +149,8 @@ type App struct {
 	elev elevationView
 	// sources is the list of data sources, opened from the status bar.
 	sources sourcesView
+	// menu is the menu bar at the left of the toolbar.
+	menu menuBar
 
 	// nextColor is the index of the default color for the next opened file.
 	nextColor int
@@ -194,6 +196,7 @@ func newApp(invalidate func(), opts Options) *App {
 		elev: elevationView{cfg: opts.State.Elevation, cacheSize: opts.State.ElevationTileCache,
 			service: newElevationService(opts.State.Elevation, opts.State.ElevationTileCache)},
 	}
+	a.menu = newMenuBar(menuTitles...)
 	if a.elev.service != nil && a.diskCache.elevation != nil {
 		a.elev.service.SetDiskCache(a.diskCache.elevation, a.diskCache.maxAge())
 	}
@@ -436,6 +439,7 @@ func (a *App) update(gtx layout.Context) {
 	}
 
 	a.runUITasks()
+	a.menu.update(gtx, a.menuItems())
 	if a.openBtn.Clicked(gtx) {
 		a.showOpenDialog()
 	}
@@ -582,6 +586,10 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 	st := a.style
 	return st.BarInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return a.menu.layout(gtx, st, a.menuItems())
+			}),
+			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.newBtn.Layout(gtx, st, iconNew, "New GPX file for routes and waypoints (Ctrl+N)", true, false)
 			}),

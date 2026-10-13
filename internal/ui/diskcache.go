@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"log"
 	"path/filepath"
 	"time"
@@ -18,6 +19,8 @@ const (
 // diskCacheView keeps downloaded map and elevation tiles on disk.
 type diskCacheView struct {
 	cfg settings.DiskCache
+	// dir is the directory of the caches.
+	dir string
 	// tiles is the cache of the map tiles, and elevation that of the elevation tiles. Nil if turned off.
 	tiles, elevation *diskcache.Cache
 }
@@ -37,6 +40,7 @@ func newDiskCache(cfg settings.DiskCache) diskCacheView {
 			return v
 		}
 	}
+	v.dir = dir
 	v.tiles = diskcache.New(filepath.Join(dir, tilesDir), int64(cfg.MaxSize)<<20)
 	v.elevation = diskcache.New(filepath.Join(dir, elevationDir), int64(cfg.ElevationMaxSize)<<20)
 	return v
@@ -49,4 +53,14 @@ func (v *diskCacheView) maxAge() time.Duration {
 		days = settings.DefaultDiskCacheAge
 	}
 	return time.Duration(days) * 24 * time.Hour
+}
+
+// size returns the total size of the stored map and elevation tiles in bytes.
+func (v *diskCacheView) size() int64 {
+	return v.tiles.Size() + v.elevation.Size()
+}
+
+// clear deletes the stored map and elevation tiles.
+func (v *diskCacheView) clear() error {
+	return errors.Join(v.tiles.Clear(), v.elevation.Clear())
 }
