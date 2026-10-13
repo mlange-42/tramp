@@ -149,17 +149,8 @@ func (a *App) layoutLegend(gtx layout.Context) {
 		return layout.UniformInset(st.Spacing).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			macro := op.Record(gtx.Ops)
 			dims := layout.UniformInset(st.Spacing).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				var rows []layout.FlexChild
-				for _, o := range a.overlays {
-					if o.tiles == nil || o.times.time.IsZero() {
-						continue
-					}
-					text := o.Layer.Name + "  " + formatDataTime(o.times.time, gtx.Now)
-					rows = append(rows,
-						layout.Rigid(st.SmallLabel(text).Layout),
-						layout.Rigid(layout.Spacer{Height: st.Spacing / 2}.Layout),
-					)
-				}
+				// Overlay legend images get at most 60% of the map height, leaving room for the rest.
+				rows := a.overlayLegendRows(gtx, gtx.Constraints.Max.Y*6/10)
 				if len(rows) > 0 {
 					rows = append(rows, layout.Rigid(layout.Spacer{Height: st.Spacing / 2}.Layout))
 				}

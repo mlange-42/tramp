@@ -5,6 +5,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"image"
 	"io"
 	"net/http"
 	"net/url"
@@ -277,4 +278,13 @@ func absDuration(d time.Duration) time.Duration {
 		return -d
 	}
 	return d
+}
+
+// GetLegend fetches and decodes a legend image, like from [LayerInfo.LegendURL].
+func (c *Client) GetLegend(ctx context.Context, u string) (image.Image, error) {
+	d, err := c.fetch(ctx, u, time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	return Decode(d.Body)
 }

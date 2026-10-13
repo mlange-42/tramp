@@ -117,6 +117,12 @@ func (o *overlayState) updateTime(caps *wms.Capabilities, now time.Time) {
 	}
 
 	info, _ := caps.Layer(firstLayer(o.Layer.Layers))
+	legendURL := ""
+	if info != nil {
+		legendURL = info.LegendURL
+	}
+	o.legend.setURL(legendURL)
+
 	var valid time.Time
 	ok := false
 	if info != nil && info.Time != nil {

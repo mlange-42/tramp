@@ -66,6 +66,8 @@ type overlayState struct {
 	fetcher *tiles.WMSFetcher
 	// times are the valid times of overlays that change over time, see overlaytime.go.
 	times overlayTimes
+	// legend is the legend image from the capabilities, see overlaylegend.go.
+	legend overlayLegend
 }
 
 // App is the main application state.

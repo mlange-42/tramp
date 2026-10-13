@@ -8,6 +8,7 @@ Weather overlays from the Deutscher Wetterdienst (DWD) show the current precipit
 and weather warnings for Germany, and forecasts of wind and precipitation.
 They are loaded again regularly while enabled.
 The time of the shown data is listed in the legend at the bottom left of the map, in local time.
+A click on an overlay there shows its color legend, if the service provides one.
 
 The status bar shows the position under the mouse pointer and its terrain elevation,
 and at the right the short credits of the map, the overlays and the elevation data.
