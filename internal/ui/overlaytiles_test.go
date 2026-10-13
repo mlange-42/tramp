@@ -28,7 +28,7 @@ func TestOverlayTimeTiles(t *testing.T) {
 	a.setOverlay(0, true)
 	waitOverlayTime(a, 0)
 	o := &a.overlays[0]
-	if o.timeValue != value(11, 0) || fmt.Sprint(o.prefetch) != fmt.Sprint([]string{value(10, 0), value(12, 0)}) {
+	if o.timeValue != value(11, 0) || fmt.Sprint(o.prefetch) != fmt.Sprint([]string{value(10, 55), value(11, 5)}) {
 		t.Fatalf("unexpected time %q and prefetch %v", o.timeValue, o.prefetch)
 	}
 
@@ -41,12 +41,11 @@ func TestOverlayTimeTiles(t *testing.T) {
 	shown := o.tiles
 
 	// Stepping shows the tiles loaded in the background, with the previous ones below until loaded.
-	a.selectAllTimes(at(12, 0), at(11, 22))
-	if o.tiles != next || o.fallback != shown || o.timeValue != value(12, 0) {
+	a.selectAllTimes(at(11, 5), at(11, 22))
+	if o.tiles != next || o.fallback != shown || o.timeValue != value(11, 5) {
 		t.Error("expected the tiles loaded in the background")
 	}
-	// Beyond the last valid time, there is nothing to load for the next step.
-	if fmt.Sprint(o.prefetch) != fmt.Sprint([]string{value(11, 0)}) {
+	if fmt.Sprint(o.prefetch) != fmt.Sprint([]string{value(11, 0), value(11, 10)}) {
 		t.Errorf("unexpected prefetch %v", o.prefetch)
 	}
 	// Going back shows the kept tiles.
@@ -69,6 +68,12 @@ func TestOverlayTimeTiles(t *testing.T) {
 	a.updateTime(o, caps, at(11, 0))
 	if len(o.others) != 0 || o.tiles != shown {
 		t.Errorf("expected only the shown tiles after new data, got %d others", len(o.others))
+	}
+
+	// Beyond the last valid time, there is nothing to load for the next step.
+	a.selectAllTimes(at(12, 55), at(11, 22))
+	if fmt.Sprint(o.prefetch) != fmt.Sprint([]string{value(12, 50)}) {
+		t.Errorf("unexpected prefetch %v", o.prefetch)
 	}
 
 	// Disabling closes all tiles.
