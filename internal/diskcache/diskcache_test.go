@@ -233,3 +233,17 @@ func TestName(t *testing.T) {
 		t.Errorf("got %q, want only the hash", got)
 	}
 }
+
+func TestImageExt(t *testing.T) {
+	for url, want := range map[string]string{
+		"https://a/{z}/{x}/{y}.png":          ".png",
+		"https://a/{z}/{x}/{y}.WebP?key=abc": ".webp",
+		"https://a/{z}/{x}/{y}.jpeg":         ".jpeg",
+		"https://a/{z}/{x}/{y}":              "",
+		"https://a/tile.php?z={z}":           "",
+	} {
+		if got := ImageExt(url); got != want {
+			t.Errorf("ImageExt(%q) = %q, want %q", url, got, want)
+		}
+	}
+}
