@@ -145,6 +145,8 @@ type App struct {
 	nav        navigator
 	router     routing.Router
 	routingCfg settings.Routing
+	// elev shows the elevation under the pointer.
+	elev elevationView
 
 	// nextColor is the index of the default color for the next opened file.
 	nextColor int
@@ -186,6 +188,7 @@ func newApp(invalidate func(), opts Options) *App {
 		gps:          gpsView{cfg: opts.State.GPS},
 		searchCfg:    opts.State.Search,
 		routingCfg:   opts.State.Routing,
+		elev:         elevationView{cfg: opts.State.Elevation, service: newElevationService(opts.State.Elevation)},
 	}
 	if opts.State.Window.Valid() {
 		a.win = *opts.State.Window
@@ -291,11 +294,12 @@ func (a *App) State() settings.Settings {
 			Zoom: a.mapView.View.Zoom,
 			Map:  a.layerNames[a.layerSelect.Selected()],
 		},
-		GPS:     a.gps.cfg,
-		Search:  a.searchCfg,
-		Routing: a.navState(),
-		Window:  new(a.win),
-		Files:   a.fileState(),
+		GPS:       a.gps.cfg,
+		Search:    a.searchCfg,
+		Routing:   a.navState(),
+		Elevation: a.elev.cfg,
+		Window:    new(a.win),
+		Files:     a.fileState(),
 	}
 	s.Window.PanelWidth = float32(a.split.Size)
 	s.Window.ChartHeight = float32(a.chartSplit.Size)
@@ -430,6 +434,8 @@ func (a *App) update(gtx layout.Context) {
 
 	a.updateColoring(gtx)
 	a.updateFiles(gtx)
+	a.updateProfiles()
+	a.updatePointElevations()
 	// The map's hover position is needed before the map is drawn.
 	a.mapView.Update(gtx)
 	// The route takes the map clicks on its ends, and while picking them, before the editor.
@@ -543,7 +549,10 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	}
 	dims := a.mapView.Layout(gtx, a.mapLayers...)
 	a.tracks.Layout(gtx, &a.mapView.View)
-	a.highlight.Layout(gtx, &a.mapView.View)
+	// The highlight of the found route is drawn with the route, above the tracks.
+	if a.highlightKey.item == nil || a.highlightKey.item != a.nav.item {
+		a.highlight.Layout(gtx, &a.mapView.View)
+	}
 	a.layoutNavMap(gtx)
 	a.layoutSearchMarker(gtx)
 	a.layoutEditMap(gtx)
@@ -611,6 +620,9 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	if a.mapView.HoverValid {
 		pos = geo.ToLonLat(a.mapView.Hover).String()
 	}
+	if a.elev.service != nil {
+		pos += formatHoverElevation(a.hoverElevation())
+	}
 	status := fmt.Sprintf("%s   zoom %4.1f (tiles %2d)", pos, a.mapView.View.Zoom, a.mapView.TileLevel())
 	if s := a.gpsStatus(); s != "" {
 		status += "   " + s
@@ -632,6 +644,9 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 				attribution = append(attribution, o.Layer.Attribution)
 			}
 		}
+	}
+	if e := a.elevationAttribution(); e != "" {
+		attribution = append(attribution, e)
 	}
 	if loading > 0 {
 		status += fmt.Sprintf("   loading %d", loading)

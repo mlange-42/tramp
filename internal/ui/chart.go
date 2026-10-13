@@ -98,6 +98,9 @@ type chartData struct {
 	timeOK bool
 	// vals are the values per line segment, see [fileItem.lineValues]. Nil if there are none.
 	vals [][]float64
+	// terrain is the terrain elevation per line segment, drawn as a second line in the elevation chart
+	// of tracks, see [fileItem.terrain]. Nil if not shown.
+	terrain [][]float64
 	// total is the length of the item along the horizontal axis.
 	total float64
 	// coloring colors the area by value. If nil, it is drawn in color.
@@ -130,13 +133,28 @@ func (a *App) updateChart() {
 	idx := a.colorBy.Selected()
 	if metrics[idx].metric == track.NoMetric {
 		idx = metricIndex(track.ElevationMetric)
-	} else if a.legend != nil {
+	} else if a.legend != nil && a.shown(it) {
+		// Like on the map, only items shown there are colored.
 		c.coloring = a.legend.coloring()
 	}
 	info := &metrics[idx]
 	c.vals = it.lineValues(info.metric)
+	if c.vals == nil && info.metric != track.ElevationMetric {
+		// Items without the data tracks are colored by, like routes without times for speed,
+		// show their elevation instead, in their own color.
+		idx = metricIndex(track.ElevationMetric)
+		info, c.coloring = &metrics[idx], nil
+		c.vals = it.lineValues(info.metric)
+	}
+	if info.metric == track.ElevationMetric && it.terrain != nil && !it.terrainOnly {
+		// The terrain is drawn as a second line. For tracks without elevation, it is the profile.
+		c.terrain = it.terrain
+	}
 	if c.vals == nil {
 		c.hint = fmt.Sprintf("No %s data", info.key)
+		if it.profile == profileLoading {
+			c.hint = "Loading elevations…"
+		}
 		return
 	}
 	c.info = info
@@ -364,7 +382,10 @@ func (c *chart) draw(gtx layout.Context, st *Style, reserve int) {
 	// Values cut off from the range are clipped.
 	stack := clip.Rect(plot).Push(gtx.Ops)
 	c.drawArea(gtx, plot, cols, toY, base)
-	c.drawLine(gtx, st, plot, cols, toY)
+	if c.terrain != nil {
+		c.drawLine(gtx, st, plot, columnMeans(c.xs, c.terrain, c.from, c.to, plot.Dx()), toY, st.ChartTerrain)
+	}
+	c.drawLine(gtx, st, plot, cols, toY, st.ChartLine)
 	stack.Pop()
 	c.drawYLabels(gtx, st, plot, yLo, yHi, yStep)
 }
@@ -485,7 +506,7 @@ func (c *chart) drawArea(gtx layout.Context, plot image.Rectangle, cols []float6
 // drawLine draws a line through the column values, interrupted where there are none.
 // Like the track lines on the map, the line is drawn as one rectangle per step,
 // which is much faster than [clip.Stroke].
-func (c *chart) drawLine(gtx layout.Context, st *Style, plot image.Rectangle, cols []float64, toY func(float64) float32) {
+func (c *chart) drawLine(gtx layout.Context, st *Style, plot image.Rectangle, cols []float64, toY func(float64) float32, col color.NRGBA) {
 	hw := gtx.Metric.PxPerDp * float32(st.ChartLineWidth) / 2
 	var path clip.Path
 	path.Begin(gtx.Ops)
@@ -501,7 +522,7 @@ func (c *chart) drawLine(gtx layout.Context, st *Style, plot image.Rectangle, co
 		}
 		prev, havePrev = p, true
 	}
-	paint.FillShape(gtx.Ops, st.ChartLine, clip.Outline{Path: path.End()}.Op())
+	paint.FillShape(gtx.Ops, col, clip.Outline{Path: path.End()}.Op())
 }
 
 // segmentRect adds a rectangle of half width hw around the segment from a to b,
@@ -597,7 +618,11 @@ func (c *chart) valueRange(width int) (lo, hi float64, ok bool) {
 	r := &c.yRange
 	if r.version != c.version || r.width != width {
 		*r = chartYRange{version: c.version, width: width}
-		r.lo, r.hi, r.ok = columnRange(columnMeans(c.xs, c.vals, 0, c.total, width))
+		cols := columnMeans(c.xs, c.vals, 0, c.total, width)
+		if c.terrain != nil {
+			cols = append(cols, columnMeans(c.xs, c.terrain, 0, c.total, width)...)
+		}
+		r.lo, r.hi, r.ok = columnRange(cols)
 	}
 	return r.lo, r.hi, r.ok
 }

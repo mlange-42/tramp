@@ -52,6 +52,8 @@ type Settings struct {
 	Search Search `yaml:"search"`
 	// Routing selects the service for finding routes.
 	Routing Routing `yaml:"routing"`
+	// Elevation selects the source of terrain elevations.
+	Elevation Elevation `yaml:"elevation"`
 	// Window is the last main window size, position and state. Nil if not known yet.
 	Window *Window `yaml:"window,omitempty"`
 	// Files are the opened track files, in panel order.
@@ -137,6 +139,21 @@ type Routing struct {
 	SlightAngle float64 `yaml:"slight_angle"`
 	// Points are the start, the via points and the target of the last route.
 	Points []RoutePoint `yaml:"points,omitempty"`
+}
+
+// Elevation selects the source of terrain elevations: a built-in one, or another service of Terrain-RGB tiles.
+type Elevation struct {
+	// Source is aws or mapterhorn. If empty, the default is used.
+	Source string `yaml:"source"`
+	// URL is a tile URL template like "https://tiles.example.com/{z}/{x}/{y}.png", for another service.
+	// The other fields override those of the source if set.
+	URL string `yaml:"url"`
+	// Encoding is terrarium or mapbox.
+	Encoding string `yaml:"encoding"`
+	// TileSize is the edge length of the tiles in pixels.
+	TileSize int `yaml:"tile_size"`
+	// MaxZoom is the highest tile level of the service.
+	MaxZoom int `yaml:"max_zoom"`
 }
 
 // RoutePoint is a point of a route: a position, and the name of the place if it was searched.

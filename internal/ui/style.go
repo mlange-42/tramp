@@ -87,12 +87,14 @@ type Style struct {
 	EditHandleSize, EditMidSize unit.Dp
 	// MutedTrack is the color of the selected track or route on the map,
 	// outside of the part visible in the zoomed chart, and of segments without value in tracks colored by value.
-	// It can be set in the settings.
-	MutedTrack color.NRGBA
+	// It can be set in the settings. MutedCasing is the border around the muted part, to set it off from the map.
+	MutedTrack, MutedCasing color.NRGBA
 	// ChartGrid is the color of the grid lines in the chart.
 	ChartGrid color.NRGBA
 	// ChartLine is the color of the line on top of the chart's filled area.
 	ChartLine color.NRGBA
+	// ChartTerrain is the color of the line of the terrain elevation below a track, in the chart.
+	ChartTerrain color.NRGBA
 	// ChartLineWidth is the width of the chart line.
 	ChartLineWidth unit.Dp
 	// MinChartHeight is the minimum height of the chart. Below 2/3 of it, the chart snaps closed.
@@ -182,8 +184,10 @@ func DefaultStyle() *Style {
 		SelectedBg:   tint(0.25),
 		EditActive:   color.NRGBA{R: 0xd0, G: 0x40, B: 0x20, A: 0xff},
 		MutedTrack:   color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xc0},
+		MutedCasing:  color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
 		ChartGrid:    color.NRGBA{A: 0x20},
 		ChartLine:    color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xd0},
+		ChartTerrain: color.NRGBA{R: 0xd0, G: 0x50, B: 0x10, A: 0xe0},
 
 		ChartLineWidth:   1.5,
 		ChartTickSpacing: 32,

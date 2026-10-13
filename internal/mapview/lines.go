@@ -72,6 +72,9 @@ type LineGroup struct {
 	// Lines and segments without values (nil or NaN) are drawn in the NoValue color of the [Coloring].
 	// Without coloring, all lines are drawn in Color.
 	Values [][]float64
+	// Casing, if not transparent, is drawn below lines without values, like the casing below colored lines,
+	// to set them off from the map.
+	Casing color.NRGBA
 }
 
 // Coloring maps values to colors.
@@ -150,6 +153,12 @@ func (l *Lines) Set(groups []LineGroup, coloring *Coloring) {
 	}
 }
 
+// Groups returns the drawn groups, and Coloring the coloring, as last set.
+func (l *Lines) Groups() []LineGroup { return l.groups }
+
+// Coloring returns the coloring for groups with values, as last set. Nil if not colored.
+func (l *Lines) Coloring() *Coloring { return l.coloring }
+
 // Layout draws the lines for the given view, which must have its size set.
 func (l *Lines) Layout(gtx layout.Context, v *View) {
 	if len(l.groups) == 0 {
@@ -224,6 +233,9 @@ func (l *Lines) drawGroup(g *LineGroup, v *View, area screenRect, cull geo.Rect,
 		}
 		walkLine(v, area, g.Lines[i].Points, func(a, b f32.Point, seg int) {
 			if !colored {
+				if g.Casing.A > 0 {
+					l.casing.add(a, b)
+				}
 				l.solid.add(a, b)
 				return
 			}
@@ -238,8 +250,11 @@ func (l *Lines) drawGroup(g *LineGroup, v *View, area screenRect, cull geo.Rect,
 
 	m := unit.Metric{PxPerDp: key.pxPerDp}
 	width := float32(m.Dp(g.Width))
-	if colored {
+	switch {
+	case colored:
 		l.stroke(&l.casing, width+float32(m.Dp(casingWidth)), c.Casing)
+	case g.Casing.A > 0:
+		l.stroke(&l.casing, width+float32(m.Dp(casingWidth)), g.Casing)
 	}
 	l.stroke(&l.solid, width, g.Color)
 	if colored {

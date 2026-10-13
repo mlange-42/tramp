@@ -42,9 +42,11 @@ type openFile struct {
 	expand   iconButton
 	colorBtn widget.Clickable
 	editBtn  iconButton
-	tips     rowTips
-	expanded bool
-	drag     rowDrag
+	// terrainBtn saves a copy of a file with tracks with the terrain elevation, see [App.saveWithTerrain].
+	terrainBtn iconButton
+	tips       rowTips
+	expanded   bool
+	drag       rowDrag
 	// defColor is the color for new items of a file without items.
 	defColor color.NRGBA
 
@@ -58,6 +60,8 @@ const (
 	trackItem itemKind = iota
 	routeItem
 	waypointItem
+	// navItem is the route found by routing, which is not part of a file, see [navigator.item].
+	navItem
 )
 
 // fileItem is a track, a route, or the waypoints of a file.
@@ -79,9 +83,19 @@ type fileItem struct {
 	// gapCache caches the result of [fileItem.gaps], if gapsDone.
 	gapCache [][]bool
 	gapsDone bool
-	dots     []mapview.Dot
-	bounds   geo.Rect
-	color    color.NRGBA
+	// profile is the state of the elevation profile of a route from the elevation service, see [App.updateProfiles].
+	// ascent and descent are from the profile, once done.
+	profile         profileState
+	ascent, descent float64
+	// terrainPts are the points of a track with the terrain elevation, once its profile is done.
+	// terrain is the terrain elevation per line segment, like [fileItem.lineValues], and terrainOnly reports
+	// whether the track has no recorded elevation, so that the terrain is its elevation.
+	terrainPts  [][]track.Point
+	terrain     [][]float64
+	terrainOnly bool
+	dots        []mapview.Dot
+	bounds      geo.Rect
+	color       color.NRGBA
 	// index is the position of the item in the file, independent of the panel order.
 	index int
 	// nth is the position of the item among the items of its kind in the file.
@@ -250,9 +264,16 @@ func (f *openFile) waypointsFirst() {
 }
 
 // setContent replaces the content of the item with that of n, and clears the caches.
+// A route gets a new elevation profile.
 func (it *fileItem) setContent(n *fileItem) {
 	it.name, it.summary = n.name, n.summary
 	it.lines, it.points, it.dots, it.bounds = n.lines, n.points, n.dots, n.bounds
+	it.profile, it.terrainPts, it.terrain, it.terrainOnly = profileNone, nil, nil, false
+	it.clearCaches()
+}
+
+// clearCaches clears the values computed from the points of the item.
+func (it *fileItem) clearCaches() {
 	it.values, it.dist = nil, nil
 	it.timeCache, it.start, it.timesDone = nil, time.Time{}, false
 	it.gapCache, it.gapsDone = nil, false
@@ -306,6 +327,7 @@ func (f *openFile) blockHeight() int {
 
 // lineValues returns the values of a metric for the lines of the item,
 // or nil if no line has values. Gaps in the recording have no values, see [track.Gaps].
+// Tracks without recorded elevation use the terrain elevation for elevation and slope, once known.
 func (it *fileItem) lineValues(m track.Metric) [][]float64 {
 	if m == track.NoMetric {
 		return nil
@@ -313,10 +335,24 @@ func (it *fileItem) lineValues(m track.Metric) [][]float64 {
 	if vals, ok := it.values[m]; ok {
 		return vals
 	}
-	vals := make([][]float64, len(it.points))
+	vals := it.segmentValues(it.points, m)
+	if it.terrainOnly && (m == track.ElevationMetric || m == track.SlopeMetric) {
+		vals = it.segmentValues(it.terrainPts, m)
+	}
+	if it.values == nil {
+		it.values = map[track.Metric][][]float64{}
+	}
+	it.values[m] = vals
+	return vals
+}
+
+// segmentValues returns the values of a metric for the given points of the lines of the item,
+// or nil if no line has values, with gaps in the recording without values.
+func (it *fileItem) segmentValues(points [][]track.Point, m track.Metric) [][]float64 {
+	vals := make([][]float64, len(points))
 	gaps := it.gaps()
 	found := false
-	for i, pts := range it.points {
+	for i, pts := range points {
 		vals[i] = track.SegmentValues(pts, m)
 		found = found || vals[i] != nil
 		if vals[i] != nil && gaps != nil {
@@ -328,12 +364,8 @@ func (it *fileItem) lineValues(m track.Metric) [][]float64 {
 		}
 	}
 	if !found {
-		vals = nil
+		return nil
 	}
-	if it.values == nil {
-		it.values = map[track.Metric][][]float64{}
-	}
-	it.values[m] = vals
 	return vals
 }
 
@@ -642,12 +674,19 @@ func (a *App) fileState() []settings.File {
 func (a *App) updateTracks() {
 	items := a.shownItems()
 	groups := a.lineGroups(items)
-	a.legend = a.newLegend(groups)
+	// The found route counts for the color range while it is shown.
+	ranged := groups
+	if it := a.nav.item; it != nil && a.shown(it) {
+		ranged = append(slices.Clone(groups), mapview.LineGroup{Values: it.lineValues(a.colorMetric())})
+	}
+	a.legend = a.newLegend(ranged)
+	// The chart first, as it decides which item is zoomed in on.
+	a.updateChart()
 	// While the chart is zoomed in, the selected item is muted, and the part visible in the chart
 	// is drawn on top, see [App.updateHighlight]. Its values still count for the color range.
 	for i, it := range items {
 		if a.chart.zoomedOn(it) {
-			groups[i].Color, groups[i].Values = a.style.MutedTrack, nil
+			groups[i].Color, groups[i].Values, groups[i].Casing = a.style.MutedTrack, nil, a.style.MutedCasing
 		}
 	}
 	var c *mapview.Coloring
@@ -655,19 +694,25 @@ func (a *App) updateTracks() {
 		c = a.legend.coloring()
 	}
 	a.tracks.Set(groups, c)
-	a.updateChart()
+	a.updateNavLines()
 }
 
 // lineWidth returns the width of the item's lines on the map.
 func (a *App) lineWidth(it *fileItem) unit.Dp {
-	if it.kind == routeItem {
+	switch it.kind {
+	case routeItem:
 		return a.routeWidth
+	case navItem:
+		return a.style.NavLineWidth
 	}
 	return a.trackWidth
 }
 
-// shown reports whether the item is visible on the map.
+// shown reports whether the item is visible on the map. The found route is shown while the route panel is open.
 func (a *App) shown(it *fileItem) bool {
+	if it != nil && it == a.nav.item {
+		return a.nav.open
+	}
 	return slices.Contains(a.shownItems(), it)
 }
 

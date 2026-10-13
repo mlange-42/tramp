@@ -2,11 +2,13 @@ package ui
 
 import (
 	"image"
+	"math"
 	"testing"
 
 	"gioui.org/layout"
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/mapview"
+	"github.com/mlange-42/tramp/internal/track"
 )
 
 func TestProps(t *testing.T) {
@@ -83,5 +85,28 @@ func TestProps(t *testing.T) {
 	}
 	if len(d.Waypoints) != 2 {
 		t.Errorf("expected waypoints kept")
+	}
+}
+
+func TestPointTitle(t *testing.T) {
+	d := &track.File{
+		Waypoints: []track.Waypoint{{Name: "Hut", Ele: 512.4}, {Ele: math.NaN()}},
+		Routes: []track.Route{{Points: []track.Waypoint{
+			{Ele: math.NaN()}, {Ele: 100}, {Ele: math.NaN()}, {Name: "Hut", Ele: 512.4},
+		}}},
+	}
+	for _, tc := range []struct {
+		target propTarget
+		want   string
+	}{
+		{propTarget{route: -1, point: 0}, "Waypoint · 512 m · linked"},
+		{propTarget{route: -1, point: 1}, "Waypoint"},
+		{propTarget{route: 0, point: 2}, "Point 3 of 4"},
+		{propTarget{route: 0, point: 1}, "Point 2 of 4 · 100 m"},
+		{propTarget{route: 0, point: 3}, "Point 4 of 4 · 512 m · linked"},
+	} {
+		if got := pointTitle(d, tc.target); got != tc.want {
+			t.Errorf("%+v: expected %q, got %q", tc.target, tc.want, got)
+		}
 	}
 }

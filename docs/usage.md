@@ -5,6 +5,9 @@ Run `tramp` to open the map. Drag to pan, scroll to zoom.
 The background map and overlays like hillshading can be selected in the toolbar.
 Further maps can be added in the [maps configuration](configuration.md#maps).
 
+The status bar shows the position under the mouse pointer and its terrain elevation.
+The elevation comes from elevation tiles downloaded from the internet, see the [settings](configuration.md#settings).
+
 ## Search
 
 The search field at the right of the toolbar (Ctrl+F) moves the map to a place or to coordinates.
@@ -41,7 +44,10 @@ TRAMP remembers the results of recent searches, so repeated searches don't reach
 The directions button left of the search field (Ctrl+D) opens a panel for finding a route between two points.
 Click the map to set the start (A), and again to set the target (B),
 or type a place or coordinates in their fields, like in the [search](#search).
-The route is shown on the map, with its length and the estimated travel time.
+The route is shown on the map, with its length and the estimated travel time,
+and its elevation profile in the chart, with the ascent and descent in the panel once the elevations are loaded.
+The profile is shown when a route is found, when the panel is opened, and when the route or the panel is clicked.
+Selecting a file's track or route shows its profile instead, and closing the panel goes back to the one shown before.
 Drag A or B to move them; the route is found again when released.
 Drag the route itself to add a via point there, to make the route pass through another place.
 Routes without via points may come with alternatives, drawn in grey, with their lengths and times listed in the panel.
@@ -72,9 +78,11 @@ and their description spells out the turn.
 The codes are L and R for left and right, SL and SR for slight turns, HL and HR for sharp ("hard") turns, U for a U-turn,
 KL and KR for keeping left or right at a fork, and RB2 for the second exit of a roundabout.
 All names in a file are unique, as devices merge points with the same name.
+The points get the terrain elevation at their position.
 The button's tooltip shows the number of points. The panel warns when the route has more than 250, as many devices take no more.
 
-The *Save as GPX track* button next to it stores the route with all its points as a GPX track, in a new file.
+The *Save as GPX track* button next to it stores the route with all its points as a GPX track, in a new file,
+with the terrain elevation at the points.
 Devices show the exact line of a track, so a track together with the route is a common pair for navigating.
 Files with tracks are not edited in TRAMP, so the track never goes into the edited file.
 
@@ -100,11 +108,25 @@ like `Summit`, `Campground` or `Flag, Blue`, and some aliases like `Peak` or `Hu
 Unknown symbols are drawn with a generic pin icon, waypoints without symbol as plain dots.
 Route points are drawn only if they have a symbol.
 
+The profile of a route is taken from the terrain elevation along its lines, sampled every 20 m,
+rather than from its points, which rarely have elevations.
+It is shown in the chart, and its ascent and descent in the side panel, like ↑420 m ↓380 m.
+The elevations are downloaded in the background when the file is opened or the route is changed,
+see the [settings](configuration.md#settings) for the elevation source.
+
+For the track shown in the chart, the terrain elevation along it is drawn as a second, orange line in the elevation profile,
+for comparing it with the recorded elevation, which is often off by some meters.
+Tracks without recorded elevation use the terrain instead, for the profile and for coloring by elevation or slope.
+The mountain button of a file with tracks saves a copy with the terrain elevation for all track points,
+as a new GPX file that is opened. The original file is not changed.
+
 ## Coloring
 
 Use the palette drop-down in the toolbar to color all tracks by speed, elevation or slope, with a choice of color gradients.
 The color range covers the values of all visible tracks, ignoring the most extreme 2% at each end, and is shown in a legend on the map.
+The found route of the [routing](#routing) panel is colored as well, and counts for the color range while shown.
 Tracks and routes without the required data, like routes without times for speed, keep their own color.
+The chart then shows their elevation profile. The profile of a hidden track or route is not colored.
 
 The gradients can be changed in the [gradients configuration](configuration.md#gradients).
 

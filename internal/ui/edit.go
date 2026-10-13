@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/track"
 	"github.com/ncruces/zenity"
 )
@@ -25,6 +26,8 @@ type editState struct {
 	saved fileSnapshot
 	// overwriteOK is set once the user agreed to overwrite a file not written by TRAMP.
 	overwriteOK bool
+	// needEle are the positions of new or moved points without elevation, see [openFile.noteNewPoints].
+	needEle []geo.LonLat
 }
 
 // fileSnapshot is a copy of the editable content of a file: its routes and waypoints.
@@ -79,6 +82,7 @@ func (f *openFile) change(fn func(d *track.File)) {
 	fn(f.data)
 	f.edit.nextRev++
 	f.edit.rev = f.edit.nextRev
+	f.noteNewPoints(f.edit.undo[len(f.edit.undo)-1])
 	f.rebuild()
 }
 
@@ -103,6 +107,8 @@ func (f *openFile) redo() bool {
 	f.edit.undo = append(f.edit.undo, f.snapshot())
 	f.restore(f.edit.redo[n-1])
 	f.edit.redo = f.edit.redo[:n-1]
+	// Points redone before their elevation arrived get it now.
+	f.noteNewPoints(f.edit.undo[len(f.edit.undo)-1])
 	return true
 }
 
@@ -151,10 +157,15 @@ func (a *App) dialog(fn func() func()) bool {
 
 // changed updates the map and the chart after the items of a file changed.
 func (a *App) changed() {
-	if a.selected != nil && !slices.ContainsFunc(a.files, func(of *openFile) bool { return slices.Contains(of.items, a.selected) }) {
+	if a.selected != nil && !a.inFiles(a.selected) && a.selected != a.nav.item {
 		a.selected = nil
 	}
 	a.tracksChanged = true
+}
+
+// inFiles reports whether the item belongs to an open file.
+func (a *App) inFiles(it *fileItem) bool {
+	return slices.ContainsFunc(a.files, func(of *openFile) bool { return slices.Contains(of.items, it) })
 }
 
 // editable reports whether the file can be edited: a GPX file without recorded tracks.
@@ -369,12 +380,22 @@ func (a *App) newFile() {
 // createFile asks for a file name, suggesting name if not empty, writes data to it and opens it for editing.
 // then, if not nil, is called with the opened file.
 func (a *App) createFile(title, name string, data *track.File, then func(f *openFile)) {
+	a.createFileFrom(title, name, func() (*track.File, error) { return data, nil }, then)
+}
+
+// createFileFrom is like [App.createFile], with the data made by build after the file name was chosen.
+// build runs in the background.
+func (a *App) createFileFrom(title, name string, build func() (*track.File, error), then func(f *openFile)) {
 	a.dialog(func() func() {
 		path, ok := a.askSavePath(title, name)
 		if !ok {
 			return nil
 		}
-		if err := track.WriteFile(path, data); err != nil {
+		data, err := build()
+		if err == nil {
+			err = track.WriteFile(path, data)
+		}
+		if err != nil {
 			log.Printf("creating file: %v", err)
 			_ = zenity.Error(err.Error(), append([]zenity.Option{zenity.Title("Creating file failed")}, a.plat.dialogOptions()...)...)
 			return nil
