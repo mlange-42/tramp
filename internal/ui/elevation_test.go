@@ -73,8 +73,8 @@ func TestHoverElevation(t *testing.T) {
 	if e, st := a.hoverElevation(); st != elevKnown || e != 123 {
 		t.Errorf("expected 123 m, got %v, %v", e, st)
 	}
-	if a.elevationAttribution() != "" {
-		t.Errorf("expected no attribution for another service, got %q", a.elevationAttribution())
+	if cs := a.mapCredits(); len(cs) != 0 {
+		t.Errorf("expected no credit for another service, got %+v", cs)
 	}
 
 	// A failed download is not tried again right away.
@@ -100,7 +100,7 @@ func TestElevationNone(t *testing.T) {
 	}
 	a := &App{mapView: mapview.New(geo.LonLat{}, 3)}
 	a.mapView.HoverValid = true
-	if _, st := a.hoverElevation(); st != elevOff || a.elevationAttribution() != "" {
+	if _, st := a.hoverElevation(); st != elevOff || len(a.mapCredits()) != 0 {
 		t.Error("expected no elevation and attribution when turned off")
 	}
 }

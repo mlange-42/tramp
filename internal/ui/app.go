@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"slices"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -147,6 +146,8 @@ type App struct {
 	routingCfg settings.Routing
 	// elev shows the elevation under the pointer.
 	elev elevationView
+	// sources is the list of data sources, opened from the status bar.
+	sources sourcesView
 
 	// nextColor is the index of the default color for the next opened file.
 	nextColor int
@@ -430,6 +431,7 @@ func (a *App) update(gtx layout.Context) {
 		a.newFile()
 	}
 	a.updateShortcuts(gtx)
+	a.updateSources(gtx)
 	a.updateSearch(gtx)
 
 	a.updateColoring(gtx)
@@ -632,21 +634,13 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	}
 
 	var loading int
-	var attribution []string
 	if a.tiles != nil {
 		loading = a.tiles.Loading()
-		attribution = append(attribution, a.layers[a.layerSelect.Selected()].Attribution)
 	}
 	for _, o := range a.overlays {
 		if o.tiles != nil {
 			loading += o.tiles.Loading()
-			if o.Layer.Attribution != "" && !slices.Contains(attribution, o.Layer.Attribution) {
-				attribution = append(attribution, o.Layer.Attribution)
-			}
 		}
-	}
-	if e := a.elevationAttribution(); e != "" {
-		attribution = append(attribution, e)
 	}
 	if loading > 0 {
 		status += fmt.Sprintf("   loading %d", loading)
@@ -661,16 +655,18 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Min.X = gtx.Constraints.Max.X
-				l := st.SmallLabel(strings.Join(attribution, " | "))
+				l := st.SmallLabel(shortCredits(a.mapCredits()))
 				l.Alignment = text.End
 				l.MaxLines = 1
 				return l.Layout(gtx)
 			}),
+			layout.Rigid(a.layoutSourcesLink),
 		)
 	})
 	call := macro.Stop()
 
 	paint.FillShape(gtx.Ops, st.StatusBg, clip.Rect(image.Rectangle{Max: dims.Size}).Op())
 	call.Add(gtx.Ops)
+	a.layoutSources(gtx, dims.Size)
 	return dims
 }

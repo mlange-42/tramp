@@ -42,32 +42,37 @@ type Source struct {
 	TileSize int
 	// MaxZoom is the highest tile level. Where the service has no tile at a level, the levels below are used.
 	MaxZoom int
-	// Attribution is shown where the elevation is used, as the data licenses require.
-	Attribution string
+	// Attribution is the full credit of the source, AttributionShort the short one shown on the map,
+	// and AttributionURL links to the credits of the data, as the data licenses require.
+	Attribution, AttributionShort, AttributionURL string
 }
 
 // Built-in sources.
 var (
 	// AWS are the AWS Terrain Tiles from the Registry of Open Data on AWS, worldwide and mostly based on SRTM.
 	AWS = Source{
-		Name:        "aws",
-		URL:         "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
-		Encoding:    EncodingTerrarium,
-		TileSize:    256,
-		MaxZoom:     15,
-		Attribution: "Elevation: AWS Terrain Tiles (Mapzen, SRTM and others)",
+		Name:             "aws",
+		URL:              "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png",
+		Encoding:         EncodingTerrarium,
+		TileSize:         256,
+		MaxZoom:          15,
+		Attribution:      "AWS Terrain Tiles, from Mapzen, with data of SRTM, GMTED, ETOPO1 and others",
+		AttributionShort: "AWS Terrain Tiles",
+		AttributionURL:   "https://github.com/tilezen/joerd/blob/master/docs/attribution.md",
 	}
 	// Mapterhorn is worldwide, with high-resolution national elevation models in many countries.
 	// Its data comes from many open-data sources, which are listed on its attribution page.
 	// There is no usage policy for its public tiles; it logs IP addresses and user agents for up to 30 days,
 	// see https://mapterhorn.com/privacy-policy/.
 	Mapterhorn = Source{
-		Name:        "mapterhorn",
-		URL:         "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp",
-		Encoding:    EncodingTerrarium,
-		TileSize:    512,
-		MaxZoom:     16,
-		Attribution: "Elevation: © Mapterhorn, mapterhorn.com/attribution",
+		Name:             "mapterhorn",
+		URL:              "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp",
+		Encoding:         EncodingTerrarium,
+		TileSize:         512,
+		MaxZoom:          16,
+		Attribution:      "© Mapterhorn, with elevation data from many open-data sources",
+		AttributionShort: "© Mapterhorn",
+		AttributionURL:   "https://mapterhorn.com/attribution",
 	}
 )
 
@@ -104,7 +109,7 @@ func Configure(name, url, encoding string, tileSize, maxZoom int) (Source, error
 	if url = strings.TrimSpace(url); url != "" {
 		s.URL = url
 		// The attribution of the built-in source doesn't apply to another service.
-		s.Attribution = ""
+		s.Attribution, s.AttributionShort, s.AttributionURL = "", "", ""
 	}
 	if encoding = strings.ToLower(strings.TrimSpace(encoding)); encoding != "" {
 		if encoding != EncodingTerrarium && encoding != EncodingMapbox {
