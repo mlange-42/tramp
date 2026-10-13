@@ -439,7 +439,9 @@ func DefaultMaps() []Map {
 				Format:      "image/png",
 				Version:     "1.3.0",
 				// The raster has about 1-2 km per pixel, so closer levels show nothing new.
-				MaxZoom:          8,
+				MaxZoom: 8,
+				// The DWD forbids storing all its tiles, but this map doesn't change.
+				Cache:            wms.CacheAlways,
 				Attribution:      "Made with Natural Earth, rendered by the Deutscher Wetterdienst (DWD)",
 				AttributionShort: "Natural Earth · DWD",
 				AttributionURL:   "https://www.naturalearthdata.com",

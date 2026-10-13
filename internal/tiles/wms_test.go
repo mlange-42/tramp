@@ -193,6 +193,15 @@ func TestWMSFetcherNoStore(t *testing.T) {
 	if _, _, ok := cache.Get(f.dir + "/1/0/0.png"); ok {
 		t.Error("tile stored although the server forbids it")
 	}
+
+	// Stored anyway with the policy to cache always.
+	f.Layer.Cache = "Always"
+	if _, err := f.Fetch(context.Background(), geo.TileKey{Z: 1, X: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, ok := cache.Get(f.dir + "/1/1/0.png"); !ok {
+		t.Error("tile not stored with cache: always")
+	}
 }
 
 func TestWMSFetcherWithoutCache(t *testing.T) {

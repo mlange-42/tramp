@@ -163,7 +163,7 @@ func (f *WMSFetcher) fetch(ctx context.Context, u string, first geo.TileKey, n i
 		}
 		return nil, err
 	}
-	if !d.NoStore {
+	if !d.NoStore || f.Layer.CacheAlways() {
 		if err := f.Cache.Put(ck, d.Body); err != nil {
 			log.Printf("tile cache: %v", err)
 		}
