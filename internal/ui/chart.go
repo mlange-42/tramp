@@ -135,6 +135,13 @@ func (a *App) updateChart() {
 	}
 	info := &metrics[idx]
 	c.vals = it.lineValues(info.metric)
+	if c.vals == nil && info.metric != track.ElevationMetric {
+		// Items without the data tracks are colored by, like routes without times for speed,
+		// show their elevation instead, in their own color.
+		idx = metricIndex(track.ElevationMetric)
+		info, c.coloring = &metrics[idx], nil
+		c.vals = it.lineValues(info.metric)
+	}
 	if c.vals == nil {
 		c.hint = fmt.Sprintf("No %s data", info.key)
 		if it.profile == profileLoading {

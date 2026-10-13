@@ -44,7 +44,10 @@ TRAMP remembers the results of recent searches, so repeated searches don't reach
 The directions button left of the search field (Ctrl+D) opens a panel for finding a route between two points.
 Click the map to set the start (A), and again to set the target (B),
 or type a place or coordinates in their fields, like in the [search](#search).
-The route is shown on the map, with its length and the estimated travel time.
+The route is shown on the map, with its length and the estimated travel time,
+and its elevation profile in the chart, with the ascent and descent in the panel once the elevations are loaded.
+The profile is shown when a route is found, when the panel is opened, and when the route is clicked.
+Selecting a file's track or route shows its profile instead, and closing the panel goes back to the one shown before.
 Drag A or B to move them; the route is found again when released.
 Drag the route itself to add a via point there, to make the route pass through another place.
 Routes without via points may come with alternatives, drawn in grey, with their lengths and times listed in the panel.
@@ -114,6 +117,7 @@ see the [settings](configuration.md#settings) for the elevation source.
 Use the palette drop-down in the toolbar to color all tracks by speed, elevation or slope, with a choice of color gradients.
 The color range covers the values of all visible tracks, ignoring the most extreme 2% at each end, and is shown in a legend on the map.
 Tracks and routes without the required data, like routes without times for speed, keep their own color.
+The chart then shows their elevation profile.
 
 The gradients can be changed in the [gradients configuration](configuration.md#gradients).
 

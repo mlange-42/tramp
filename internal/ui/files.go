@@ -58,6 +58,8 @@ const (
 	trackItem itemKind = iota
 	routeItem
 	waypointItem
+	// navItem is the route found by routing, which is not part of a file, see [navigator.item].
+	navItem
 )
 
 // fileItem is a track, a route, or the waypoints of a file.
@@ -80,10 +82,12 @@ type fileItem struct {
 	gapCache [][]bool
 	gapsDone bool
 	// profile is the state of the elevation profile of a route from the elevation service, see [App.updateProfiles].
-	profile profileState
-	dots    []mapview.Dot
-	bounds  geo.Rect
-	color   color.NRGBA
+	// ascent and descent are from the profile, once done.
+	profile         profileState
+	ascent, descent float64
+	dots            []mapview.Dot
+	bounds          geo.Rect
+	color           color.NRGBA
 	// index is the position of the item in the file, independent of the panel order.
 	index int
 	// nth is the position of the item among the items of its kind in the file.
@@ -669,14 +673,20 @@ func (a *App) updateTracks() {
 
 // lineWidth returns the width of the item's lines on the map.
 func (a *App) lineWidth(it *fileItem) unit.Dp {
-	if it.kind == routeItem {
+	switch it.kind {
+	case routeItem:
 		return a.routeWidth
+	case navItem:
+		return a.style.NavLineWidth
 	}
 	return a.trackWidth
 }
 
-// shown reports whether the item is visible on the map.
+// shown reports whether the item is visible on the map. The found route is shown while the route panel is open.
 func (a *App) shown(it *fileItem) bool {
+	if it != nil && it == a.nav.item {
+		return a.nav.open
+	}
 	return slices.Contains(a.shownItems(), it)
 }
 

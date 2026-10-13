@@ -94,6 +94,10 @@ type navigator struct {
 	alts []*routing.Route
 	// saveCount is the number of points the route is saved with as GPX route.
 	saveCount int
+	// item is the route for its profile in the chart, nil without route. prevSelected is the item
+	// that was selected before the profile was shown, for going back to it, see [App.showNavProfile].
+	item         *fileItem
+	prevSelected *fileItem
 	// line is the route in map coordinates, and altLines the alternatives, for hitting them with the pointer.
 	line     []mapview.Polyline
 	altLines []mapview.Polyline
@@ -412,8 +416,9 @@ func (a *App) navDrag(ev mapview.PointerEvent) {
 			st.pos, st.name = geo.ToLonLat(ev.Pos), ""
 			a.startRoute()
 		case n.dragNew:
-			// A click on the route adds nothing.
+			// A click on the route adds nothing, but shows its profile.
 			n.stops = slices.Delete(n.stops, i, i+1)
+			a.showNavProfile()
 		case n.isVia(i):
 			// A click on a via point removes it.
 			n.stops = slices.Delete(n.stops, i, i+1)
@@ -492,6 +497,7 @@ func (a *App) selectNavAlt(k int) {
 	n.route, n.alts[k] = n.alts[k], n.route
 	a.updateNavLines()
 	a.updateNavSaveCount()
+	a.setNavItem()
 }
 
 // viaInsertIndex returns the index in points at which a new via point on segment seg of the route line is inserted.
@@ -565,6 +571,7 @@ func (a *App) toggleNav() {
 		n.stale = false
 		a.startRoute()
 	}
+	a.showNavProfile()
 }
 
 // closeNav closes the panel. The route is kept for opening it again.
@@ -577,6 +584,7 @@ func (a *App) closeNav() {
 		st.field.clear()
 	}
 	n.open, n.pressing, n.swallow = false, false, false
+	a.hideNavProfile(n.item)
 }
 
 // clearNav removes the route and its stops, for picking a new start.
@@ -677,6 +685,7 @@ func (a *App) setNavRoute(r *routing.Route) {
 	}
 	a.updateNavLines()
 	a.updateNavSaveCount()
+	a.setNavItem()
 }
 
 // updateNavLines updates the lines of the route and its alternatives on the map.
@@ -737,7 +746,11 @@ func (a *App) navStatus() string {
 		}
 		return msg
 	case n.route != nil:
-		return formatDistance(n.route.Distance) + " · " + formatDuration(n.route.Duration)
+		s := formatDistance(n.route.Distance) + " · " + formatDuration(n.route.Duration)
+		if c := n.navClimb(); c != "" {
+			s += " · " + c
+		}
+		return s
 	}
 	return ""
 }

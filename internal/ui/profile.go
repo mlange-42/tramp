@@ -51,6 +51,9 @@ func (a *App) updateProfiles() {
 			}
 		}
 	}
+	if it := a.nav.item; it != nil && it.profile == profileNone {
+		a.startProfile(it)
+	}
 }
 
 // startProfile requests the elevation profile of a route item in the background.
@@ -101,8 +104,8 @@ func (a *App) applyProfile(it *fileItem, src []track.Point, dense []geo.LonLat, 
 	it.lines = []mapview.Polyline{mapview.NewPolyline(merc)}
 	it.clearCaches()
 	it.profile = profileDone
-	up, down := track.Climb(eles, climbThreshold)
-	it.summary += " · " + formatClimb(up, down)
+	it.ascent, it.descent = track.Climb(eles, climbThreshold)
+	it.summary += " · " + formatClimb(it.ascent, it.descent)
 	a.tracksChanged = true
 }
 

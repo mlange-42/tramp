@@ -151,10 +151,15 @@ func (a *App) dialog(fn func() func()) bool {
 
 // changed updates the map and the chart after the items of a file changed.
 func (a *App) changed() {
-	if a.selected != nil && !slices.ContainsFunc(a.files, func(of *openFile) bool { return slices.Contains(of.items, a.selected) }) {
+	if a.selected != nil && !a.inFiles(a.selected) && a.selected != a.nav.item {
 		a.selected = nil
 	}
 	a.tracksChanged = true
+}
+
+// inFiles reports whether the item belongs to an open file.
+func (a *App) inFiles(it *fileItem) bool {
+	return slices.ContainsFunc(a.files, func(of *openFile) bool { return slices.Contains(of.items, it) })
 }
 
 // editable reports whether the file can be edited: a GPX file without recorded tracks.
