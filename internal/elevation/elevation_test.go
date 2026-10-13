@@ -292,12 +292,12 @@ func TestZoomFor(t *testing.T) {
 }
 
 func TestConfigure(t *testing.T) {
-	s, err := Configure("mapterhorn", "", "", 0, 0)
-	if err != nil || s != Mapterhorn {
-		t.Errorf("expected Mapterhorn unchanged, got %+v, %v", s, err)
+	s, err := Configure("aws", "", "", 0, 0)
+	if err != nil || s != AWS {
+		t.Errorf("expected AWS unchanged, got %+v, %v", s, err)
 	}
 	s, err = Configure("", " https://dem.example.com/{z}/{x}/{y}.png ", "Mapbox", 512, 14)
-	want := Source{Name: "aws", URL: "https://dem.example.com/{z}/{x}/{y}.png", Encoding: EncodingMapbox, TileSize: 512, MaxZoom: 14}
+	want := Source{Name: "mapterhorn", URL: "https://dem.example.com/{z}/{x}/{y}.png", Encoding: EncodingMapbox, TileSize: 512, MaxZoom: 14}
 	if err != nil || s != want {
 		t.Errorf("expected %+v, got %+v, %v", want, s, err)
 	}
@@ -310,7 +310,7 @@ func TestConfigure(t *testing.T) {
 }
 
 func TestSourceByName(t *testing.T) {
-	for name, want := range map[string]string{"": "aws", "aws": "aws", " Mapterhorn ": "mapterhorn"} {
+	for name, want := range map[string]string{"": "mapterhorn", " AWS ": "aws", "mapterhorn": "mapterhorn"} {
 		s, err := SourceByName(name)
 		if err != nil || s.Name != want {
 			t.Errorf("%q: expected %s, got %v, %v", name, want, s.Name, err)

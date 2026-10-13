@@ -95,7 +95,7 @@ func TestElevationNone(t *testing.T) {
 	if s := newElevationService(settings.Elevation{Source: " None "}); s != nil {
 		t.Error("expected no service for source none")
 	}
-	if s := newElevationService(settings.Elevation{Source: "srtm"}); s == nil || s.Source().Name != "aws" {
+	if s := newElevationService(settings.Elevation{Source: "srtm"}); s == nil || s.Source().Name != "mapterhorn" {
 		t.Error("expected the default source for an unknown one")
 	}
 	a := &App{mapView: mapview.New(geo.LonLat{}, 3)}

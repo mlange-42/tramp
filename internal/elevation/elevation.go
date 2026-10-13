@@ -57,19 +57,24 @@ var (
 		MaxZoom:     15,
 		Attribution: "Elevation: AWS Terrain Tiles (Mapzen, SRTM and others)",
 	}
-	// Mapterhorn is worldwide, with high-resolution national elevation models in parts of Europe.
+	// Mapterhorn is worldwide, with high-resolution national elevation models in many countries.
+	// Its data comes from many open-data sources, which are listed on its attribution page.
+	// There is no usage policy for its public tiles; it logs IP addresses and user agents for up to 30 days,
+	// see https://mapterhorn.com/privacy-policy/.
 	Mapterhorn = Source{
 		Name:        "mapterhorn",
 		URL:         "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp",
 		Encoding:    EncodingTerrarium,
 		TileSize:    512,
 		MaxZoom:     16,
-		Attribution: "Elevation: © Mapterhorn",
+		Attribution: "Elevation: © Mapterhorn, mapterhorn.com/attribution",
 	}
 )
 
 // Sources are the built-in sources, the default first.
-var Sources = []Source{AWS, Mapterhorn}
+// Mapterhorn is the default, as it is much more accurate, especially in the mountains,
+// and needs fewer downloads for the same resolution.
+var Sources = []Source{Mapterhorn, AWS}
 
 // SourceByName returns the built-in source with the given name, ignoring case, or the default for an empty name.
 func SourceByName(name string) (Source, error) {
