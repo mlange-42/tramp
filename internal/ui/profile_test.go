@@ -28,7 +28,7 @@ func TestRouteProfile(t *testing.T) {
 	srv, failing, _ := elevationServer(t)
 	a, f := editApp(t, testPlanGPX)
 	cfg := settings.Elevation{URL: srv.URL + "/{z}/{x}/{y}.png", TileSize: 4}
-	a.elev = elevationView{cfg: cfg, service: newElevationService(cfg)}
+	a.elev = elevationView{cfg: cfg, service: newElevationService(cfg, 0)}
 	it := f.routeItem(0)
 	a.selected = it
 

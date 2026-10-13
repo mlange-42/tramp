@@ -143,7 +143,7 @@ func TestNavTrackFile(t *testing.T) {
 
 func TestAddTrackElevations(t *testing.T) {
 	srv, _, _ := elevationServer(t)
-	svc := newElevationService(settings.Elevation{URL: srv.URL + "/{z}/{x}/{y}.png", TileSize: 4})
+	svc := newElevationService(settings.Elevation{URL: srv.URL + "/{z}/{x}/{y}.png", TileSize: 4}, 0)
 	tr := track.Track{Segments: []track.Segment{
 		{Points: []track.Point{{Pos: geo.LonLat{Lon: 12.5, Lat: 51.5}, Ele: math.NaN()}}},
 		{Points: []track.Point{{Pos: geo.LonLat{Lon: 12.6, Lat: 51.5}, Ele: math.NaN()}, {Pos: geo.LonLat{Lon: 12.7, Lat: 51.5}, Ele: math.NaN()}}},
@@ -161,7 +161,7 @@ func TestAddTrackElevations(t *testing.T) {
 
 func TestAddRouteElevations(t *testing.T) {
 	srv, failing, _ := elevationServer(t)
-	svc := newElevationService(settings.Elevation{URL: srv.URL + "/{z}/{x}/{y}.png", TileSize: 4})
+	svc := newElevationService(settings.Elevation{URL: srv.URL + "/{z}/{x}/{y}.png", TileSize: 4}, 0)
 	newRoute := func() track.Route {
 		return track.Route{Points: []track.Waypoint{
 			{Pos: geo.LonLat{Lon: 12.5, Lat: 51.5}, Ele: math.NaN()},

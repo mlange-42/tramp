@@ -31,7 +31,7 @@ func terrainApp(t *testing.T) (*App, *openFile) {
 	a.style = DefaultStyle()
 	a.initColoring(nil, "", nil)
 	cfg := settings.Elevation{URL: srv.URL + "/{z}/{x}/{y}.png", TileSize: 4}
-	a.elev = elevationView{cfg: cfg, service: newElevationService(cfg)}
+	a.elev = elevationView{cfg: cfg, service: newElevationService(cfg, 0)}
 	return a, f
 }
 

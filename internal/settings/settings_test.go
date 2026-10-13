@@ -13,8 +13,8 @@ func TestSaveLoad(t *testing.T) {
 	if err != nil || exists {
 		t.Fatalf("missing file: exists %v, err %v", exists, err)
 	}
-	if def.TileCache != DefaultTileCache {
-		t.Errorf("tile cache default not set: %d", def.TileCache)
+	if def.TileCache != DefaultTileCache || def.ElevationTileCache != DefaultElevationTileCache {
+		t.Errorf("tile cache defaults not set: %d, %d", def.TileCache, def.ElevationTileCache)
 	}
 	if def.DiskCache.MaxSize != DefaultDiskCacheSize || def.DiskCache.MaxAge != DefaultDiskCacheAge ||
 		def.DiskCache.ElevationMaxSize != DefaultDiskCacheElevationSize {
@@ -26,8 +26,9 @@ func TestSaveLoad(t *testing.T) {
 	}
 
 	s := Settings{
-		TileCache: 100,
-		DiskCache: DiskCache{Dir: "/cache", MaxSize: -1, ElevationMaxSize: 500, MaxAge: 7},
+		TileCache:          100,
+		ElevationTileCache: 50,
+		DiskCache:          DiskCache{Dir: "/cache", MaxSize: -1, ElevationMaxSize: 500, MaxAge: 7},
 		Style: Style{
 			TrackWidth:   4,
 			RouteWidth:   2.5,

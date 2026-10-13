@@ -81,7 +81,7 @@ type App struct {
 	style      *Style
 	client     *wms.Client
 
-	// tileCache is the number of tiles kept in memory, shared by all visible layers.
+	// tileCache is the memory in MB for the tiles kept in memory, shared by all visible layers.
 	tileCache    int
 	diskCache    diskCacheView
 	layers       []wms.Layer
@@ -191,7 +191,8 @@ func newApp(invalidate func(), opts Options) *App {
 		gps:          gpsView{cfg: opts.State.GPS},
 		searchCfg:    opts.State.Search,
 		routingCfg:   opts.State.Routing,
-		elev:         elevationView{cfg: opts.State.Elevation, service: newElevationService(opts.State.Elevation)},
+		elev: elevationView{cfg: opts.State.Elevation, cacheSize: opts.State.ElevationTileCache,
+			service: newElevationService(opts.State.Elevation, opts.State.ElevationTileCache)},
 	}
 	if a.elev.service != nil && a.diskCache.elevation != nil {
 		a.elev.service.SetDiskCache(a.diskCache.elevation, a.diskCache.maxAge())
@@ -286,8 +287,9 @@ func dpOr(v, def float32) unit.Dp {
 func (a *App) State() settings.Settings {
 	ll := geo.ToLonLat(a.mapView.View.Center)
 	s := settings.Settings{
-		TileCache: a.tileCache,
-		DiskCache: a.diskCache.cfg,
+		TileCache:          a.tileCache,
+		ElevationTileCache: a.elev.cacheSize,
+		DiskCache:          a.diskCache.cfg,
 		Style: settings.Style{
 			TrackWidth:   float32(a.trackWidth),
 			RouteWidth:   float32(a.routeWidth),
@@ -419,8 +421,9 @@ func (a *App) updateCapacity() {
 			managers = append(managers, o.tiles)
 		}
 	}
+	capacity := (a.tileCache << 20) / tiles.TileBytes
 	for _, m := range managers {
-		m.SetCapacity(a.tileCache / len(managers))
+		m.SetCapacity(capacity / len(managers))
 	}
 }
 

@@ -15,7 +15,8 @@ TRAMP remembers the opened files, the selected map, overlays, map position and w
 Some settings can only be changed in this file:
 
 ```yaml
-tile_cache: 2048           # map tiles kept in memory, about 256 KB each
+tile_cache: 512            # memory for map tiles in MB, about 256 KB per tile
+elevation_tile_cache: 128  # memory for elevation tiles in MB
 disk_cache:
   dir: ''                  # directory of the tile cache; empty for the default, see below
   max_size: 2048           # largest size of the map tiles stored on disk in MB; negative to store none
