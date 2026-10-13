@@ -64,6 +64,7 @@ type overlayState struct {
 	Overlay
 	// tiles are the tiles shown, for the time timeValue if the overlay changes over time.
 	tiles     *tiles.Manager
+	fetcher   *tiles.WMSFetcher
 	timeValue string
 	// others are the tiles of other times, kept or loaded in the background, see overlaytiles.go.
 	others []*timeTiles
@@ -422,7 +423,7 @@ func (a *App) setOverlay(i int, enabled bool) {
 	if enabled && o.tiles == nil {
 		layer := o.Layer
 		layer.Transparent = true
-		o.tiles, _ = a.newManager(&layer, o.Shade, o.Refresh > 0)
+		o.tiles, o.fetcher = a.newManager(&layer, o.Shade, o.Refresh > 0)
 		o.enabled(a, i, time.Now())
 	} else if !enabled && o.tiles != nil {
 		o.closeOverlayTiles()

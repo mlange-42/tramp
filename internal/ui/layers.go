@@ -81,6 +81,9 @@ type Overlay struct {
 	// Refresh is the interval for loading the tiles again, for layers that change over time like
 	// weather radar. Zero means never. Such layers are not stored in the disk cache.
 	Refresh time.Duration `yaml:"refresh,omitempty"`
+	// TimeStep restricts the times requested to multiples of it, for services that have data less often
+	// than their capabilities tell. Zero means the times of the capabilities.
+	TimeStep time.Duration `yaml:"time_step,omitempty"`
 }
 
 // MinRefresh is the shortest interval for loading an overlay again, see [Overlay.Refresh].
@@ -303,6 +306,8 @@ func DefaultOverlays() []Overlay {
 				"Forecast precipitation in the 6 hours up to the shown time, from the ICON model. Worldwide."),
 			Opacity: 0.6,
 			Refresh: 30 * time.Minute,
+			// The capabilities tell every 3 hours, but there is data only every 6 hours.
+			TimeStep: 6 * time.Hour,
 		},
 		{Section: "Labels"},
 		{

@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/mlange-42/tramp/internal/diskcache"
@@ -28,6 +29,10 @@ type WMSFetcher struct {
 	// MaxAge is the age after which a stored image is checked with the server.
 	// Older images are still used if the server can't be reached.
 	MaxAge time.Duration
+	// references are the reference times to request, see [WMSFetcher.SetReferences],
+	// and reference the index of the one that worked last, tried first for the next tiles.
+	references atomic.Pointer[[]string]
+	reference  atomic.Int32
 
 	once sync.Once
 	// dir is the directory of the layer in the cache, and ext the file extension of the images.
@@ -47,7 +52,7 @@ func (f *WMSFetcher) Fetch(ctx context.Context, key geo.TileKey) (image.Image, e
 		}
 		return imgs[(key.Y-first.Y)*n+key.X-first.X], nil
 	}
-	data, err := f.fetch(ctx, f.Layer.TileURL(key), key, 1)
+	data, err := f.fetchUnit(ctx, key, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +70,7 @@ func (f *WMSFetcher) Group(key geo.TileKey) (geo.TileKey, int) {
 
 // FetchGroup implements [GroupFetcher]: it loads a meta tile in one image, and cuts it into tiles.
 func (f *WMSFetcher) FetchGroup(ctx context.Context, first geo.TileKey, n int) ([]image.Image, error) {
-	data, err := f.fetch(ctx, f.Layer.MetaURL(first, n), first, n)
+	data, err := f.fetchUnit(ctx, first, n)
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +85,41 @@ func (f *WMSFetcher) FetchGroup(ctx context.Context, first geo.TileKey, n int) (
 		}
 	}
 	return imgs, nil
+}
+
+// SetReferences sets the reference times to request the data for, like the starts of model runs.
+// They are tried in this order while the server reports an error, like for a time not covered by a run.
+// Empty for the server's default. Tiles loaded before are kept, see [Manager.Refresh].
+func (f *WMSFetcher) SetReferences(refs []string) {
+	f.references.Store(&refs)
+	f.reference.Store(0)
+}
+
+// fetchUnit returns the image data of the n×n tiles starting at first, see [WMSFetcher.fetch].
+// With reference times, they are tried from the one that worked last, while the server reports an error.
+func (f *WMSFetcher) fetchUnit(ctx context.Context, first geo.TileKey, n int) ([]byte, error) {
+	var refs []string
+	if p := f.references.Load(); p != nil {
+		refs = *p
+	}
+	if len(refs) == 0 {
+		return f.fetch(ctx, f.Layer.MetaURL(first, n), first, n)
+	}
+	var err error
+	for i := min(int(f.reference.Load()), len(refs)-1); i < len(refs); i++ {
+		layer := *f.Layer
+		layer.Reference = refs[i]
+		var data []byte
+		data, err = f.fetch(ctx, layer.MetaURL(first, n), first, n)
+		if err == nil {
+			f.reference.Store(int32(i))
+			return data, nil
+		}
+		if !errors.Is(err, wms.ErrServiceException) {
+			return nil, err
+		}
+	}
+	return nil, err
 }
 
 // shade converts an image with [Shade] if the fetcher is for a hillshade overlay.
