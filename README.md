@@ -19,12 +19,12 @@ A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Wr
 - [x] Coloring by speed, elevation or slope
 - [x] Profile chart, linked to the map
 - [x] Route and waypoint editing
+- [x] Elevation profile for route planning
 - [x] Live GPS position from USB and Bluetooth receivers
 - [x] Search for places and coordinates, routing
 - [x] Offline tile cache
+- [x] Weather overlays
 - [ ] FIT and KML/KMZ files
-- [ ] Elevation for routes
-- [ ] Weather overlays
 
 ## Installation
 

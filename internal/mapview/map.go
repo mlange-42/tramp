@@ -324,11 +324,12 @@ func (m *Map) drawTiles(gtx layout.Context, mgr *tiles.Manager, maxLevel int) {
 	for y := y0; y <= y1; y++ {
 		for x := x0; x <= x1; x++ {
 			key := geo.TileKey{Z: z, X: x, Y: y}
+			// Cached tiles are requested too, so that outdated ones are loaded again.
+			m.wanted = append(m.wanted, key)
 			if tile, ok := mgr.Get(key); ok {
 				m.drawTile(gtx, tile, m.screenRect(key))
 				continue
 			}
-			m.wanted = append(m.wanted, key)
 			m.drawFallback(gtx, mgr, key, maxLevel)
 		}
 	}

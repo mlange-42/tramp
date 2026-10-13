@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/mlange-42/tramp/internal/wms"
 	"go.yaml.in/yaml/v3"
@@ -39,7 +40,13 @@ type Overlay struct {
 	Opacity float32 `yaml:"opacity,omitempty"`
 	// Shade converts a grayscale relief image into a transparent shading.
 	Shade bool `yaml:"shade,omitempty"`
+	// Refresh is the interval for loading the tiles again, for layers that change over time like
+	// weather radar. Zero means never. Such layers are not stored in the disk cache.
+	Refresh time.Duration `yaml:"refresh,omitempty"`
 }
+
+// MinRefresh is the shortest interval for loading an overlay again, see [Overlay.Refresh].
+const MinRefresh = time.Minute
 
 // sectionEntry is how section headings are written, without the empty layer fields.
 type sectionEntry struct {

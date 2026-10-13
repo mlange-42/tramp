@@ -126,9 +126,26 @@ overlays:
     format: image/png
     version: 1.3.0
     attribution: SRTM, terrestris
+    attribution_short: SRTM · terrestris
+    attribution_url: https://www.terrestris.de
     opacity: 0.6  # 0 or missing means opaque
     shade: true   # turn a grayscale relief into a transparent shading
+  - section: Weather
+  - name: Precipitation radar
+    url: https://maps.dwd.de/geoserver/ows
+    layers: dwd:Niederschlagsradar
+    format: image/png
+    version: 1.3.0
+    attribution: © Deutscher Wetterdienst
+    attribution_short: © DWD
+    attribution_url: https://www.dwd.de/EN/service/copyright/copyright_node.html
+    refresh: 5m   # load the tiles again every 5 minutes
 ```
+
+Overlays that change over time, like weather radar, can be loaded again regularly with `refresh`,
+given like `30s`, `5m` or `1h`. The shortest interval is one minute.
+Outdated tiles stay visible until the new ones arrive.
+Such overlays are not stored in the disk cache (`disk_cache`), so that old weather is never shown as current.
 
 The status bar shows the short credits of the selected map, the enabled overlays and the elevation source,
 with parts separated by ` · ` shown only once, like `© OpenStreetMap · CyclOSM · Waymarked Trails`.

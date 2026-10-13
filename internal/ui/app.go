@@ -63,6 +63,8 @@ type Options struct {
 type overlayState struct {
 	Overlay
 	tiles *tiles.Manager
+	// refreshed is when the tiles were last marked for loading again, see [Overlay.Refresh].
+	refreshed time.Time
 }
 
 // App is the main application state.
@@ -376,13 +378,16 @@ func (a *App) closeTiles() {
 	}
 }
 
-func (a *App) newManager(layer *wms.Layer, shade bool) *tiles.Manager {
+// newManager creates the tile manager of a layer. Layers that change over time (refresh)
+// are not stored on disk, so that old images are never shown as current, e.g. when offline.
+func (a *App) newManager(layer *wms.Layer, shade, refresh bool) *tiles.Manager {
 	opts := tiles.DefaultOptions()
 	opts.OnUpdate = a.invalidate
-	return tiles.NewManager(&tiles.WMSFetcher{
-		Client: a.client, Layer: layer, Shade: shade,
-		Cache: a.diskCache.tiles, MaxAge: a.diskCache.maxAge(),
-	}, opts)
+	f := &tiles.WMSFetcher{Client: a.client, Layer: layer, Shade: shade}
+	if !refresh {
+		f.Cache, f.MaxAge = a.diskCache.tiles, a.diskCache.maxAge()
+	}
+	return tiles.NewManager(f, opts)
 }
 
 func (a *App) setLayer(i int) {
@@ -393,7 +398,7 @@ func (a *App) setLayer(i int) {
 	a.layerSelect.SetSelected(i)
 	a.tiles = nil
 	if !a.layers[i].IsNone() {
-		a.tiles = a.newManager(&a.layers[i], false)
+		a.tiles = a.newManager(&a.layers[i], false, false)
 	}
 	a.updateCapacity()
 }
@@ -403,12 +408,37 @@ func (a *App) setOverlay(i int, enabled bool) {
 	if enabled && o.tiles == nil {
 		layer := o.Layer
 		layer.Transparent = true
-		o.tiles = a.newManager(&layer, o.Shade)
+		o.tiles = a.newManager(&layer, o.Shade, o.Refresh > 0)
+		o.refreshed = time.Now()
 	} else if !enabled && o.tiles != nil {
 		go o.tiles.Close()
 		o.tiles = nil
 	}
 	a.updateCapacity()
+}
+
+// refreshOverlays marks the tiles of enabled overlays with a refresh interval for loading again when due,
+// and schedules a frame for the next one.
+func (a *App) refreshOverlays(gtx layout.Context) {
+	var next time.Time
+	for i := range a.overlays {
+		o := &a.overlays[i]
+		if o.tiles == nil || o.Refresh <= 0 {
+			continue
+		}
+		due := o.refreshed.Add(max(o.Refresh, MinRefresh))
+		if !gtx.Now.Before(due) {
+			o.tiles.Refresh()
+			o.refreshed = gtx.Now
+			due = gtx.Now.Add(max(o.Refresh, MinRefresh))
+		}
+		if next.IsZero() || due.Before(next) {
+			next = due
+		}
+	}
+	if !next.IsZero() {
+		gtx.Execute(op.InvalidateCmd{At: next})
+	}
 }
 
 // updateCapacity splits the tile cache evenly between the visible layers.
@@ -439,6 +469,7 @@ func (a *App) update(gtx layout.Context) {
 	for _, i := range a.overlaySel.Update(gtx) {
 		a.setOverlay(i, a.overlaySel.Checked(i))
 	}
+	a.refreshOverlays(gtx)
 
 	a.runUITasks()
 	a.updateAbout(gtx)
