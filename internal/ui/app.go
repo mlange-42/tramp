@@ -681,7 +681,7 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.layerSelect.Layout(gtx, st, a.layerNames)
 			}),
-			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
+			layout.Rigid(layout.Spacer{Width: 1}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.overlaySel.Layout(gtx, st, a.overlayNames)
 			}),
