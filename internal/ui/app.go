@@ -151,6 +151,8 @@ type App struct {
 	sources sourcesView
 	// menu is the menu bar at the left of the toolbar.
 	menu menuBar
+	// about is the About window, opened from the Help menu.
+	about aboutView
 
 	// nextColor is the index of the default color for the next opened file.
 	nextColor int
@@ -439,6 +441,7 @@ func (a *App) update(gtx layout.Context) {
 	}
 
 	a.runUITasks()
+	a.updateAbout(gtx)
 	a.menu.update(gtx, a.menuItems())
 	if a.openBtn.Clicked(gtx) {
 		a.showOpenDialog()
@@ -546,7 +549,7 @@ func (a *App) layout(gtx layout.Context) layout.Dimensions {
 	a.update(gtx)
 	paint.Fill(gtx.Ops, a.style.Theme.Bg)
 
-	return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+	dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 		layout.Rigid(a.layoutToolbar),
 		layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 			return a.split.Layout(gtx, a.style, a.layoutPanel, func(gtx layout.Context) layout.Dimensions {
@@ -555,6 +558,8 @@ func (a *App) layout(gtx layout.Context) layout.Dimensions {
 		}),
 		layout.Rigid(a.layoutStatus),
 	)
+	a.layoutAbout(gtx)
+	return dims
 }
 
 func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {

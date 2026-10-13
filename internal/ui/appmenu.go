@@ -10,8 +10,8 @@ import (
 
 // Pages linked in the Help menu.
 const (
-	docsURL   = "https://github.com/mlange-42/tramp#documentation"
-	issuesURL = "https://github.com/mlange-42/tramp/issues"
+	docsURL   = repoURL + "#documentation"
+	issuesURL = repoURL + "/issues"
 )
 
 // menuTitles are the menus of the menu bar, in the order of [App.menuItems].
@@ -39,6 +39,8 @@ func (a *App) menuItems() [][]menuItem {
 			{label: "Report an issue", action: func() { openURL(issuesURL) }},
 			menuSeparator,
 			{label: "Data sources", action: func() { a.sources.open = true }},
+			menuSeparator,
+			{label: "About TRAMP", action: func() { a.about.open = true }},
 		},
 	}
 }
