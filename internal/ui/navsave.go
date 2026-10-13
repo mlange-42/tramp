@@ -1,10 +1,14 @@
 package ui
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"math"
 	"strings"
 
+	"github.com/mlange-42/tramp/internal/elevation"
+	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/routing"
 	"github.com/mlange-42/tramp/internal/track"
 	"golang.org/x/exp/shiny/materialdesign/icons"
@@ -111,9 +115,36 @@ func (a *App) saveNavRoute() {
 	}
 	r := a.navTrackRoute(nil)
 	data := &track.File{Format: track.FormatGPX, Creator: track.Creator, Routes: []track.Route{r}}
-	a.createFile("Save route", fileName(r.Name)+".gpx", data, func(f *openFile) {
+	svc := a.elev.service
+	// In the edited file, the points get their elevation like other new points, see [openFile.noteNewPoints].
+	a.createFileFrom("Save route", fileName(r.Name)+".gpx", func() (*track.File, error) {
+		addRouteElevations(svc, &data.Routes[0])
+		return data, nil
+	}, func(f *openFile) {
 		a.selectRoute(f, 0)
 	})
+}
+
+// addRouteElevations sets the terrain elevation of the points of a route, if svc is not nil.
+// A failed download is logged, and leaves the route without elevations.
+func addRouteElevations(svc *elevation.Service, r *track.Route) {
+	if svc == nil || len(r.Points) == 0 {
+		return
+	}
+	pos := make([]geo.LonLat, len(r.Points))
+	for i, p := range r.Points {
+		pos[i] = p.Pos
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), profileTimeout)
+	defer cancel()
+	eles, err := svc.Elevations(ctx, pos, svc.Source().ZoomFor(profileResolution, pos[0].Lat))
+	if err != nil {
+		log.Printf("elevation of route points: %v", err)
+		return
+	}
+	for i, e := range eles {
+		r.Points[i].Ele = e
+	}
 }
 
 // navTrackFile returns the route as a GPX file with a track of all points of the route.

@@ -78,6 +78,7 @@ and their description spells out the turn.
 The codes are L and R for left and right, SL and SR for slight turns, HL and HR for sharp ("hard") turns, U for a U-turn,
 KL and KR for keeping left or right at a fork, and RB2 for the second exit of a roundabout.
 All names in a file are unique, as devices merge points with the same name.
+The points get the terrain elevation at their position.
 The button's tooltip shows the number of points. The panel warns when the route has more than 250, as many devices take no more.
 
 The *Save as GPX track* button next to it stores the route with all its points as a GPX track, in a new file.

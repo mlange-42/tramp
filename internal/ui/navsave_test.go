@@ -2,11 +2,13 @@ package ui
 
 import (
 	"image"
+	"math"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/mlange-42/tramp/internal/geo"
+	"github.com/mlange-42/tramp/internal/settings"
 	"github.com/mlange-42/tramp/internal/track"
 )
 
@@ -136,5 +138,34 @@ func TestNavTrackFile(t *testing.T) {
 	}
 	if f := newOpenFile(path, d); f.editable() {
 		t.Errorf("expected the track file not to be editable")
+	}
+}
+
+func TestAddRouteElevations(t *testing.T) {
+	srv, failing, _ := elevationServer(t)
+	svc := newElevationService(settings.Elevation{URL: srv.URL + "/{z}/{x}/{y}.png", TileSize: 4})
+	newRoute := func() track.Route {
+		return track.Route{Points: []track.Waypoint{
+			{Pos: geo.LonLat{Lon: 12.5, Lat: 51.5}, Ele: math.NaN()},
+			{Pos: geo.LonLat{Lon: 12.6, Lat: 51.5}, Ele: math.NaN()},
+		}}
+	}
+	r := newRoute()
+	addRouteElevations(svc, &r)
+	if r.Points[0].Ele != 123 || r.Points[1].Ele != 123 {
+		t.Errorf("expected elevations, got %+v", r.Points)
+	}
+	// Without service, or when the download fails, the route keeps its points without elevation.
+	r = newRoute()
+	addRouteElevations(nil, &r)
+	if !math.IsNaN(r.Points[0].Ele) {
+		t.Error("expected no elevation without service")
+	}
+	failing.Store(true)
+	r = newRoute()
+	r.Points[0].Pos.Lon = 20
+	addRouteElevations(svc, &r)
+	if !math.IsNaN(r.Points[0].Ele) {
+		t.Error("expected no elevation after a failed download")
 	}
 }

@@ -22,7 +22,8 @@ In edit mode, the toolbar shows the edit tools, also selected with the keys S, W
 
 Hover a tool for a short help.
 Moved and added points get the terrain elevation at their position, downloaded in the background.
-Points that had no elevation before are left as they are. With `source: none` in the elevation
+Points that had no elevation before are left as they are.
+The elevation of the selected point is shown in its heading in the properties, like *Point 2 of 5 · 123 m*. With `source: none` in the elevation
 [settings](configuration.md#settings), moved and added points have no elevation.
 
 ## Properties

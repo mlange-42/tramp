@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"image"
+	"math"
 	"slices"
 	"strings"
 
@@ -302,14 +303,7 @@ func (a *App) layoutProps(gtx layout.Context) layout.Dimensions {
 		field("Desc", routeDescField)
 	}
 	if hasPoint {
-		title := "Waypoint"
-		if point.route >= 0 {
-			title = fmt.Sprintf("Point %d of %d", point.point+1, len(d.Routes[point.route].Points))
-		}
-		if len(linkedGroup(d, point.vertex())) > 1 {
-			title += " · linked"
-		}
-		heading(title, none)
+		heading(pointTitle(d, point), none)
 		field("Name", pointNameField)
 		field("Desc", pointDescField)
 		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -328,6 +322,26 @@ func (a *App) layoutProps(gtx layout.Context) layout.Dimensions {
 	paint.FillShape(gtx.Ops, st.DividerColor, clip.Rect{Max: image.Pt(dims.Size.X, max(1, gtx.Dp(1)))}.Op())
 	call.Add(gtx.Ops)
 	return dims
+}
+
+// pointTitle returns the heading of a waypoint or route point in the properties, like "Point 2 of 5 · 123 m · linked",
+// with its elevation if known.
+func pointTitle(d *track.File, point propTarget) string {
+	var title string
+	var w *track.Waypoint
+	if point.route >= 0 {
+		title = fmt.Sprintf("Point %d of %d", point.point+1, len(d.Routes[point.route].Points))
+		w = &d.Routes[point.route].Points[point.point]
+	} else {
+		title, w = "Waypoint", &d.Waypoints[point.point]
+	}
+	if !math.IsNaN(w.Ele) {
+		title += fmt.Sprintf(" · %.0f m", w.Ele)
+	}
+	if len(linkedGroup(d, point.vertex())) > 1 {
+		title += " · linked"
+	}
+	return title
 }
 
 // propLabelWidth is the width of the labels of the property fields.
