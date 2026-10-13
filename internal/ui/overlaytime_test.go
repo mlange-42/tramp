@@ -1,12 +1,18 @@
 package ui
 
 import (
+	"image"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"gioui.org/f32"
+	"gioui.org/io/input"
+	"gioui.org/io/pointer"
+	"gioui.org/layout"
+	"gioui.org/op"
 	"github.com/mlange-42/tramp/internal/wms"
 )
 
@@ -171,5 +177,63 @@ func TestTimeControl(t *testing.T) {
 	a.selectAllTimes(time.Time{}, now)
 	if radar.times.outside || !c.selected.IsZero() {
 		t.Error("expected the current time again")
+	}
+}
+
+func TestTimeline(t *testing.T) {
+	srv := newCapsServer(t)
+	a := newApp(func() {}, Options{
+		Maps:     []Map{{Layer: wms.Layer{Name: "None", Type: wms.TypeNone}}},
+		Overlays: []Overlay{{Layer: wms.Layer{Name: "Radar", URL: srv.URL, Layers: "Radar"}, Refresh: 5 * time.Minute}},
+	})
+	defer a.closeTiles()
+	var r input.Router
+	var ops op.Ops
+	size := image.Pt(800, 400)
+	now := time.Date(2026, 10, 13, 11, 22, 0, 0, time.UTC)
+	height := 0
+	frame := func() {
+		ops.Reset()
+		gtx := layout.Context{Ops: &ops, Source: r.Source(), Now: now, Constraints: layout.Exact(size)}
+		gtx.Metric.PxPerDp, gtx.Metric.PxPerSp = 1, 1
+		a.updateTimeControl(gtx)
+		height = a.layoutTimeline(gtx)
+		r.Frame(&ops)
+	}
+	frame()
+	if height != 0 {
+		t.Error("no time strip without overlays with times")
+	}
+	a.timeCtl.selected = now
+	a.setOverlay(0, true)
+	waitOverlayTime(a, 0)
+	frame()
+	if height == 0 || a.timeCtl.barWidth <= 0 {
+		t.Fatalf("expected the time strip, height %d", height)
+	}
+	if r, ok := a.timeRanges(); !ok || !r.common || !r.first.Equal(r.commonFirst) || !r.last.Equal(r.commonLast) {
+		t.Errorf("unexpected ranges %+v", r)
+	}
+
+	// A click near the left end of the bar selects the first full hour.
+	barLeft := float32(size.X) - float32(a.style.Spacing)*3 - float32(a.timeCtl.barWidth)
+	at := f32.Pt(barLeft+2, float32(size.Y-height/2))
+	r.Queue(
+		pointer.Event{Kind: pointer.Press, Source: pointer.Mouse, Buttons: pointer.ButtonPrimary, Position: at},
+		pointer.Event{Kind: pointer.Release, Source: pointer.Mouse, Position: at},
+	)
+	frame()
+	frame()
+	if want := time.Date(2026, 10, 13, 10, 0, 0, 0, time.UTC); !a.timeCtl.selected.Equal(want) {
+		t.Errorf("selected %v, want %v", a.timeCtl.selected, want)
+	}
+}
+
+func TestTimeAt(t *testing.T) {
+	c := &timeControl{barWidth: 100, barFirst: time.Date(2026, 10, 13, 10, 20, 0, 0, time.UTC), barLast: time.Date(2026, 10, 13, 20, 20, 0, 0, time.UTC)}
+	for x, want := range map[float32]int{-5: 11, 0: 11, 47: 15, 100: 20, 120: 20} {
+		if got := c.timeAt(x); got.Hour() != want || got.Minute() != 0 {
+			t.Errorf("at %v: got %v, want %d:00", x, got, want)
+		}
 	}
 }
