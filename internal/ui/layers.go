@@ -311,6 +311,19 @@ func DefaultOverlays() []Overlay {
 		},
 		{Section: "Labels"},
 		{
+			Layer: wms.Layer{
+				Name:             "Borders & places",
+				Description:      "Coastlines, borders and place names, without roads. Worldwide.",
+				URL:              eoxURL,
+				Layers:           "coastline_3857,overlay_base_3857",
+				Format:           "image/png",
+				Version:          "1.3.0",
+				Attribution:      eoxOSMAttribution,
+				AttributionShort: osmShort + " · EOX",
+				AttributionURL:   "https://maps.eox.at",
+			},
+		},
+		{
 			// Dark labels, for bright maps.
 			Layer: wms.Layer{
 				Name:             "Labels & roads",
@@ -415,6 +428,21 @@ func DefaultMaps() []Map {
 				Attribution:      eoxOSMAttribution,
 				AttributionShort: osmShort + " · EOX",
 				AttributionURL:   "https://maps.eox.at",
+			},
+		},
+		{
+			Layer: wms.Layer{
+				Name:        "Natural Earth",
+				Description: "Small-scale world map with land cover tints, relief shading and water, from Natural Earth. Worldwide, coarse, so best for an overview, e.g. under weather overlays.",
+				URL:         dwdURL,
+				Layers:      "dwd:Natural_Earth_Map",
+				Format:      "image/png",
+				Version:     "1.3.0",
+				// The raster has about 1-2 km per pixel, so closer levels show nothing new.
+				MaxZoom:          8,
+				Attribution:      "Made with Natural Earth, rendered by the Deutscher Wetterdienst (DWD)",
+				AttributionShort: "Natural Earth · DWD",
+				AttributionURL:   "https://www.naturalearthdata.com",
 			},
 		},
 		{
