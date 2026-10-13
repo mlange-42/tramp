@@ -154,19 +154,25 @@ func TestTimeControl(t *testing.T) {
 		t.Errorf("unexpected radar time %v", radar.times.time)
 	}
 
-	// Steps go to full hours.
+	// Steps go to the valid times of the overlays, every 5 minutes for the radar.
 	a.selectAllTimes(time.Time{}, now)
+	at := func(h, m int) time.Time { return time.Date(2026, 10, 13, h, m, 0, 0, time.UTC) }
+	prev, next, canPrev, canNext, ok := a.timeSteps(now)
+	if !ok || !canPrev || !canNext || !prev.Equal(at(11, 20)) || !next.Equal(at(11, 25)) {
+		t.Errorf("unexpected steps %v %v %v %v", prev, next, canPrev, canNext)
+	}
+	a.selectAllTimes(prev, now)
 	c := &a.timeCtl
-	if !c.step(now, 1).Equal(time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)) ||
-		!c.step(now, -1).Equal(time.Date(2026, 10, 13, 11, 0, 0, 0, time.UTC)) {
-		t.Errorf("unexpected steps %v %v", c.step(now, 1), c.step(now, -1))
+	if prev, _, _, _, _ = a.timeSteps(now); !prev.Equal(at(11, 15)) {
+		t.Errorf("unexpected step from a valid time %v", prev)
 	}
-	a.selectAllTimes(c.step(now, -1), now)
-	if !c.step(now, -1).Equal(time.Date(2026, 10, 13, 10, 0, 0, 0, time.UTC)) {
-		t.Errorf("unexpected step from a full hour %v", c.step(now, -1))
-	}
-	if !radar.times.time.Equal(c.selected) || radar.timeValue != "2026-10-13T11:00:00.000Z" {
+	if !radar.times.time.Equal(c.selected) || radar.timeValue != "2026-10-13T11:20:00.000Z" {
 		t.Errorf("radar did not follow the selected time: %v", radar.times.time)
+	}
+	// No steps beyond the valid times.
+	a.selectAllTimes(at(12, 55), now)
+	if _, _, _, canNext, _ = a.timeSteps(now); canNext {
+		t.Error("step after the last time")
 	}
 
 	// Outside the valid times, the overlay is hidden; overlays without times are not affected.
@@ -220,7 +226,7 @@ func TestTimeline(t *testing.T) {
 		t.Errorf("unexpected ranges %+v", r)
 	}
 
-	// A click near the left end of the bar selects the first full hour.
+	// A click near the left end of the bar selects the first valid time.
 	barLeft := float32(size.X) - float32(a.style.Spacing)*3 - float32(a.timeCtl.barWidth)
 	at := f32.Pt(barLeft+2, float32(size.Y-height/2))
 	r.Queue(
@@ -235,10 +241,37 @@ func TestTimeline(t *testing.T) {
 }
 
 func TestTimeAt(t *testing.T) {
-	c := &timeControl{barWidth: 100, barFirst: time.Date(2026, 10, 13, 10, 20, 0, 0, time.UTC), barLast: time.Date(2026, 10, 13, 20, 20, 0, 0, time.UTC)}
-	for x, want := range map[float32]int{-5: 11, 0: 11, 47: 15, 100: 20, 120: 20} {
-		if got := c.timeAt(x); got.Hour() != want || got.Minute() != 0 {
-			t.Errorf("at %v: got %v, want %d:00", x, got, want)
+	first := time.Date(2026, 10, 13, 10, 20, 0, 0, time.UTC)
+	c := &timeControl{barWidth: 100, barFirst: first, barLast: first.Add(10 * time.Hour)}
+	for x, want := range map[float32]time.Duration{-5: 0, 0: 0, 50: 5 * time.Hour, 100: 10 * time.Hour, 120: 10 * time.Hour} {
+		if got := c.timeAt(x); !got.Equal(first.Add(want)) {
+			t.Errorf("at %v: got %v, want %v", x, got, first.Add(want))
+		}
+	}
+}
+
+func TestOverlayStepTime(t *testing.T) {
+	at := func(d, h int) time.Time { return time.Date(2026, 10, d, h, 0, 0, 0, time.UTC) }
+	// Data every 3 hours from 01:00 according to the capabilities, but only every 6 hours.
+	o := &overlayState{Overlay: Overlay{TimeStep: 6 * time.Hour}}
+	o.times.dim = &wms.TimeDimension{Values: "2026-10-13T01:00:00Z/2026-10-15T22:00:00Z/PT3H"}
+	for _, tc := range []struct {
+		t    time.Time
+		dir  int
+		want time.Time
+	}{
+		{at(13, 7), 1, at(13, 12)},
+		{at(13, 12), 1, at(13, 18)},
+		{at(13, 12), -1, at(13, 6)},
+		{at(13, 7), -1, at(13, 6)},
+		{at(12, 0), 1, at(13, 6)},
+		{at(16, 12), -1, at(15, 18)},
+		{at(13, 6), -1, time.Time{}},
+		{at(15, 18), 1, time.Time{}},
+	} {
+		got, ok := o.stepTime(tc.t, tc.dir)
+		if ok != !tc.want.IsZero() || (ok && !got.Equal(tc.want)) {
+			t.Errorf("%v %+d: got %v %v, want %v", tc.t, tc.dir, got, ok, tc.want)
 		}
 	}
 }

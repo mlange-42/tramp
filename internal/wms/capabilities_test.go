@@ -236,6 +236,45 @@ func TestTimeDimensionLatest(t *testing.T) {
 	}
 }
 
+func TestTimeDimensionStep(t *testing.T) {
+	at := func(s string) time.Time {
+		v, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	d := TimeDimension{Values: "2026-10-13T00:00:00Z/2026-10-13T10:00:00Z/PT5M,2026-10-13T12:00:00Z"}
+	for _, tc := range []struct {
+		t    string
+		dir  int
+		want string
+	}{
+		{"2026-10-13T09:03:00Z", 1, "2026-10-13T09:05:00Z"},
+		{"2026-10-13T09:03:00Z", -1, "2026-10-13T09:00:00Z"},
+		// Not the time itself.
+		{"2026-10-13T09:05:00Z", 1, "2026-10-13T09:10:00Z"},
+		{"2026-10-13T09:05:00Z", -1, "2026-10-13T09:00:00Z"},
+		// From the end of the interval to the single time, and back.
+		{"2026-10-13T10:00:00Z", 1, "2026-10-13T12:00:00Z"},
+		{"2026-10-13T12:00:00Z", -1, "2026-10-13T10:00:00Z"},
+		{"2026-10-12T23:00:00Z", 1, "2026-10-13T00:00:00Z"},
+		{"2026-10-13T12:00:00Z", 1, ""},
+		{"2026-10-13T00:00:00Z", -1, ""},
+	} {
+		got, ok := d.Step(at(tc.t), tc.dir)
+		if tc.want == "" {
+			if ok {
+				t.Errorf("%s %+d: got %v, want none", tc.t, tc.dir, got)
+			}
+			continue
+		}
+		if !ok || !got.Equal(at(tc.want)) {
+			t.Errorf("%s %+d: got %v %v, want %s", tc.t, tc.dir, got, ok, tc.want)
+		}
+	}
+}
+
 func TestReferenceRequests(t *testing.T) {
 	doc := `<WMS_Capabilities><Capability><Layer><Name>A</Name>
 <Dimension name="time">2026-10-13T00:00:00Z/2026-10-14T00:00:00Z/PT1H</Dimension>

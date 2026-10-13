@@ -238,6 +238,42 @@ func latestIn(item string, t time.Time) (time.Time, bool) {
 	return v, true
 }
 
+// Step returns the valid time right after t (dir > 0) or right before t (dir < 0), or false if there is none.
+func (d *TimeDimension) Step(t time.Time, dir int) (time.Time, bool) {
+	if dir < 0 {
+		return d.latestBefore(t.Add(-time.Nanosecond))
+	}
+	var best time.Time
+	ok := false
+	for item := range strings.SplitSeq(d.Values, ",") {
+		v, valid := earliestIn(strings.TrimSpace(item), t.Add(time.Nanosecond))
+		if valid && (!ok || v.Before(best)) {
+			best, ok = v, true
+		}
+	}
+	return best, ok
+}
+
+// earliestIn returns the earliest time not before t in a single time or an interval with a period.
+func earliestIn(item string, t time.Time) (time.Time, bool) {
+	first, ok1 := nearestIn(item, time.Time{})
+	last, ok2 := nearestIn(item, maxTime)
+	if !ok1 || !ok2 || t.After(last) {
+		return time.Time{}, false
+	}
+	if !t.After(first) {
+		return first, true
+	}
+	// Within an interval: the step at or after t.
+	v, _ := nearestIn(item, t)
+	if v.Before(t) {
+		parts := strings.Split(item, "/")
+		period, _ := ParsePeriod(parts[2])
+		v = v.Add(period)
+	}
+	return v, true
+}
+
 // Bounds returns the first and the last valid time, or false if there is none or the values are not understood.
 func (d *TimeDimension) Bounds() (first, last time.Time, ok bool) {
 	for item := range strings.SplitSeq(d.Values, ",") {

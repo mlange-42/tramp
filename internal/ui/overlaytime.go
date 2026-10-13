@@ -147,8 +147,8 @@ func (a *App) updateTime(o *overlayState, caps *wms.Capabilities, target time.Ti
 	a.selectTime(o, target, !first)
 }
 
-// selectTime shows the valid time of an overlay closest to target, and notes the times
-// closest to one step before and after for loading in the background, see [App.prefetchTimes].
+// selectTime shows the valid time of an overlay closest to target, and notes its valid times
+// before and after for loading in the background, see [App.prefetchTimes].
 // If target is outside the valid times, the overlay is hidden.
 // Overlays without times are requested for the server's default time.
 // With keep, the tiles of the previous time are kept for going back.
@@ -163,7 +163,7 @@ func (a *App) selectTime(o *overlayState, target time.Time, keep bool) {
 	t.time = valid
 	a.showTime(o, timeValue(valid, ok), keep)
 	for _, dir := range []int{-1, 1} {
-		if v, ok := o.validTime(a.timeCtl.stepFrom(target, dir)); ok {
+		if v, ok := o.stepTime(valid, dir); ok {
 			if value := timeValue(v, ok); value != o.timeValue && !slices.Contains(o.prefetch, value) {
 				o.prefetch = append(o.prefetch, value)
 			}
@@ -192,6 +192,35 @@ func (o *overlayState) validTime(target time.Time) (time.Time, bool) {
 	}
 	for v.After(last) {
 		v = v.Add(-o.TimeStep)
+	}
+	return v, !v.Before(first)
+}
+
+// stepTime returns the valid time of an overlay right after t (dir > 0) or right before t (dir < 0),
+// or false if there is none.
+func (o *overlayState) stepTime(t time.Time, dir int) (time.Time, bool) {
+	dim := o.times.dim
+	if dim == nil {
+		return time.Time{}, false
+	}
+	first, last, ok := dim.Bounds()
+	if o.TimeStep <= 0 || !ok {
+		return dim.Step(t, dir)
+	}
+	// Multiples of the coarser step, as in [overlayState.validTime], within the valid times.
+	step := o.TimeStep
+	if dir > 0 {
+		v := t.Truncate(step).Add(step)
+		if v.Before(first) {
+			if v = first.Truncate(step); v.Before(first) {
+				v = v.Add(step)
+			}
+		}
+		return v, !v.After(last)
+	}
+	v := t.Add(-time.Nanosecond).Truncate(step)
+	if v.After(last) {
+		v = last.Truncate(step)
 	}
 	return v, !v.Before(first)
 }

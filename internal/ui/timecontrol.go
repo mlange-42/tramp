@@ -14,9 +14,6 @@ import (
 	"gioui.org/widget"
 )
 
-// timeStep is the step of the time control, on full hours.
-const timeStep = time.Hour
-
 // timeControl selects the time shown by all overlays that change over time.
 // Each overlay shows its valid time closest to the selected time.
 type timeControl struct {
@@ -44,37 +41,13 @@ func (c *timeControl) target(now time.Time) time.Time {
 	return c.selected
 }
 
-// step returns the full hour before (dir < 0) or after (dir > 0) the target time.
-func (c *timeControl) step(now time.Time, dir int) time.Time {
-	return c.stepFrom(c.target(now), dir)
-}
-
-// stepFrom returns the full hour before (dir < 0) or after (dir > 0) t.
-func (c *timeControl) stepFrom(t time.Time, dir int) time.Time {
-	base := t.Truncate(timeStep)
-	if dir > 0 {
-		return base.Add(timeStep)
-	}
-	if base.Equal(t) {
-		return base.Add(-timeStep)
-	}
-	return base
-}
-
-// timeAt returns the full hour at a position in pixels on the time bar, within the times of the bar.
+// timeAt returns the time at a position in pixels on the time bar, within the times of the bar.
 func (c *timeControl) timeAt(x float32) time.Time {
 	if c.barWidth <= 0 || !c.barLast.After(c.barFirst) {
 		return c.barFirst
 	}
 	f := min(max(float64(x)/float64(c.barWidth), 0), 1)
-	t := c.barFirst.Add(time.Duration(f * float64(c.barLast.Sub(c.barFirst)))).Round(timeStep)
-	if t.Before(c.barFirst) {
-		t = t.Add(timeStep)
-	}
-	if t.After(c.barLast) {
-		t = t.Add(-timeStep)
-	}
-	return t
+	return c.barFirst.Add(time.Duration(f * float64(c.barLast.Sub(c.barFirst))))
 }
 
 // timeRange are the valid times of the enabled overlays with times.
@@ -135,15 +108,67 @@ func (a *App) selectAllTimes(t, now time.Time) {
 	}
 }
 
-// timeSteps returns the times one step before and after the selected time, and whether they are
-// within the valid times of the enabled overlays. ok is false if no enabled overlay has times.
+// timeSteps returns the valid times of the enabled overlays right before and after the selected time,
+// and whether there are such times. ok is false if no enabled overlay has times.
+// So the steps follow the data, like 5 minutes for the radar and hours for forecasts.
 func (a *App) timeSteps(now time.Time) (prev, next time.Time, canPrev, canNext, ok bool) {
-	first, last, ok := a.timeBounds()
-	if !ok {
+	if _, _, ok = a.timeBounds(); !ok {
 		return
 	}
-	prev, next = a.timeCtl.step(now, -1), a.timeCtl.step(now, 1)
-	return prev, next, !prev.Before(first), !next.After(last), true
+	target := a.timeCtl.target(now)
+	prev, canPrev = a.stepTime(target, -1)
+	next, canNext = a.stepTime(target, 1)
+	return prev, next, canPrev, canNext, true
+}
+
+// stepTime returns the valid time of any enabled overlay closest after t (dir > 0) or before t (dir < 0),
+// or false if there is none.
+func (a *App) stepTime(t time.Time, dir int) (time.Time, bool) {
+	var best time.Time
+	found := false
+	for i := range a.overlays {
+		o := &a.overlays[i]
+		if o.tiles == nil {
+			continue
+		}
+		if v, ok := o.stepTime(t, dir); ok && (!found || v.Before(best) == (dir > 0)) {
+			best, found = v, true
+		}
+	}
+	return best, found
+}
+
+// snapTime returns the valid time of any enabled overlay closest to t, or t if there is none.
+func (a *App) snapTime(t time.Time) time.Time {
+	best, found := t, false
+	for i := range a.overlays {
+		o := &a.overlays[i]
+		if o.tiles == nil || o.times.dim == nil {
+			continue
+		}
+		first, last, ok := o.times.dim.Bounds()
+		if !ok {
+			continue
+		}
+		clamped := t
+		if clamped.Before(first) {
+			clamped = first
+		} else if clamped.After(last) {
+			clamped = last
+		}
+		if v, ok := o.validTime(clamped); ok && (!found || absDuration(v.Sub(t)) < absDuration(best.Sub(t))) {
+			best, found = v, true
+		}
+	}
+	return best
+}
+
+// absDuration returns the absolute value of d.
+func absDuration(d time.Duration) time.Duration {
+	if d < 0 {
+		return -d
+	}
+	return d
 }
 
 // updateTimeControl handles the buttons and the time bar of the time strip. It runs before the map
@@ -157,7 +182,7 @@ func (a *App) updateTimeControl(gtx layout.Context) {
 		}
 		switch e.Kind {
 		case pointer.Press, pointer.Drag:
-			c.dragging, c.dragTime = true, c.timeAt(e.Position.X)
+			c.dragging, c.dragTime = true, a.snapTime(c.timeAt(e.Position.X))
 		case pointer.Release:
 			// Without times, the bar has no width.
 			if c.dragging && c.barWidth > 0 {
@@ -203,7 +228,7 @@ func (a *App) timelineShown() bool {
 }
 
 // layoutTimeline draws the time strip at the bottom of the map if an enabled overlay has times,
-// and returns its height. It has buttons for an hour earlier and later and back to the current time,
+// and returns its height. It has buttons for the previous and the next time and back to the current time,
 // the selected time, and a bar over the times of the overlays to click or drag on.
 func (a *App) layoutTimeline(gtx layout.Context) int {
 	if !a.timelineShown() {
@@ -235,10 +260,10 @@ func (a *App) layoutTimeline(gtx layout.Context) int {
 	gtx.Constraints.Min = image.Pt(gtx.Constraints.Max.X, 0)
 	dims := layout.Inset{Left: st.Spacing, Right: st.Spacing * 3}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-			button(&c.prev, iconPrev, "One hour earlier", canPrev),
+			button(&c.prev, iconPrev, "Previous time", canPrev),
 			// Always there, so that the bar doesn't move.
 			button(&c.now, iconNow, "Back to the current time", ok && !c.selected.IsZero()),
-			button(&c.next, iconNext, "One hour later", canNext),
+			button(&c.next, iconNext, "Next time", canNext),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				// A fixed width, so that the bar doesn't move while stepping.
 				gtx.Constraints.Min.X = gtx.Sp(st.SmallTextSize) * 6
