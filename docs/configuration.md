@@ -176,6 +176,10 @@ For servers that don't like that many, `connections: 2` sets a lower number; wit
 for layers of the same server, the lowest applies.
 Tiles of the times next to the shown one of weather overlays are loaded only when no other downloads from the server wait.
 
+Downloaded tiles are stored on disk (`disk_cache`), unless the server forbids it with `Cache-Control: no-store`.
+Some servers send this for all their tiles, also for maps that don't change, like the DWD for *Natural Earth*.
+With `cache: always`, the tiles of such a layer are stored anyway.
+
 Maps and overlays with `enabled: false` are not listed, but stay in the file to turn them on again later.
 
 Delete the file to restore the built-in maps.

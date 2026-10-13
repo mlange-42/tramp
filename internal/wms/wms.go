@@ -32,6 +32,9 @@ const (
 	TypeNone = "none"
 )
 
+// CacheAlways is the [Layer.Cache] policy that stores tiles on disk even if the server forbids it.
+const CacheAlways = "always"
+
 // Layer describes a map layer to request.
 type Layer struct {
 	// Name is a human-readable name for the layer.
@@ -63,6 +66,10 @@ type Layer struct {
 	// MaxZoom is the highest tile level the service provides. Zero means no limit.
 	// The map is magnified beyond that.
 	MaxZoom int `yaml:"max_zoom,omitempty"`
+	// Cache is the policy for storing the tiles on disk. Empty follows the server, which may forbid it
+	// with "Cache-Control: no-store". [CacheAlways] stores them anyway, for servers that send this
+	// also for data that doesn't change.
+	Cache string `yaml:"cache,omitempty"`
 	// Capabilities is the address of WMS capabilities that list the layer, if not the service URL.
 	// Some servers offer smaller documents for single layers, which load faster.
 	// The capabilities are read for the valid times of overlays that change over time.
@@ -88,6 +95,11 @@ type Layer struct {
 // IsXYZ reports whether the layer is an XYZ tile service.
 func (l *Layer) IsXYZ() bool {
 	return strings.EqualFold(l.Type, TypeXYZ)
+}
+
+// CacheAlways reports whether the tiles are stored on disk even if the server forbids it, see [Layer.Cache].
+func (l *Layer) CacheAlways() bool {
+	return strings.EqualFold(l.Cache, CacheAlways)
 }
 
 // Host returns the server of the layer, for limiting the downloads from it.
