@@ -159,3 +159,25 @@ func TestIconColor(t *testing.T) {
 		t.Error("expected black icon on yellow")
 	}
 }
+
+func TestLinesCasing(t *testing.T) {
+	v := View{Zoom: 10, Size: image.Pt(200, 100)}
+	res := v.Resolution()
+	line := NewPolyline([]geo.Point{{X: 0, Y: 0}, {X: 50 * res, Y: 20 * res}})
+	for _, c := range []struct {
+		name   string
+		casing color.NRGBA
+		want   bool
+	}{
+		{"without casing", color.NRGBA{}, false},
+		{"with casing", color.NRGBA{R: 255, G: 255, B: 255, A: 255}, true},
+	} {
+		var l Lines
+		l.Set([]LineGroup{{Lines: []Polyline{line}, Width: 3, Casing: c.casing}}, nil)
+		var ops op.Ops
+		l.Layout(layout.Context{Ops: &ops, Constraints: layout.Exact(v.Size)}, &v)
+		if got := len(l.casing.pts) > 0; got != c.want {
+			t.Errorf("%s: expected casing %v, got %v", c.name, c.want, got)
+		}
+	}
+}

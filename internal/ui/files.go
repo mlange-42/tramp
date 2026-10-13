@@ -661,11 +661,13 @@ func (a *App) updateTracks() {
 		ranged = append(slices.Clone(groups), mapview.LineGroup{Values: it.lineValues(a.colorMetric())})
 	}
 	a.legend = a.newLegend(ranged)
+	// The chart first, as it decides which item is zoomed in on.
+	a.updateChart()
 	// While the chart is zoomed in, the selected item is muted, and the part visible in the chart
 	// is drawn on top, see [App.updateHighlight]. Its values still count for the color range.
 	for i, it := range items {
 		if a.chart.zoomedOn(it) {
-			groups[i].Color, groups[i].Values = a.style.MutedTrack, nil
+			groups[i].Color, groups[i].Values, groups[i].Casing = a.style.MutedTrack, nil, a.style.MutedCasing
 		}
 	}
 	var c *mapview.Coloring
@@ -674,7 +676,6 @@ func (a *App) updateTracks() {
 	}
 	a.tracks.Set(groups, c)
 	a.updateNavLines()
-	a.updateChart()
 }
 
 // lineWidth returns the width of the item's lines on the map.

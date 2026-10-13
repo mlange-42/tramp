@@ -229,3 +229,41 @@ func TestNavPanelClick(t *testing.T) {
 		t.Errorf("expected the press passed on to the field")
 	}
 }
+
+// trackGroup returns the group of an item on the map.
+func trackGroup(t *testing.T, a *App, it *fileItem) mapview.LineGroup {
+	t.Helper()
+	for i, shown := range a.shownItems() {
+		if shown == it {
+			return a.tracks.Groups()[i]
+		}
+	}
+	t.Fatal("item not shown")
+	return mapview.LineGroup{}
+}
+
+func TestMutedAfterSelectingRoute(t *testing.T) {
+	a, fileIt := navFileApp(t)
+	a.initColoring(nil, "", nil)
+	a.updateProfiles()
+	waitProfile(t, a, fileIt)
+	a.updateTracks()
+
+	// Zoomed in on the file's route, it is muted, with a casing.
+	a.chart.setRange(0, a.chart.total/2)
+	a.updateTracks()
+	if g := trackGroup(t, a, fileIt); g.Color != a.style.MutedTrack || g.Casing != a.style.MutedCasing {
+		t.Fatalf("expected the zoomed route muted with a casing")
+	}
+
+	// Showing the profile of the found route ends the muting.
+	a.toggleNav()
+	findNavRoute(a)
+	if a.selected != a.nav.item || !a.tracksChanged {
+		t.Fatal("expected the found route selected")
+	}
+	a.updateTracks()
+	if g := trackGroup(t, a, fileIt); g.Color != fileIt.color || g.Casing.A != 0 {
+		t.Errorf("expected the file's route in its own color again")
+	}
+}
