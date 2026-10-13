@@ -55,7 +55,7 @@ type Options struct {
 	// OnUpdate is called from a worker goroutine whenever a tile has been loaded or failed.
 	OnUpdate func()
 	// Limiter limits the simultaneous downloads from the server Host, shared with other managers,
-	// to Connections, see [Limiter.Acquire]. Nil for no limit besides Workers.
+	// to Connections, see [Limiter.Acquire] and [Connect]. Nil for no limit besides Workers.
 	Limiter     *Limiter
 	Host        string
 	Connections int
@@ -306,18 +306,42 @@ func (m *Manager) next() (geo.TileKey, int, bool) {
 	return key, m.gen, true
 }
 
+// connectKey is the context key of the function that waits for a connection, see [Connect].
+type connectKey struct{}
+
+// connectFunc waits for a connection, see [Connect].
+type connectFunc func(ctx context.Context) (context.Context, func(), error)
+
+// Connect waits until a download may start, as limited by [Options.Limiter], and returns the context
+// for the download, with [Options.Timeout], and the function to call when it is done.
+// Fetchers call it right before downloading, so that tiles stored on disk don't wait for a connection,
+// like behind slow downloads of other layers from the same server.
+// Outside of a [Manager], it returns ctx unchanged.
+func Connect(ctx context.Context) (context.Context, func(), error) {
+	if c, ok := ctx.Value(connectKey{}).(connectFunc); ok {
+		return c(ctx)
+	}
+	return ctx, func() {}, nil
+}
+
+// connect implements [Connect] for the downloads of the manager.
+func (m *Manager) connect(ctx context.Context) (context.Context, func(), error) {
+	release := func() {}
+	if m.opts.Limiter != nil {
+		r, err := m.opts.Limiter.Acquire(ctx, m.opts.Host, m.opts.Connections, m.background.Load())
+		if err != nil {
+			return nil, nil, err
+		}
+		release = r
+	}
+	// Waiting for a free connection doesn't count for the timeout.
+	ctx, cancel := context.WithTimeout(ctx, m.opts.Timeout)
+	return ctx, func() { cancel(); release() }, nil
+}
+
 // load fetches the tiles of a unit, and stamps them with the generation they were requested in.
 func (m *Manager) load(first geo.TileKey, gen int) ([]*Tile, error) {
-	// Waiting for a free connection doesn't count for the timeout.
-	if m.opts.Limiter != nil {
-		release, err := m.opts.Limiter.Acquire(m.ctx, m.opts.Host, m.opts.Connections, m.background.Load())
-		if err != nil {
-			return nil, err
-		}
-		defer release()
-	}
-	ctx, cancel := context.WithTimeout(m.ctx, m.opts.Timeout)
-	defer cancel()
+	ctx := context.WithValue(m.ctx, connectKey{}, connectFunc(m.connect))
 
 	// Converts to RGBA off the UI goroutine.
 	tile := func(key geo.TileKey, img image.Image) *Tile {
