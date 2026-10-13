@@ -229,7 +229,7 @@ func (a *App) layoutColoring(gtx layout.Context) layout.Dimensions {
 			if a.colorMetric() == track.NoMetric {
 				return layout.Dimensions{}
 			}
-			return layout.Inset{Left: st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			return layout.Inset{Left: 1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return a.gradientSel.Layout(gtx, st, a.gradientNames)
 			})
 		}),

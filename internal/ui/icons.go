@@ -32,6 +32,8 @@ var (
 	iconPalette  = mustIcon(icons.ImagePalette)
 	iconGradient = mustIcon(icons.ImageGradient)
 	iconSearch   = mustIcon(icons.ActionSearch)
+	iconPresets  = mustIcon(icons.ImageCollectionsBookmark)
+	iconCheck    = mustIcon(icons.NavigationCheck)
 
 	toolIcons = [numTools]*widget.Icon{
 		mustIcon(icons.ActionTouchApp),
