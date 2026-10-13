@@ -18,8 +18,8 @@ const (
 
 // Defaults for [Settings.TileCache] and [Settings.ElevationTileCache], in MB.
 const (
-	DefaultTileCache          = 512
-	DefaultElevationTileCache = 128
+	DefaultTileCache          = 1024
+	DefaultElevationTileCache = 256
 )
 
 // Defaults for [DiskCache].
