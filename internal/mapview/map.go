@@ -104,6 +104,9 @@ func (m *Map) Fit(r geo.Rect) {
 // Layer is a tile layer to draw on the map.
 type Layer struct {
 	Tiles *tiles.Manager
+	// Fallback provides the tiles drawn where Tiles has none yet, like the tiles of the previous time
+	// of a weather layer. Nil for none.
+	Fallback *tiles.Manager
 	// Opacity of the layer. Zero is treated as fully opaque.
 	Opacity float32
 	// MaxTileLevel limits [Map.MaxTileLevel] for this layer. Zero means no extra limit.
@@ -308,10 +311,10 @@ func (m *Map) drawLayer(gtx layout.Context, l Layer) {
 	if l.Opacity > 0 && l.Opacity < 1 {
 		defer paint.PushOpacity(gtx.Ops, l.Opacity).Pop()
 	}
-	m.drawTiles(gtx, l.Tiles, l.MaxTileLevel)
+	m.drawTiles(gtx, l.Tiles, l.Fallback, l.MaxTileLevel)
 }
 
-func (m *Map) drawTiles(gtx layout.Context, mgr *tiles.Manager, maxLevel int) {
+func (m *Map) drawTiles(gtx layout.Context, mgr, fallback *tiles.Manager, maxLevel int) {
 	z := m.tileLevel(maxLevel)
 	n := geo.TileCount(z)
 	b := m.View.Bounds()
@@ -329,6 +332,12 @@ func (m *Map) drawTiles(gtx layout.Context, mgr *tiles.Manager, maxLevel int) {
 			if tile, ok := mgr.Get(key); ok {
 				m.drawTile(gtx, tile, m.screenRect(key))
 				continue
+			}
+			if fallback != nil {
+				if tile, ok := fallback.Get(key); ok {
+					m.drawTile(gtx, tile, m.screenRect(key))
+					continue
+				}
 			}
 			m.drawFallback(gtx, mgr, key, maxLevel)
 		}

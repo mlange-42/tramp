@@ -15,8 +15,8 @@ TRAMP remembers the opened files, the selected map, overlays, map position and w
 Some settings can only be changed in this file:
 
 ```yaml
-tile_cache: 512            # memory for map tiles in MB, about 256 KB per tile
-elevation_tile_cache: 128  # memory for elevation tiles in MB
+tile_cache: 1024           # memory for map tiles in MB, about 256 KB per tile
+elevation_tile_cache: 256  # memory for elevation tiles in MB
 disk_cache:
   dir: ''                  # directory of the tile cache; empty for the default, see below
   max_size: 2048           # largest size of the map tiles stored on disk in MB; negative to store none
@@ -141,6 +141,11 @@ overlays:
     attribution_url: https://www.dwd.de/copyright
     refresh: 5m   # load the tiles again every 5 minutes
     capabilities: https://maps.dwd.de/geoserver/dwd/Niederschlagsradar/ows  # optional, see below
+    meta_tiles: 4 # request 4×4 tiles in one image, see below
+  - name: Old overlay
+    url: https://example.com/wms
+    layers: old
+    enabled: false  # not listed, but kept in the file
 ```
 
 Overlays that change over time, like weather radar, can be loaded again regularly with `refresh`,
@@ -156,6 +161,13 @@ Such overlays are not stored in the disk cache (`disk_cache`), so that old weath
 The status bar shows the short credits of the selected map, the enabled overlays and the elevation source,
 with parts separated by ` · ` shown only once, like `© OpenStreetMap · CyclOSM · Waymarked Trails`.
 Without `attribution_short`, the full `attribution` is shown.
+
+Some WMS services need long to render each image, almost independent of its size.
+With `meta_tiles: 4`, 4×4 tiles are requested in one image of 1024×1024 pixels and cut into tiles,
+which loads such layers several times faster. It also avoids symbols cut off at the tile edges, like wind barbs.
+It has no effect for XYZ tile services.
+
+Maps and overlays with `enabled: false` are not listed, but stay in the file to turn them on again later.
 
 Delete the file to restore the built-in maps.
 

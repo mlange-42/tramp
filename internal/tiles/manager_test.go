@@ -147,3 +147,18 @@ func TestManagerRefresh(t *testing.T) {
 		t.Error("failed refresh should not be retried before RetryAfter")
 	}
 }
+
+func TestManagerWanted(t *testing.T) {
+	m := NewManager(&fakeFetcher{}, Options{Workers: 1})
+	defer m.Close()
+	keys := []geo.TileKey{{Z: 5, X: 1}, {Z: 5, X: 2}}
+	m.Request(keys)
+	got := m.Wanted()
+	if len(got) != 2 || got[0] != keys[0] || got[1] != keys[1] {
+		t.Errorf("unexpected wanted tiles %v", got)
+	}
+	got[0] = geo.TileKey{}
+	if m.Wanted()[0] != keys[0] {
+		t.Error("wanted tiles should be a copy")
+	}
+}

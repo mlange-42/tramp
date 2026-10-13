@@ -61,8 +61,8 @@ func TestOverlayTime(t *testing.T) {
 	if o.times.waiting || o.times.time.IsZero() || o.times.reference != "2026-10-13T10:55:00.000Z" {
 		t.Fatalf("unexpected times %+v", o.times)
 	}
-	if l := o.fetcher.CurrentLayer(); l.Time != wms.FormatTime(o.times.time) || !l.Transparent {
-		t.Errorf("unexpected layer %+v", l)
+	if o.timeValue != wms.FormatTime(o.times.time) {
+		t.Errorf("unexpected time value %q", o.timeValue)
 	}
 
 	// The time closest to now, clamped to the valid times.
@@ -72,20 +72,20 @@ func TestOverlayTime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	o.updateTime(caps, at("2026-10-13T11:21:00Z"))
-	if !o.times.time.Equal(at("2026-10-13T11:20:00Z")) || o.fetcher.CurrentLayer().Time != "2026-10-13T11:20:00.000Z" {
+	a.updateTime(o, caps, at("2026-10-13T11:21:00Z"))
+	if !o.times.time.Equal(at("2026-10-13T11:20:00Z")) || o.timeValue != "2026-10-13T11:20:00.000Z" {
 		t.Errorf("unexpected time %v", o.times.time)
 	}
 	// Failing capabilities keep the time.
-	o.updateTime(nil, at("2026-10-13T11:31:00Z"))
-	if !o.times.time.Equal(at("2026-10-13T11:20:00Z")) || o.fetcher.CurrentLayer().Time != "2026-10-13T11:20:00.000Z" {
+	a.updateTime(o, nil, at("2026-10-13T11:31:00Z"))
+	if !o.times.time.Equal(at("2026-10-13T11:20:00Z")) || o.timeValue != "2026-10-13T11:20:00.000Z" {
 		t.Errorf("expected the time to be kept, got %v", o.times.time)
 	}
 	// A layer that lost its times is requested for the default time.
 	caps.Layers["Radar"].Time = nil
-	o.updateTime(caps, at("2026-10-13T11:31:00Z"))
-	if !o.times.time.IsZero() || o.fetcher.CurrentLayer().Time != "" {
-		t.Errorf("expected the default time, got %v %q", o.times.time, o.fetcher.CurrentLayer().Time)
+	a.updateTime(o, caps, at("2026-10-13T11:31:00Z"))
+	if !o.times.time.IsZero() || o.timeValue != "" {
+		t.Errorf("expected the default time, got %v %q", o.times.time, o.timeValue)
 	}
 
 	// Layers without a time dimension and XYZ layers have no time.
@@ -149,26 +149,26 @@ func TestTimeControl(t *testing.T) {
 	}
 
 	// Steps go to full hours.
-	a.selectTime(time.Time{}, now)
+	a.selectAllTimes(time.Time{}, now)
 	c := &a.timeCtl
 	if !c.step(now, 1).Equal(time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)) ||
 		!c.step(now, -1).Equal(time.Date(2026, 10, 13, 11, 0, 0, 0, time.UTC)) {
 		t.Errorf("unexpected steps %v %v", c.step(now, 1), c.step(now, -1))
 	}
-	a.selectTime(c.step(now, -1), now)
+	a.selectAllTimes(c.step(now, -1), now)
 	if !c.step(now, -1).Equal(time.Date(2026, 10, 13, 10, 0, 0, 0, time.UTC)) {
 		t.Errorf("unexpected step from a full hour %v", c.step(now, -1))
 	}
-	if !radar.times.time.Equal(c.selected) || radar.fetcher.CurrentLayer().Time != "2026-10-13T11:00:00.000Z" {
+	if !radar.times.time.Equal(c.selected) || radar.timeValue != "2026-10-13T11:00:00.000Z" {
 		t.Errorf("radar did not follow the selected time: %v", radar.times.time)
 	}
 
 	// Outside the valid times, the overlay is hidden; overlays without times are not affected.
-	a.selectTime(time.Date(2026, 10, 13, 15, 0, 0, 0, time.UTC), now)
+	a.selectAllTimes(time.Date(2026, 10, 13, 15, 0, 0, 0, time.UTC), now)
 	if !radar.times.outside || !radar.times.hidden() || warnings.times.hidden() {
 		t.Errorf("unexpected visibility %+v %+v", radar.times, warnings.times)
 	}
-	a.selectTime(time.Time{}, now)
+	a.selectAllTimes(time.Time{}, now)
 	if radar.times.outside || !c.selected.IsZero() {
 		t.Error("expected the current time again")
 	}

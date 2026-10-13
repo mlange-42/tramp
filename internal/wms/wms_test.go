@@ -3,6 +3,7 @@ package wms
 import (
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -123,5 +124,43 @@ func TestGetTileData(t *testing.T) {
 	}
 	if d, err := c.GetTileData(context.Background(), l, geo.TileKey{Z: 1}, time.Time{}); err != nil || !d.NoStore {
 		t.Errorf("got %+v, %v for a tile not to be stored", d, err)
+	}
+}
+
+func TestMetaTiles(t *testing.T) {
+	l := &Layer{URL: "https://example.com/wms", Layers: "a", MetaTiles: 4}
+	first, n := l.MetaTile(geo.TileKey{Z: 5, X: 13, Y: 6})
+	if n != 4 || first != (geo.TileKey{Z: 5, X: 12, Y: 4}) {
+		t.Errorf("unexpected meta tile %v %d", first, n)
+	}
+	// Not larger than the level.
+	if first, n := l.MetaTile(geo.TileKey{Z: 1, X: 1, Y: 1}); n != 2 || first != (geo.TileKey{Z: 1}) {
+		t.Errorf("unexpected meta tile at level 1: %v %d", first, n)
+	}
+	u, err := url.Parse(l.MetaURL(geo.TileKey{Z: 1}, 2))
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := u.Query()
+	world := geo.TileKey{}.Bounds()
+	want := fmt.Sprintf("%f,%f,%f,%f", world.Min.X, world.Min.Y, world.Max.X, world.Max.Y)
+	if q.Get("WIDTH") != "512" || q.Get("HEIGHT") != "512" || q.Get("BBOX") != want {
+		t.Errorf("unexpected request %v", q)
+	}
+	// Single tiles for XYZ layers and without meta tiles.
+	if l.MetaURL(geo.TileKey{Z: 3}, 1) != l.TileURL(geo.TileKey{Z: 3}) {
+		t.Error("single tile should use the tile URL")
+	}
+	for _, other := range []*Layer{{Type: TypeXYZ, URL: "https://x/{z}/{x}/{y}.png", MetaTiles: 4}, {URL: "https://x"}} {
+		if _, n := other.MetaTile(geo.TileKey{Z: 5, X: 13, Y: 6}); n != 1 {
+			t.Errorf("expected single tiles for %+v", other)
+		}
+	}
+}
+
+func TestLayerEnabled(t *testing.T) {
+	off, on := false, true
+	if !(&Layer{}).IsEnabled() || !(&Layer{Enabled: &on}).IsEnabled() || (&Layer{Enabled: &off}).IsEnabled() {
+		t.Error("unexpected enabled state")
 	}
 }

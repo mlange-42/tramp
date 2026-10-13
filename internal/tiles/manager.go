@@ -6,6 +6,7 @@ import (
 	"context"
 	"image"
 	"log"
+	"slices"
 	"sync"
 	"time"
 
@@ -70,7 +71,9 @@ type Manager struct {
 	lru      *list.List
 	queue    []geo.TileKey
 	inflight map[geo.TileKey]struct{}
-	failed   map[geo.TileKey]time.Time
+	// wanted are the tiles of the last request, see [Manager.Wanted].
+	wanted []geo.TileKey
+	failed map[geo.TileKey]time.Time
 	// gen is increased by [Manager.Refresh]. Cached tiles of older generations are loaded again.
 	gen    int
 	closed bool
@@ -121,6 +124,13 @@ func (m *Manager) SetCapacity(n int) {
 	m.evict()
 }
 
+// Capacity returns the maximum number of tiles kept in memory.
+func (m *Manager) Capacity() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.opts.Capacity
+}
+
 // Get returns the tile if it is in the cache, and marks it as recently used.
 func (m *Manager) Get(key geo.TileKey) (*Tile, bool) {
 	m.mu.Lock()
@@ -165,18 +175,30 @@ func (m *Manager) Request(keys []geo.TileKey) {
 		}
 	}
 	m.queue = append(m.queue, stale...)
+	m.wanted = append(m.wanted[:0], keys...)
 	if len(m.queue) > 0 {
 		m.wake.Broadcast()
 	}
 }
 
-// Refresh marks all cached tiles as outdated, for layers that change over time.
-// They are still returned by [Manager.Get] until they are loaded again on request.
-func (m *Manager) Refresh() {
+// Wanted returns the tiles of the last [Manager.Request], like the visible tiles of the map.
+func (m *Manager) Wanted() []geo.TileKey {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return slices.Clone(m.wanted)
+}
+
+// Refresh marks all cached tiles as outdated, for layers that change over time.
+// They are still returned by [Manager.Get] until they are loaded again on request.
+// If the fetcher has a Refresh method, it is called too, for dropping its own cached data.
+func (m *Manager) Refresh() {
+	m.mu.Lock()
 	m.gen++
 	clear(m.failed)
+	m.mu.Unlock()
+	if r, ok := m.fetcher.(interface{ Refresh() }); ok {
+		r.Refresh()
+	}
 }
 
 // Loading returns the number of tiles currently queued or downloading.

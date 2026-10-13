@@ -51,6 +51,11 @@ type Layer struct {
 	Format string `yaml:"format,omitempty"`
 	// Version is the WMS version, "1.3.0" or "1.1.1". Not used for XYZ layers.
 	Version string `yaml:"version,omitempty"`
+	// Enabled can turn the layer off without removing it from the configuration file. Nil means enabled.
+	Enabled *bool `yaml:"enabled,omitempty"`
+	// MetaTiles is the number of tiles per side requested in one image from a WMS, like 4 for 4×4 tiles.
+	// Larger images are much faster for services that need long to render each image. Zero or one means single tiles.
+	MetaTiles int `yaml:"meta_tiles,omitempty"`
 	// MaxZoom is the highest tile level the service provides. Zero means no limit.
 	// The map is magnified beyond that.
 	MaxZoom int `yaml:"max_zoom,omitempty"`
@@ -76,6 +81,35 @@ type Layer struct {
 // IsXYZ reports whether the layer is an XYZ tile service.
 func (l *Layer) IsXYZ() bool {
 	return strings.EqualFold(l.Type, TypeXYZ)
+}
+
+// IsEnabled reports whether the layer is enabled, see [Layer.Enabled].
+func (l *Layer) IsEnabled() bool {
+	return l.Enabled == nil || *l.Enabled
+}
+
+// MetaSize returns the number of tiles per side requested in one image at a tile level,
+// see [Layer.MetaTiles]. It is 1 for XYZ layers, and at most the number of tiles of the level.
+func (l *Layer) MetaSize(z int) int {
+	if l.IsXYZ() || l.MetaTiles <= 1 {
+		return 1
+	}
+	return min(l.MetaTiles, geo.TileCount(z))
+}
+
+// MetaTile returns the first tile of the meta tile containing key, and its size in tiles per side.
+func (l *Layer) MetaTile(key geo.TileKey) (geo.TileKey, int) {
+	n := l.MetaSize(key.Z)
+	return geo.TileKey{Z: key.Z, X: key.X / n * n, Y: key.Y / n * n}, n
+}
+
+// MetaURL returns the request URL of the n×n tiles starting at the given tile, see [Layer.MetaTile].
+func (l *Layer) MetaURL(first geo.TileKey, n int) string {
+	if n <= 1 {
+		return l.TileURL(first)
+	}
+	last := geo.TileKey{Z: first.Z, X: first.X + n - 1, Y: first.Y + n - 1}
+	return l.MapURL(first.Bounds().Union(last.Bounds()), n*geo.TileSize, n*geo.TileSize)
 }
 
 // IsNone reports whether the layer is empty and has nothing to fetch.
@@ -174,6 +208,11 @@ type Data struct {
 // and [ErrNotModified] is returned if not.
 func (c *Client) GetTileData(ctx context.Context, layer *Layer, key geo.TileKey, since time.Time) (Data, error) {
 	return c.fetch(ctx, layer.TileURL(key), since)
+}
+
+// GetData fetches an image from a request URL without decoding it, like [Client.GetTileData].
+func (c *Client) GetData(ctx context.Context, u string, since time.Time) (Data, error) {
+	return c.fetch(ctx, u, since)
 }
 
 // Decode decodes an image as delivered by the server.

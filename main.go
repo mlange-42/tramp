@@ -75,6 +75,7 @@ func loadWMS() ui.WMSConfig {
 		}
 		return cfg
 	}
+	cfg = cfg.WithoutDisabled()
 	if !slices.ContainsFunc(cfg.Maps, func(m ui.Map) bool { return m.Section == "" }) {
 		log.Printf("no maps in %s, using default maps", ui.WMSFile)
 		cfg.Maps = ui.DefaultMaps()

@@ -12,6 +12,8 @@ A click on an overlay there shows its color legend, if the service provides one.
 The arrows above the list step the time of all these overlays by an hour, into the past or the forecast,
 and the clock button goes back to the current time.
 Each overlay shows its data closest to the selected time, and *no data* if the time is outside its range.
+The hours before and after the shown one are loaded in the background, and recently shown times are kept,
+so that stepping back and forth is fast.
 
 The status bar shows the position under the mouse pointer and its terrain elevation,
 and at the right the short credits of the map, the overlays and the elevation data.

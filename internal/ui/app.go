@@ -62,8 +62,15 @@ type Options struct {
 // overlayState is an overlay with its tiles, which are only loaded while it is enabled.
 type overlayState struct {
 	Overlay
-	tiles   *tiles.Manager
-	fetcher *tiles.WMSFetcher
+	// tiles are the tiles shown, for the time timeValue if the overlay changes over time.
+	tiles     *tiles.Manager
+	timeValue string
+	// others are the tiles of other times, kept or loaded in the background, see overlaytiles.go.
+	others []*timeTiles
+	// fallback are the tiles of the previous time, drawn until the shown ones are loaded.
+	fallback *tiles.Manager
+	// prefetch are the TIME values to load in the background, one step before and after the shown time.
+	prefetch []string
 	// times are the valid times of overlays that change over time, see overlaytime.go.
 	times overlayTimes
 	// legend is the legend image from the capabilities, see overlaylegend.go.
@@ -378,8 +385,8 @@ func (a *App) closeTiles() {
 		a.tiles.Close()
 	}
 	for _, o := range a.overlays {
-		if o.tiles != nil {
-			o.tiles.Close()
+		for _, m := range o.allTiles() {
+			m.Close()
 		}
 	}
 }
@@ -415,35 +422,52 @@ func (a *App) setOverlay(i int, enabled bool) {
 	if enabled && o.tiles == nil {
 		layer := o.Layer
 		layer.Transparent = true
-		o.tiles, o.fetcher = a.newManager(&layer, o.Shade, o.Refresh > 0)
+		o.tiles, _ = a.newManager(&layer, o.Shade, o.Refresh > 0)
 		o.enabled(a, i, time.Now())
 	} else if !enabled && o.tiles != nil {
-		go o.tiles.Close()
-		o.tiles, o.fetcher = nil, nil
+		o.closeOverlayTiles()
 	}
 	a.updateCapacity()
 }
 
-// updateCapacity splits the tile cache evenly between the visible layers.
+// updateCapacity splits the tile cache between the visible layers. The kept times of overlays that change
+// over time get room for about the visible tiles each, at most half of the cache together,
+// and the rest is split evenly between the shown tiles of the layers.
 func (a *App) updateCapacity() {
 	if a.tileCache <= 0 {
 		// Use the tile manager's default.
 		return
 	}
-	var managers []*tiles.Manager
+	var shown, kept []*tiles.Manager
 	if a.tiles != nil {
-		managers = append(managers, a.tiles)
+		shown = append(shown, a.tiles)
 	}
+	perTime := minTimeCapacity
 	for _, o := range a.overlays {
-		if o.tiles != nil {
-			managers = append(managers, o.tiles)
+		if o.tiles == nil {
+			continue
 		}
+		shown = append(shown, o.tiles)
+		for _, t := range o.others {
+			kept = append(kept, t.tiles)
+		}
+		perTime = max(perTime, 2*len(o.tiles.Wanted()))
 	}
 	capacity := (a.tileCache << 20) / tiles.TileBytes
-	for _, m := range managers {
-		m.SetCapacity(capacity / len(managers))
+	if len(kept) > 0 {
+		perTime = min(perTime, capacity/2/len(kept))
+		capacity -= perTime * len(kept)
+	}
+	for _, m := range kept {
+		m.SetCapacity(perTime)
+	}
+	for _, m := range shown {
+		m.SetCapacity(capacity / len(shown))
 	}
 }
+
+// minTimeCapacity is the least number of tiles kept for each kept time of an overlay, see [App.updateCapacity].
+const minTimeCapacity = 64
 
 func (a *App) update(gtx layout.Context) {
 	if a.layerSelect.Update(gtx) {
@@ -453,6 +477,7 @@ func (a *App) update(gtx layout.Context) {
 		a.setOverlay(i, a.overlaySel.Checked(i))
 	}
 	a.refreshOverlays(gtx)
+	a.updateTimeControl(gtx)
 
 	a.runUITasks()
 	a.updateAbout(gtx)
@@ -582,10 +607,12 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	for _, o := range a.overlays {
 		// Overlays waiting for their time are drawn once it is known, so that they are loaded only once.
 		if o.tiles != nil && !o.times.hidden() {
-			a.mapLayers = append(a.mapLayers, mapview.Layer{Tiles: o.tiles, Opacity: o.Opacity, MaxTileLevel: o.Layer.MaxZoom})
+			a.mapLayers = append(a.mapLayers, mapview.Layer{Tiles: o.tiles, Fallback: o.fallback, Opacity: o.Opacity, MaxTileLevel: o.Layer.MaxZoom})
 		}
 	}
 	dims := a.mapView.Layout(gtx, a.mapLayers...)
+	// After the map requested the visible tiles.
+	a.prefetchTimes()
 	a.tracks.Layout(gtx, &a.mapView.View)
 	// The highlight of the found route is drawn with the route, above the tracks.
 	if a.highlightKey.item == nil || a.highlightKey.item != a.nav.item {

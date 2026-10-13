@@ -3,6 +3,7 @@ package ui
 import (
 	"context"
 	"log"
+	"slices"
 	"strings"
 	"time"
 
@@ -108,16 +109,17 @@ func (a *App) loadOverlayTime(i int) {
 			if err != nil {
 				log.Printf("overlay %s: %v", o.Layer.Name, err)
 			}
-			o.updateTime(caps, a.timeCtl.target(time.Now()))
+			a.updateTime(o, caps, a.timeCtl.target(time.Now()))
 		})
 	}()
 }
 
-// updateTime takes the valid times from the capabilities, and requests the time closest to target.
-// The tiles are loaded again if the time or the reference time changed, or if it can't tell.
+// updateTime takes the valid times from the capabilities, and shows the time closest to target.
+// The tiles are loaded again if the reference time changed, or if it can't tell.
 // Caps is nil if reading them failed.
-func (o *overlayState) updateTime(caps *wms.Capabilities, target time.Time) {
+func (a *App) updateTime(o *overlayState, caps *wms.Capabilities, target time.Time) {
 	t := &o.times
+	first := t.waiting
 	t.waiting = false
 	if caps == nil {
 		// Keep showing the last known time, so that it is clear how old the data is.
@@ -134,47 +136,57 @@ func (o *overlayState) updateTime(caps *wms.Capabilities, target time.Time) {
 	o.legend.setURL(legendURL)
 	newData := reference == "" || reference != t.reference
 	t.reference = reference
-	if !o.selectTime(target) && newData {
+	if newData && !first {
+		// The kept tiles of other times are outdated too.
+		a.dropOtherTimes(o)
 		o.tiles.Refresh()
 	}
+	a.selectTime(o, target, !first)
 }
 
-// selectTime requests the valid time closest to target, and reports whether the tiles are loaded again
-// because the time changed. If target is outside the valid times, the overlay is hidden.
+// selectTime shows the valid time of an overlay closest to target, and notes the times
+// closest to one step before and after for loading in the background, see [App.prefetchTimes].
+// If target is outside the valid times, the overlay is hidden.
 // Overlays without times are requested for the server's default time.
-func (o *overlayState) selectTime(target time.Time) bool {
+// With keep, the tiles of the previous time are kept for going back.
+func (a *App) selectTime(o *overlayState, target time.Time, keep bool) {
 	t := &o.times
-	t.outside = false
-	valid, ok := time.Time{}, false
-	if t.dim != nil {
-		if first, last, inside := t.dim.Bounds(); inside && (target.Before(first) || target.After(last)) {
-			t.outside = true
-			return false
-		}
-		valid, ok = t.dim.Nearest(target)
-	}
-	if !ok {
-		valid = time.Time{}
-	}
-	if valid.Equal(t.time) {
-		return false
+	t.outside, o.prefetch = false, nil
+	valid, ok := o.validTime(target)
+	if t.dim != nil && !ok {
+		t.outside = true
+		return
 	}
 	t.time = valid
-	value := ""
-	if ok {
-		value = wms.FormatTime(valid)
+	a.showTime(o, timeValue(valid, ok), keep)
+	for _, dir := range []int{-1, 1} {
+		if v, ok := o.validTime(a.timeCtl.stepFrom(target, dir)); ok {
+			if value := timeValue(v, ok); value != o.timeValue && !slices.Contains(o.prefetch, value) {
+				o.prefetch = append(o.prefetch, value)
+			}
+		}
 	}
-	o.setTime(value)
-	o.tiles.Refresh()
-	return true
 }
 
-// setTime makes the fetcher of the overlay request the given time.
-func (o *overlayState) setTime(value string) {
-	layer := o.Layer
-	layer.Transparent = true
-	layer.Time = value
-	o.fetcher.SetLayer(&layer)
+// validTime returns the valid time of an overlay closest to target, or false if the overlay has no times,
+// or target is outside of them.
+func (o *overlayState) validTime(target time.Time) (time.Time, bool) {
+	dim := o.times.dim
+	if dim == nil {
+		return time.Time{}, false
+	}
+	if first, last, ok := dim.Bounds(); ok && (target.Before(first) || target.After(last)) {
+		return time.Time{}, false
+	}
+	return dim.Nearest(target)
+}
+
+// timeValue returns the TIME parameter for a valid time, or "" for the server's default if there is none.
+func timeValue(t time.Time, ok bool) string {
+	if !ok {
+		return ""
+	}
+	return wms.FormatTime(t)
 }
 
 // firstLayer returns the first name of a comma-separated list of WMS layers.

@@ -24,6 +24,44 @@ func DefaultWMS() WMSConfig {
 	return WMSConfig{Maps: DefaultMaps(), Overlays: DefaultOverlays()}
 }
 
+// WithoutDisabled returns the configuration without the disabled maps and overlays, see [wms.Layer.Enabled].
+// Sections whose layers are all disabled are dropped too.
+func (c WMSConfig) WithoutDisabled() WMSConfig {
+	return WMSConfig{
+		Maps:     withoutDisabled(c.Maps, func(m Map) (string, bool) { return m.Section, m.Layer.IsEnabled() }),
+		Overlays: withoutDisabled(c.Overlays, func(o Overlay) (string, bool) { return o.Section, o.Layer.IsEnabled() }),
+	}
+}
+
+// withoutDisabled returns the entries without the disabled layers, and without sections that had layers
+// that are all disabled. entry returns the section heading of an entry, and whether it is enabled.
+func withoutDisabled[E any](entries []E, entry func(E) (string, bool)) []E {
+	var out []E
+	section := -1 // index in out of the current section heading
+	hasLayers, kept := false, false
+	dropSection := func() {
+		if section >= 0 && hasLayers && !kept {
+			out = append(out[:section], out[section+1:]...)
+		}
+	}
+	for _, e := range entries {
+		name, enabled := entry(e)
+		if name != "" {
+			dropSection()
+			section, hasLayers, kept = len(out), false, false
+			out = append(out, e)
+			continue
+		}
+		hasLayers = true
+		if enabled {
+			kept = true
+			out = append(out, e)
+		}
+	}
+	dropSection()
+	return out
+}
+
 // Map is a background map, or a section heading in the list of maps.
 type Map struct {
 	// Section starts a section with this heading. If set, the layer must be empty.
@@ -306,10 +344,12 @@ func dwdLayer(name, layer string, maxZoom int, description string) wms.Layer {
 		URL:         dwdURL,
 		Layers:      "dwd:" + layer,
 		// The capabilities of the single layer are much smaller than those of the whole service.
-		Capabilities:     dwdWorkspaceURL + layer + "/ows",
-		Format:           "image/png",
-		Version:          "1.3.0",
-		MaxZoom:          maxZoom,
+		Capabilities: dwdWorkspaceURL + layer + "/ows",
+		Format:       "image/png",
+		Version:      "1.3.0",
+		MaxZoom:      maxZoom,
+		// The DWD needs about as long for 4×4 tiles in one image as for a single tile.
+		MetaTiles:        4,
 		Attribution:      dwdAttribution,
 		AttributionShort: "© DWD",
 		AttributionURL:   dwdCopyrightURL,

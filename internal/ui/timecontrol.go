@@ -29,7 +29,11 @@ func (c *timeControl) target(now time.Time) time.Time {
 
 // step returns the full hour before (dir < 0) or after (dir > 0) the target time.
 func (c *timeControl) step(now time.Time, dir int) time.Time {
-	t := c.target(now)
+	return c.stepFrom(c.target(now), dir)
+}
+
+// stepFrom returns the full hour before (dir < 0) or after (dir > 0) t.
+func (c *timeControl) stepFrom(t time.Time, dir int) time.Time {
 	base := t.Truncate(timeStep)
 	if dir > 0 {
 		return base.Add(timeStep)
@@ -62,36 +66,55 @@ func (a *App) timeBounds() (first, last time.Time, ok bool) {
 	return first, last, ok
 }
 
-// selectTime selects a time for all overlays, or the current time if t is zero.
-func (a *App) selectTime(t, now time.Time) {
+// selectAllTimes selects a time for all overlays, or the current time if t is zero.
+func (a *App) selectAllTimes(t, now time.Time) {
 	a.timeCtl.selected = t
 	target := a.timeCtl.target(now)
 	for i := range a.overlays {
 		o := &a.overlays[i]
 		if o.tiles != nil && !o.times.waiting {
-			o.selectTime(target)
+			a.selectTime(o, target, true)
 		}
+	}
+}
+
+// timeSteps returns the times one step before and after the selected time, and whether they are
+// within the valid times of the enabled overlays. ok is false if no enabled overlay has times.
+func (a *App) timeSteps(now time.Time) (prev, next time.Time, canPrev, canNext, ok bool) {
+	first, last, ok := a.timeBounds()
+	if !ok {
+		return
+	}
+	prev, next = a.timeCtl.step(now, -1), a.timeCtl.step(now, 1)
+	return prev, next, !prev.Before(first), !next.After(last), true
+}
+
+// updateTimeControl handles clicks on the buttons of the time control. It runs before the map
+// is drawn, so that the map shows the new time in the same frame.
+func (a *App) updateTimeControl(gtx layout.Context) {
+	c, now := &a.timeCtl, gtx.Now
+	prev, next, canPrev, canNext, ok := a.timeSteps(now)
+	if !ok {
+		return
+	}
+	if c.prev.Clicked(gtx) && canPrev {
+		a.selectAllTimes(prev, now)
+	}
+	if c.next.Clicked(gtx) && canNext {
+		a.selectAllTimes(next, now)
+	}
+	if c.now.Clicked(gtx) {
+		a.selectAllTimes(time.Time{}, now)
 	}
 }
 
 // layoutTimeControl draws the time selection for the legend box, if an enabled overlay has times:
 // buttons for an hour earlier and later, the selected time, and a button back to the current time.
 func (a *App) layoutTimeControl(gtx layout.Context) layout.Dimensions {
-	first, last, ok := a.timeBounds()
+	c, st, now := &a.timeCtl, a.style, gtx.Now
+	_, _, canPrev, canNext, ok := a.timeSteps(now)
 	if !ok {
 		return layout.Dimensions{}
-	}
-	c, st, now := &a.timeCtl, a.style, gtx.Now
-	prev, next := c.step(now, -1), c.step(now, 1)
-	canPrev, canNext := !prev.Before(first), !next.After(last)
-	if c.prev.Clicked(gtx) && canPrev {
-		a.selectTime(prev, now)
-	}
-	if c.next.Clicked(gtx) && canNext {
-		a.selectTime(next, now)
-	}
-	if c.now.Clicked(gtx) {
-		a.selectTime(time.Time{}, now)
 	}
 
 	label := "Now"
