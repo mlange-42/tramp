@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"math"
 	"time"
 
 	"github.com/mlange-42/tramp/internal/geo"
@@ -55,10 +54,17 @@ func (a *App) updateProfiles() {
 	if it := a.nav.item; it != nil && it.profile == profileNone {
 		a.startProfile(it)
 	}
-	// Tracks have their own points along the way, so their terrain is looked up there,
-	// only for the track shown in the chart.
+	// Tracks have their own points along the way, so their terrain is looked up there:
+	// for the track shown in the chart, and for shown tracks without elevation while colored by elevation or slope.
 	if it := a.selected; it != nil && it.kind == trackItem && it.profile == profileNone {
 		a.startTrackProfile(it)
+	}
+	if m := a.colorMetric(); m == track.ElevationMetric || m == track.SlopeMetric {
+		for _, it := range a.shownItems() {
+			if it.kind == trackItem && it.profile == profileNone && it.lineValues(track.ElevationMetric) == nil {
+				a.startTrackProfile(it)
+			}
+		}
 	}
 }
 
@@ -98,26 +104,20 @@ func (a *App) applyTrackProfile(it *fileItem, src [][]track.Point, eles []float6
 		it.profile = profileFailed
 		return
 	}
-	gaps := it.gaps()
-	it.terrain = make([][]float64, len(src))
+	it.terrainPts = make([][]track.Point, len(src))
 	k := 0
 	for i, pts := range src {
-		// The values per segment are computed like those of the recorded elevation.
 		tp := make([]track.Point, len(pts))
 		for j, p := range pts {
 			tp[j] = track.Point{Pos: p.Pos, Ele: eles[k]}
 			k++
 		}
-		vals := track.SegmentValues(tp, track.ElevationMetric)
-		if vals != nil && gaps != nil {
-			for j, gap := range gaps[i] {
-				if gap {
-					vals[j] = math.NaN()
-				}
-			}
-		}
-		it.terrain[i] = vals
+		it.terrainPts[i] = tp
 	}
+	it.terrain = it.segmentValues(it.terrainPts, track.ElevationMetric)
+	it.terrainOnly = it.segmentValues(it.points, track.ElevationMetric) == nil
+	// The values of elevation and slope change for tracks without recorded elevation.
+	it.values = nil
 	it.ascent, it.descent = track.Climb(eles, climbThreshold)
 	it.profile = profileDone
 	a.tracksChanged = true

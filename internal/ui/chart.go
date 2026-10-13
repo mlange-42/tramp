@@ -133,7 +133,8 @@ func (a *App) updateChart() {
 	idx := a.colorBy.Selected()
 	if metrics[idx].metric == track.NoMetric {
 		idx = metricIndex(track.ElevationMetric)
-	} else if a.legend != nil {
+	} else if a.legend != nil && a.shown(it) {
+		// Like on the map, only items shown there are colored.
 		c.coloring = a.legend.coloring()
 	}
 	info := &metrics[idx]
@@ -145,13 +146,9 @@ func (a *App) updateChart() {
 		info, c.coloring = &metrics[idx], nil
 		c.vals = it.lineValues(info.metric)
 	}
-	if info.metric == track.ElevationMetric && it.kind == trackItem && it.terrain != nil {
-		// The terrain is drawn as a second line, or as the profile of tracks without elevation.
-		if c.vals == nil {
-			c.vals = it.terrain
-		} else {
-			c.terrain = it.terrain
-		}
+	if info.metric == track.ElevationMetric && it.terrain != nil && !it.terrainOnly {
+		// The terrain is drawn as a second line. For tracks without elevation, it is the profile.
+		c.terrain = it.terrain
 	}
 	if c.vals == nil {
 		c.hint = fmt.Sprintf("No %s data", info.key)

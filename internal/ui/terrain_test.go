@@ -108,3 +108,54 @@ func TestTrackTerrainWithoutElevation(t *testing.T) {
 		t.Errorf("expected the terrain as profile, hint %q", a.chart.hint)
 	}
 }
+
+func TestTerrainOnlyColored(t *testing.T) {
+	a, f := terrainApp(t)
+	rec, flat := trackItemNamed(t, f, "Recorded"), trackItemNamed(t, f, "Flat")
+	a.initColoring(nil, "elevation", nil)
+	// The first track was selected when the file was opened.
+	a.selected = nil
+
+	// While colored by elevation, a shown track without elevation gets its terrain without being selected.
+	a.updateProfiles()
+	if flat.profile != profileLoading || rec.profile != profileNone {
+		t.Fatalf("expected only the track without elevation requested, got %v and %v", flat.profile, rec.profile)
+	}
+	waitProfile(t, a, flat)
+	if !flat.terrainOnly || flat.lineValues(track.ElevationMetric) == nil || flat.lineValues(track.SlopeMetric) == nil {
+		t.Fatal("expected elevation and slope from the terrain")
+	}
+	a.updateTracks()
+	if g := trackGroup(t, a, flat); g.Values == nil || a.legend == nil {
+		t.Errorf("expected the track colored on the map")
+	}
+
+	// Its profile is colored like the others, without a second line.
+	a.selected = flat
+	a.updateChart()
+	if a.chart.coloring == nil || a.chart.terrain != nil || a.chart.vals[0][0] != 123 {
+		t.Errorf("expected the colored terrain profile")
+	}
+}
+
+func TestHiddenItemNotColored(t *testing.T) {
+	a, f := terrainApp(t)
+	rec := trackItemNamed(t, f, "Recorded")
+	a.initColoring(nil, "elevation", nil)
+	a.selected = rec
+	a.updateTracks()
+	if a.chart.coloring == nil {
+		t.Fatal("expected the shown track's profile colored")
+	}
+	// Hidden, its profile is not colored, though the other track still gives a legend.
+	rec.visible.Value = false
+	a.updateProfiles()
+	waitProfile(t, a, trackItemNamed(t, f, "Flat"))
+	a.updateTracks()
+	if a.legend == nil {
+		t.Fatal("expected a legend from the other track")
+	}
+	if a.chart.item != rec || a.chart.coloring != nil {
+		t.Errorf("expected the hidden track's profile in its own color")
+	}
+}

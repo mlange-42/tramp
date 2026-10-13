@@ -85,11 +85,15 @@ type fileItem struct {
 	// ascent and descent are from the profile, once done.
 	profile         profileState
 	ascent, descent float64
-	// terrain is the terrain elevation per line segment of a track, like [fileItem.lineValues], once its profile is done.
-	terrain [][]float64
-	dots    []mapview.Dot
-	bounds  geo.Rect
-	color   color.NRGBA
+	// terrainPts are the points of a track with the terrain elevation, once its profile is done.
+	// terrain is the terrain elevation per line segment, like [fileItem.lineValues], and terrainOnly reports
+	// whether the track has no recorded elevation, so that the terrain is its elevation.
+	terrainPts  [][]track.Point
+	terrain     [][]float64
+	terrainOnly bool
+	dots        []mapview.Dot
+	bounds      geo.Rect
+	color       color.NRGBA
 	// index is the position of the item in the file, independent of the panel order.
 	index int
 	// nth is the position of the item among the items of its kind in the file.
@@ -262,7 +266,7 @@ func (f *openFile) waypointsFirst() {
 func (it *fileItem) setContent(n *fileItem) {
 	it.name, it.summary = n.name, n.summary
 	it.lines, it.points, it.dots, it.bounds = n.lines, n.points, n.dots, n.bounds
-	it.profile, it.terrain = profileNone, nil
+	it.profile, it.terrainPts, it.terrain, it.terrainOnly = profileNone, nil, nil, false
 	it.clearCaches()
 }
 
@@ -321,6 +325,7 @@ func (f *openFile) blockHeight() int {
 
 // lineValues returns the values of a metric for the lines of the item,
 // or nil if no line has values. Gaps in the recording have no values, see [track.Gaps].
+// Tracks without recorded elevation use the terrain elevation for elevation and slope, once known.
 func (it *fileItem) lineValues(m track.Metric) [][]float64 {
 	if m == track.NoMetric {
 		return nil
@@ -328,10 +333,24 @@ func (it *fileItem) lineValues(m track.Metric) [][]float64 {
 	if vals, ok := it.values[m]; ok {
 		return vals
 	}
-	vals := make([][]float64, len(it.points))
+	vals := it.segmentValues(it.points, m)
+	if it.terrainOnly && (m == track.ElevationMetric || m == track.SlopeMetric) {
+		vals = it.segmentValues(it.terrainPts, m)
+	}
+	if it.values == nil {
+		it.values = map[track.Metric][][]float64{}
+	}
+	it.values[m] = vals
+	return vals
+}
+
+// segmentValues returns the values of a metric for the given points of the lines of the item,
+// or nil if no line has values, with gaps in the recording without values.
+func (it *fileItem) segmentValues(points [][]track.Point, m track.Metric) [][]float64 {
+	vals := make([][]float64, len(points))
 	gaps := it.gaps()
 	found := false
-	for i, pts := range it.points {
+	for i, pts := range points {
 		vals[i] = track.SegmentValues(pts, m)
 		found = found || vals[i] != nil
 		if vals[i] != nil && gaps != nil {
@@ -343,12 +362,8 @@ func (it *fileItem) lineValues(m track.Metric) [][]float64 {
 		}
 	}
 	if !found {
-		vals = nil
+		return nil
 	}
-	if it.values == nil {
-		it.values = map[track.Metric][][]float64{}
-	}
-	it.values[m] = vals
 	return vals
 }
 

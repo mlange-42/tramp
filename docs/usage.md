@@ -114,7 +114,7 @@ see the [settings](configuration.md#settings) for the elevation source.
 
 For the track shown in the chart, the terrain elevation along it is drawn as a second, orange line in the elevation profile,
 for comparing it with the recorded elevation, which is often off by some meters.
-Tracks without recorded elevation show the terrain as their profile.
+Tracks without recorded elevation use the terrain instead, for the profile and for coloring by elevation or slope.
 
 ## Coloring
 
@@ -122,7 +122,7 @@ Use the palette drop-down in the toolbar to color all tracks by speed, elevation
 The color range covers the values of all visible tracks, ignoring the most extreme 2% at each end, and is shown in a legend on the map.
 The found route of the [routing](#routing) panel is colored as well, and counts for the color range while shown.
 Tracks and routes without the required data, like routes without times for speed, keep their own color.
-The chart then shows their elevation profile.
+The chart then shows their elevation profile. The profile of a hidden track or route is not colored.
 
 The gradients can be changed in the [gradients configuration](configuration.md#gradients).
 
