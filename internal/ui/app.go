@@ -457,6 +457,7 @@ func (a *App) update(gtx layout.Context) {
 		a.setOverlay(i, a.overlaySel.Checked(i))
 	}
 	a.refreshOverlays(gtx)
+	a.updateTimeControl(gtx)
 
 	a.runUITasks()
 	a.updateAbout(gtx)
