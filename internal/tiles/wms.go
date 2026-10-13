@@ -134,8 +134,7 @@ func (f *WMSFetcher) shade(img image.Image) image.Image {
 // or from the server at u if it is not stored or too old.
 func (f *WMSFetcher) fetch(ctx context.Context, u string, first geo.TileKey, n int) ([]byte, error) {
 	if f.Cache == nil {
-		d, err := f.Client.GetData(ctx, u, time.Time{})
-		return d.Body, err
+		return f.download(ctx, u)
 	}
 	f.once.Do(f.initCache)
 
@@ -149,7 +148,12 @@ func (f *WMSFetcher) fetch(ctx context.Context, u string, first geo.TileKey, n i
 	if ok {
 		since = mod
 	}
-	d, err := f.Client.GetData(ctx, u, since)
+	dctx, done, err := Connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	d, err := f.Client.GetData(dctx, u, since)
+	done()
 	if errors.Is(err, wms.ErrNotModified) {
 		if err := f.Cache.Touch(ck); err != nil {
 			log.Printf("tile cache: %v", err)
@@ -158,7 +162,7 @@ func (f *WMSFetcher) fetch(ctx context.Context, u string, first geo.TileKey, n i
 	}
 	if err != nil {
 		if ok && ctx.Err() == nil {
-			// Offline, or the server fails: the old image is better than none.
+			// Offline, the server fails or is too slow: the old image is better than none.
 			return cached, nil
 		}
 		return nil, err
@@ -169,6 +173,17 @@ func (f *WMSFetcher) fetch(ctx context.Context, u string, first geo.TileKey, n i
 		}
 	}
 	return d.Body, nil
+}
+
+// download fetches the image data at u from the server, see [Connect].
+func (f *WMSFetcher) download(ctx context.Context, u string) ([]byte, error) {
+	ctx, done, err := Connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer done()
+	d, err := f.Client.GetData(ctx, u, time.Time{})
+	return d.Body, err
 }
 
 // initCache determines the directory of the layer in the cache, and writes the description of the layer there.

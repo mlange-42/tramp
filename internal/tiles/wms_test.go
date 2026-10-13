@@ -256,3 +256,33 @@ func TestWMSFetcherReferences(t *testing.T) {
 		t.Errorf("unexpected error %v", err)
 	}
 }
+
+// TestWMSFetcherCacheWithoutConnection checks that stored tiles load while all connections to the server are taken.
+func TestWMSFetcherCacheWithoutConnection(t *testing.T) {
+	srv := newPNGServer(t)
+	cache := diskcache.New(t.TempDir(), 1<<20)
+	cache.Wait()
+	f := &WMSFetcher{
+		Client: &wms.Client{},
+		Layer:  &wms.Layer{Name: "Test", Type: wms.TypeXYZ, URL: srv.URL + "/{z}/{x}/{y}.png"},
+		Cache:  cache,
+		MaxAge: time.Hour,
+	}
+	stored := geo.TileKey{Z: 1}
+	if _, err := f.Fetch(context.Background(), stored); err != nil {
+		t.Fatal(err)
+	}
+
+	l := NewLimiter()
+	m := NewManager(f, Options{Workers: 2, Timeout: time.Minute, Limiter: l, Host: "a", Connections: 1})
+	defer m.Close()
+	r, _ := l.Acquire(context.Background(), "a", 1, false)
+	missing := geo.TileKey{Z: 1, X: 1}
+	m.Request([]geo.TileKey{missing, stored})
+	waitFor(t, func() bool { _, ok := m.Get(stored); return ok })
+	if _, ok := m.Get(missing); ok {
+		t.Error("downloaded while the connection is taken")
+	}
+	r()
+	waitFor(t, func() bool { _, ok := m.Get(missing); return ok })
+}

@@ -18,6 +18,11 @@ type fakeFetcher struct {
 }
 
 func (f *fakeFetcher) Fetch(ctx context.Context, key geo.TileKey) (image.Image, error) {
+	_, done, err := Connect(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer done()
 	f.calls.Add(1)
 	if f.fail.Load() {
 		return nil, errors.New("failed")
