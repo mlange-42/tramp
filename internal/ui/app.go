@@ -193,6 +193,9 @@ func newApp(invalidate func(), opts Options) *App {
 		routingCfg:   opts.State.Routing,
 		elev:         elevationView{cfg: opts.State.Elevation, service: newElevationService(opts.State.Elevation)},
 	}
+	if a.elev.service != nil && a.diskCache.elevation != nil {
+		a.elev.service.SetDiskCache(a.diskCache.elevation, a.diskCache.maxAge())
+	}
 	if opts.State.Window.Valid() {
 		a.win = *opts.State.Window
 	} else {

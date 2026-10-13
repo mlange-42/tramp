@@ -6,7 +6,6 @@ import (
 	"image"
 	"log"
 	"mime"
-	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -115,12 +114,7 @@ func (f *WMSFetcher) cacheKey(key geo.TileKey) string {
 // imageExt returns the file extension of the images of a layer, like ".png", or "" if not known.
 func imageExt(l *wms.Layer) string {
 	if l.IsXYZ() {
-		u, _, _ := strings.Cut(l.URL, "?")
-		switch ext := strings.ToLower(path.Ext(u)); ext {
-		case ".png", ".jpg", ".jpeg", ".webp", ".gif":
-			return ext
-		}
-		return ""
+		return diskcache.ImageExt(l.URL)
 	}
 	format := l.Format
 	if format == "" {

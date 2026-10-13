@@ -9,21 +9,24 @@ import (
 	"github.com/mlange-42/tramp/internal/settings"
 )
 
-// tilesDir is the directory of the map tiles in the cache directory.
-const tilesDir = "tiles"
+// Directories of the map and elevation tiles in the cache directory.
+const (
+	tilesDir     = "tiles"
+	elevationDir = "elevation"
+)
 
-// diskCacheView keeps downloaded map tiles on disk.
+// diskCacheView keeps downloaded map and elevation tiles on disk.
 type diskCacheView struct {
 	cfg settings.DiskCache
-	// tiles is the cache of the map tiles. Nil if turned off.
-	tiles *diskcache.Cache
+	// tiles is the cache of the map tiles, and elevation that of the elevation tiles. Nil if turned off.
+	tiles, elevation *diskcache.Cache
 }
 
-// newDiskCache opens the cache of map tiles. Its size limit 0 or less turns it off,
+// newDiskCache opens the caches of map and elevation tiles. A size limit of 0 or less turns a cache off,
 // as in tests, unlike in the settings file where 0 is the default.
 func newDiskCache(cfg settings.DiskCache) diskCacheView {
 	v := diskCacheView{cfg: cfg}
-	if cfg.MaxSize <= 0 {
+	if cfg.MaxSize <= 0 && cfg.ElevationMaxSize <= 0 {
 		return v
 	}
 	dir := cfg.Dir
@@ -35,6 +38,7 @@ func newDiskCache(cfg settings.DiskCache) diskCacheView {
 		}
 	}
 	v.tiles = diskcache.New(filepath.Join(dir, tilesDir), int64(cfg.MaxSize)<<20)
+	v.elevation = diskcache.New(filepath.Join(dir, elevationDir), int64(cfg.ElevationMaxSize)<<20)
 	return v
 }
 

@@ -13,6 +13,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -318,4 +319,15 @@ func slugify(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// ImageExt returns the file extension of the images of a URL template like "https://a/{z}/{x}/{y}.png",
+// or "" if it doesn't end with that of a common image format.
+func ImageExt(urlTemplate string) string {
+	u, _, _ := strings.Cut(urlTemplate, "?")
+	switch ext := strings.ToLower(path.Ext(u)); ext {
+	case ".png", ".jpg", ".jpeg", ".webp", ".gif":
+		return ext
+	}
+	return ""
 }

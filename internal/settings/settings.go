@@ -22,8 +22,9 @@ const DefaultTileCache = 2048
 
 // Defaults for [DiskCache].
 const (
-	DefaultDiskCacheSize = 2048
-	DefaultDiskCacheAge  = 30
+	DefaultDiskCacheSize          = 2048
+	DefaultDiskCacheElevationSize = 1024
+	DefaultDiskCacheAge           = 30
 )
 
 // DefaultPanelWidth is the default for [Window.PanelWidth].
@@ -48,7 +49,7 @@ type Settings struct {
 	// TileCache is the maximum number of map tiles kept in memory, shared by all visible layers.
 	// A tile takes 256 KB.
 	TileCache int `yaml:"tile_cache"`
-	// DiskCache keeps downloaded map tiles on disk, for offline use.
+	// DiskCache keeps downloaded map and elevation tiles on disk, for offline use.
 	DiskCache DiskCache `yaml:"disk_cache"`
 	// Style is how tracks, routes and waypoints are drawn on the map.
 	Style Style `yaml:"style"`
@@ -88,13 +89,16 @@ type Style struct {
 	MutedColor string `yaml:"muted_color"`
 }
 
-// DiskCache keeps downloaded map tiles on disk.
+// DiskCache keeps downloaded map and elevation tiles on disk.
 type DiskCache struct {
 	// Dir is the directory of the cache. If empty, the tramp directory in the user's cache directory is used,
 	// see [CacheDir].
 	Dir string `yaml:"dir"`
 	// MaxSize is the maximum size of the map tiles in MB. Negative turns the cache off, 0 for the default.
 	MaxSize int `yaml:"max_size"`
+	// ElevationMaxSize is the maximum size of the elevation tiles in MB. Negative turns the cache off,
+	// 0 for the default.
+	ElevationMaxSize int `yaml:"elevation_max_size"`
 	// MaxAge is the age in days after which a tile is checked with the server again.
 	// Older tiles are still used if the server can't be reached. 0 for the default.
 	MaxAge int `yaml:"max_age"`
@@ -244,7 +248,7 @@ func Dir() (string, error) {
 	return filepath.Join(base, dirName), nil
 }
 
-// CacheDir returns the directory for cached data, e.g. %LocalAppData%	ramp on Windows,
+// CacheDir returns the directory for cached data, e.g. %LocalAppData%\tramp on Windows,
 // ~/.cache/tramp on Linux or ~/Library/Caches/tramp on macOS.
 func CacheDir() (string, error) {
 	base, err := os.UserCacheDir()
@@ -320,6 +324,9 @@ func (s *Settings) setDefaults() {
 	}
 	if s.DiskCache.MaxSize == 0 {
 		s.DiskCache.MaxSize = DefaultDiskCacheSize
+	}
+	if s.DiskCache.ElevationMaxSize == 0 {
+		s.DiskCache.ElevationMaxSize = DefaultDiskCacheElevationSize
 	}
 	if s.DiskCache.MaxAge <= 0 {
 		s.DiskCache.MaxAge = DefaultDiskCacheAge

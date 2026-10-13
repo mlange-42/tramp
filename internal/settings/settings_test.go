@@ -16,7 +16,8 @@ func TestSaveLoad(t *testing.T) {
 	if def.TileCache != DefaultTileCache {
 		t.Errorf("tile cache default not set: %d", def.TileCache)
 	}
-	if def.DiskCache.MaxSize != DefaultDiskCacheSize || def.DiskCache.MaxAge != DefaultDiskCacheAge {
+	if def.DiskCache.MaxSize != DefaultDiskCacheSize || def.DiskCache.MaxAge != DefaultDiskCacheAge ||
+		def.DiskCache.ElevationMaxSize != DefaultDiskCacheElevationSize {
 		t.Errorf("disk cache defaults not set: %+v", def.DiskCache)
 	}
 	if st := def.Style; st.TrackWidth != DefaultTrackWidth || st.RouteWidth != DefaultRouteWidth || st.WaypointSize != DefaultWaypointSize ||
@@ -26,7 +27,7 @@ func TestSaveLoad(t *testing.T) {
 
 	s := Settings{
 		TileCache: 100,
-		DiskCache: DiskCache{Dir: "/cache", MaxSize: -1, MaxAge: 7},
+		DiskCache: DiskCache{Dir: "/cache", MaxSize: -1, ElevationMaxSize: 500, MaxAge: 7},
 		Style: Style{
 			TrackWidth:   4,
 			RouteWidth:   2.5,
