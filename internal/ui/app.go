@@ -165,6 +165,9 @@ type App struct {
 	// pending are the files being read, by batch, for saving the settings.
 	nextBatch int
 	pending   map[int][]settings.File
+	// timeCtl selects the time of overlays that change over time.
+	timeCtl timeControl
+
 	// uiTasks are functions to run on the UI goroutine, see [App.runOnUI], guarded by bgMu.
 	bgMu    sync.Mutex
 	uiTasks []func()
@@ -578,7 +581,7 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	a.mapLayers = append(a.mapLayers[:0], mapview.Layer{Tiles: a.tiles, MaxTileLevel: base.MaxZoom})
 	for _, o := range a.overlays {
 		// Overlays waiting for their time are drawn once it is known, so that they are loaded only once.
-		if o.tiles != nil && !o.times.waiting {
+		if o.tiles != nil && !o.times.hidden() {
 			a.mapLayers = append(a.mapLayers, mapview.Layer{Tiles: o.tiles, Opacity: o.Opacity, MaxTileLevel: o.Layer.MaxZoom})
 		}
 	}

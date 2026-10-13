@@ -192,3 +192,15 @@ func TestMapURLTime(t *testing.T) {
 		t.Errorf("unexpected time in %s", u)
 	}
 }
+
+func TestTimeDimensionBounds(t *testing.T) {
+	d := TimeDimension{Values: "2026-10-13T06:00:00Z, 2026-10-12T00:00:00Z/2026-10-13T11:00:00Z/PT3H,bad"}
+	first, last, ok := d.Bounds()
+	want1, want2 := time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC), time.Date(2026, 10, 13, 9, 0, 0, 0, time.UTC)
+	if !ok || !first.Equal(want1) || !last.Equal(want2) {
+		t.Errorf("got %v %v %v", first, last, ok)
+	}
+	if _, _, ok := (&TimeDimension{Values: "bad"}).Bounds(); ok {
+		t.Error("expected no bounds")
+	}
+}

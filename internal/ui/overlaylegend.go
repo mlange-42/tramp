@@ -90,17 +90,23 @@ func (a *App) toggleLegend(i int) {
 func (a *App) overlayLegendRows(gtx layout.Context, maxHeight int) []layout.FlexChild {
 	st := a.style
 	var rows []layout.FlexChild
+	if _, _, ok := a.timeBounds(); ok {
+		rows = append(rows, layout.Rigid(a.layoutTimeControl))
+	}
 	for i := range a.overlays {
 		o := &a.overlays[i]
 		l := &o.legend
-		if o.tiles == nil || (o.times.time.IsZero() && !l.available()) {
+		if o.tiles == nil || (o.times.time.IsZero() && !o.times.outside && !l.available()) {
 			continue
 		}
 		for l.btn.Clicked(gtx) {
 			a.toggleLegend(i)
 		}
 		text := o.Layer.Name
-		if !o.times.time.IsZero() {
+		switch {
+		case o.times.outside:
+			text += "  no data"
+		case !o.times.time.IsZero():
 			text += "  " + formatDataTime(o.times.time, gtx.Now)
 		}
 		rows = append(rows,

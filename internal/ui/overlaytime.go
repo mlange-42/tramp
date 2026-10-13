@@ -16,7 +16,8 @@ const capabilitiesTimeout = 30 * time.Second
 
 // overlayTimes is the state of an overlay that changes over time, see [Overlay.Refresh].
 // WMS overlays read their valid times from the capabilities of the service at each refresh,
-// and request the time closest to now. Overlays without a time dimension are just loaded again.
+// and request the time closest to the selected time, see [timeControl].
+// Overlays without a time dimension are just loaded again.
 type overlayTimes struct {
 	// refreshed is when the overlay was last refreshed.
 	refreshed time.Time
@@ -24,12 +25,21 @@ type overlayTimes struct {
 	session int
 	// loading is set while the capabilities are read.
 	loading bool
-	// waiting is set until the time is known after enabling the overlay. The overlay is not drawn meanwhile.
+	// waiting is set until the capabilities were read after enabling the overlay. The overlay is not drawn meanwhile.
 	waiting bool
-	// time is the time of the shown data, zero if not known.
-	time time.Time
-	// reference is the reference time of the shown data, like the start of a model run, if given.
+	// dim are the valid times from the capabilities, nil if the layer has none.
+	dim *wms.TimeDimension
+	// reference is the reference time of the data, like the start of a model run, if given.
 	reference string
+	// time is the requested time, zero if none.
+	time time.Time
+	// outside is set if the selected time is outside the valid times. The overlay is not drawn then.
+	outside bool
+}
+
+// hidden reports whether the overlay is not drawn, as it waits for its times or has no data for the selected time.
+func (t *overlayTimes) hidden() bool {
+	return t.waiting || t.outside
 }
 
 // timed reports whether the overlay may have valid times in the capabilities of its service.
@@ -98,17 +108,16 @@ func (a *App) loadOverlayTime(i int) {
 			if err != nil {
 				log.Printf("overlay %s: %v", o.Layer.Name, err)
 			}
-			o.updateTime(caps, time.Now())
+			o.updateTime(caps, a.timeCtl.target(time.Now()))
 		})
 	}()
 }
 
-// updateTime requests the time closest to now from the capabilities, and loads the tiles again
-// if the time or the reference time changed, or if it can't tell. Caps is nil if reading them failed.
-// Overlays without times are requested for the server's default time, and always loaded again.
-func (o *overlayState) updateTime(caps *wms.Capabilities, now time.Time) {
+// updateTime takes the valid times from the capabilities, and requests the time closest to target.
+// The tiles are loaded again if the time or the reference time changed, or if it can't tell.
+// Caps is nil if reading them failed.
+func (o *overlayState) updateTime(caps *wms.Capabilities, target time.Time) {
 	t := &o.times
-	first := t.waiting
 	t.waiting = false
 	if caps == nil {
 		// Keep showing the last known time, so that it is clear how old the data is.
@@ -117,37 +126,47 @@ func (o *overlayState) updateTime(caps *wms.Capabilities, now time.Time) {
 	}
 
 	info, _ := caps.Layer(firstLayer(o.Layer.Layers))
-	legendURL := ""
+	t.dim = nil
+	reference, legendURL := "", ""
 	if info != nil {
-		legendURL = info.LegendURL
+		t.dim, reference, legendURL = info.Time, info.Reference, info.LegendURL
 	}
 	o.legend.setURL(legendURL)
-
-	var valid time.Time
-	ok := false
-	if info != nil && info.Time != nil {
-		valid, ok = info.Time.Nearest(now)
-	}
-	if !ok {
-		// Without times, the overlay is requested for the server's default time.
-		if !t.time.IsZero() {
-			o.setTime("")
-		}
-		t.time, t.reference = time.Time{}, ""
-		if !first {
-			o.tiles.Refresh()
-		}
-		return
-	}
-	changed := !valid.Equal(t.time) || info.Reference != t.reference || info.Reference == ""
-	t.time, t.reference = valid, info.Reference
-	if !changed {
-		return
-	}
-	o.setTime(wms.FormatTime(valid))
-	if !first {
+	newData := reference == "" || reference != t.reference
+	t.reference = reference
+	if !o.selectTime(target) && newData {
 		o.tiles.Refresh()
 	}
+}
+
+// selectTime requests the valid time closest to target, and reports whether the tiles are loaded again
+// because the time changed. If target is outside the valid times, the overlay is hidden.
+// Overlays without times are requested for the server's default time.
+func (o *overlayState) selectTime(target time.Time) bool {
+	t := &o.times
+	t.outside = false
+	valid, ok := time.Time{}, false
+	if t.dim != nil {
+		if first, last, inside := t.dim.Bounds(); inside && (target.Before(first) || target.After(last)) {
+			t.outside = true
+			return false
+		}
+		valid, ok = t.dim.Nearest(target)
+	}
+	if !ok {
+		valid = time.Time{}
+	}
+	if valid.Equal(t.time) {
+		return false
+	}
+	t.time = valid
+	value := ""
+	if ok {
+		value = wms.FormatTime(valid)
+	}
+	o.setTime(value)
+	o.tiles.Refresh()
+	return true
 }
 
 // setTime makes the fetcher of the overlay request the given time.

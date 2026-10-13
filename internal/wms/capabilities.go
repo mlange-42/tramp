@@ -184,6 +184,29 @@ func (d *TimeDimension) Nearest(t time.Time) (time.Time, bool) {
 	return best, bestDist >= 0
 }
 
+// Bounds returns the first and the last valid time, or false if there is none or the values are not understood.
+func (d *TimeDimension) Bounds() (first, last time.Time, ok bool) {
+	for item := range strings.SplitSeq(d.Values, ",") {
+		// The ends of an interval are the times closest to the earliest and the latest possible time.
+		lo, ok1 := nearestIn(strings.TrimSpace(item), time.Time{})
+		hi, ok2 := nearestIn(strings.TrimSpace(item), maxTime)
+		if !ok1 || !ok2 {
+			continue
+		}
+		if !ok || lo.Before(first) {
+			first = lo
+		}
+		if !ok || hi.After(last) {
+			last = hi
+		}
+		ok = true
+	}
+	return first, last, ok
+}
+
+// maxTime is a time after all valid times.
+var maxTime = time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+
 // nearestIn returns the time closest to t in a single time or an interval with a period.
 func nearestIn(item string, t time.Time) (time.Time, bool) {
 	parts := strings.Split(item, "/")

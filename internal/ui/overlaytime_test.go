@@ -48,6 +48,9 @@ func TestOverlayTime(t *testing.T) {
 	})
 	defer a.closeTiles()
 
+	// A time within the valid times of the test server, independent of the current time.
+	a.timeCtl.selected = time.Date(2026, 10, 13, 11, 0, 0, 0, time.UTC)
+
 	// The overlay is not drawn until its time is known.
 	a.setOverlay(0, true)
 	o := &a.overlays[0]
@@ -114,5 +117,59 @@ func TestFormatDataTime(t *testing.T) {
 	}
 	if got := formatDataTime(now.Add(24*time.Hour), now); got != "Wed 12:00" {
 		t.Errorf("got %q", got)
+	}
+}
+
+func TestTimeControl(t *testing.T) {
+	srv := newCapsServer(t)
+	a := newApp(func() {}, Options{
+		Maps: []Map{{Layer: wms.Layer{Name: "None", Type: wms.TypeNone}}},
+		Overlays: []Overlay{
+			{Layer: wms.Layer{Name: "Radar", URL: srv.URL, Layers: "Radar"}, Refresh: 5 * time.Minute},
+			{Layer: wms.Layer{Name: "Warnings", URL: srv.URL, Layers: "Warnings"}, Refresh: 5 * time.Minute},
+		},
+	})
+	defer a.closeTiles()
+	if _, _, ok := a.timeBounds(); ok {
+		t.Error("no times without enabled overlays")
+	}
+	now := time.Date(2026, 10, 13, 11, 22, 0, 0, time.UTC)
+	a.timeCtl.selected = now
+	for i := range a.overlays {
+		a.setOverlay(i, true)
+		waitOverlayTime(a, i)
+	}
+	first, last, ok := a.timeBounds()
+	if !ok || first.Hour() != 10 || last.Hour() != 12 || last.Minute() != 55 {
+		t.Fatalf("unexpected bounds %v %v %v", first, last, ok)
+	}
+	radar, warnings := &a.overlays[0], &a.overlays[1]
+	if !radar.times.time.Equal(now.Add(-2 * time.Minute)) {
+		t.Errorf("unexpected radar time %v", radar.times.time)
+	}
+
+	// Steps go to full hours.
+	a.selectTime(time.Time{}, now)
+	c := &a.timeCtl
+	if !c.step(now, 1).Equal(time.Date(2026, 10, 13, 12, 0, 0, 0, time.UTC)) ||
+		!c.step(now, -1).Equal(time.Date(2026, 10, 13, 11, 0, 0, 0, time.UTC)) {
+		t.Errorf("unexpected steps %v %v", c.step(now, 1), c.step(now, -1))
+	}
+	a.selectTime(c.step(now, -1), now)
+	if !c.step(now, -1).Equal(time.Date(2026, 10, 13, 10, 0, 0, 0, time.UTC)) {
+		t.Errorf("unexpected step from a full hour %v", c.step(now, -1))
+	}
+	if !radar.times.time.Equal(c.selected) || radar.fetcher.CurrentLayer().Time != "2026-10-13T11:00:00.000Z" {
+		t.Errorf("radar did not follow the selected time: %v", radar.times.time)
+	}
+
+	// Outside the valid times, the overlay is hidden; overlays without times are not affected.
+	a.selectTime(time.Date(2026, 10, 13, 15, 0, 0, 0, time.UTC), now)
+	if !radar.times.outside || !radar.times.hidden() || warnings.times.hidden() {
+		t.Errorf("unexpected visibility %+v %+v", radar.times, warnings.times)
+	}
+	a.selectTime(time.Time{}, now)
+	if radar.times.outside || !c.selected.IsZero() {
+		t.Error("expected the current time again")
 	}
 }
