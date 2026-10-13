@@ -121,6 +121,10 @@ func TestScan(t *testing.T) {
 	fill(t, dir, "a/1", "a/2", "b/1")
 	// A temporary file left over from a crash.
 	fill(t, dir, "a/x.tmp")
+	old := time.Now().Add(-2 * time.Hour)
+	if err := os.Chtimes(filepath.Join(dir, "a", "x.tmp"), old, old); err != nil {
+		t.Fatal(err)
+	}
 
 	c := New(dir, 1000)
 	c.Wait()

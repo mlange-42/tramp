@@ -16,6 +16,10 @@ Some settings can only be changed in this file:
 
 ```yaml
 tile_cache: 2048           # map tiles kept in memory, about 256 KB each
+disk_cache:
+  dir: ''                  # directory of the tile cache; empty for the default, see below
+  max_size: 2048           # largest size of the map tiles stored on disk in MB; negative to store none
+  max_age: 30              # days after which a stored tile is checked with the server again
 style:
   track_width: 3           # line width of tracks
   route_width: 3           # line width of routes
@@ -49,6 +53,17 @@ elevation:
 ```
 
 Sizes are in device-independent pixels.
+
+Map tiles are stored on disk, so that maps already viewed are shown without an internet connection.
+They are kept in the user's cache directory, unless `disk_cache.dir` is set:
+
+- Windows: `%LocalAppData%	ramp`
+- Linux: `$XDG_CACHE_HOME/tramp` or `~/.cache/tramp`
+- macOS: `~/Library/Caches/tramp`
+
+When the tiles exceed `max_size`, the oldest ones are deleted.
+Tiles older than `max_age` are checked with the server when they are shown, and still used when it can't be reached.
+The cache can be deleted at any time while TRAMP is closed.
 See [Live GPS position](usage.md#live-gps-position) for the GPS receiver.
 See [Search](usage.md#search) for the search services, and [Routing](usage.md#routing) for routing.
 Routes are found with the public servers of [FOSSGIS e.V.](https://www.fossgis.de),

@@ -83,6 +83,7 @@ type App struct {
 
 	// tileCache is the number of tiles kept in memory, shared by all visible layers.
 	tileCache    int
+	diskCache    diskCacheView
 	layers       []wms.Layer
 	layerNames   []string
 	layerSelect  Select
@@ -177,6 +178,7 @@ func newApp(invalidate func(), opts Options) *App {
 		style:        DefaultStyle(),
 		client:       &wms.Client{Client: httpx.Client{HTTP: &http.Client{Timeout: 30 * time.Second}, UserAgent: UserAgent}},
 		tileCache:    opts.State.TileCache,
+		diskCache:    newDiskCache(opts.State.DiskCache),
 		layers:       layers,
 		overlaySel:   NewMultiSelect("Overlays", len(overlays)),
 		mapView:      mapview.New(geo.LonLat{}, 0),
@@ -282,6 +284,7 @@ func (a *App) State() settings.Settings {
 	ll := geo.ToLonLat(a.mapView.View.Center)
 	s := settings.Settings{
 		TileCache: a.tileCache,
+		DiskCache: a.diskCache.cfg,
 		Style: settings.Style{
 			TrackWidth:   float32(a.trackWidth),
 			RouteWidth:   float32(a.routeWidth),
@@ -366,7 +369,10 @@ func (a *App) closeTiles() {
 func (a *App) newManager(layer *wms.Layer, shade bool) *tiles.Manager {
 	opts := tiles.DefaultOptions()
 	opts.OnUpdate = a.invalidate
-	return tiles.NewManager(&tiles.WMSFetcher{Client: a.client, Layer: layer, Shade: shade}, opts)
+	return tiles.NewManager(&tiles.WMSFetcher{
+		Client: a.client, Layer: layer, Shade: shade,
+		Cache: a.diskCache.tiles, MaxAge: a.diskCache.maxAge(),
+	}, opts)
 }
 
 func (a *App) setLayer(i int) {
