@@ -22,6 +22,17 @@ type Fetcher interface {
 	Fetch(ctx context.Context, key geo.TileKey) (image.Image, error)
 }
 
+// GroupFetcher is a [Fetcher] that loads tiles in square groups, like the meta tiles of a WMS.
+// The manager then requests each group once, and adds all its tiles.
+type GroupFetcher interface {
+	Fetcher
+	// Group returns the first tile of the group containing key, and its number of tiles per side.
+	// A size of 1 means single tiles, loaded with Fetch.
+	Group(key geo.TileKey) (geo.TileKey, int)
+	// FetchGroup retrieves the images of the n×n tiles starting at first, row by row.
+	FetchGroup(ctx context.Context, first geo.TileKey, n int) ([]image.Image, error)
+}
+
 // Tile is a loaded map tile, ready for drawing.
 type Tile struct {
 	Key geo.TileKey
@@ -36,7 +47,7 @@ type Options struct {
 	Workers int
 	// Capacity is the maximum number of tiles kept in memory.
 	Capacity int
-	// Timeout for a single tile request.
+	// Timeout for a single download, of a tile or a group of tiles.
 	Timeout time.Duration
 	// RetryAfter is the delay before a failed tile is requested again.
 	RetryAfter time.Duration
@@ -59,16 +70,20 @@ func DefaultOptions() Options {
 // The map view calls [Manager.Get] for tiles it wants to draw and
 // [Manager.Request] once per frame with all tiles it wants.
 // Requests that are no longer wanted are dropped from the queue.
+//
+// Downloads are done in units: single tiles, or groups for a [GroupFetcher].
+// The queue, the downloads and the failures are kept by unit, identified by its first tile.
 type Manager struct {
 	fetcher Fetcher
 	opts    Options
 	ctx     context.Context
 	cancel  context.CancelFunc
 
-	mu       sync.Mutex
-	wake     *sync.Cond
-	cache    map[geo.TileKey]*list.Element
-	lru      *list.List
+	mu    sync.Mutex
+	wake  *sync.Cond
+	cache map[geo.TileKey]*list.Element
+	lru   *list.List
+	// queue and inflight are units, see [Manager.unit].
 	queue    []geo.TileKey
 	inflight map[geo.TileKey]struct{}
 	// wanted are the tiles of the last request, see [Manager.Wanted].
@@ -154,24 +169,30 @@ func (m *Manager) Request(keys []geo.TileKey) {
 	now := time.Now()
 	m.queue = m.queue[:0]
 	var stale []geo.TileKey
+	queued := map[geo.TileKey]bool{}
 	for _, k := range keys {
 		el, cached := m.cache[k]
 		if cached && el.Value.(*Tile).gen == m.gen {
 			continue
 		}
-		if _, ok := m.inflight[k]; ok {
+		u, _ := m.unit(k)
+		if queued[u] {
 			continue
 		}
-		if t, ok := m.failed[k]; ok {
+		if _, ok := m.inflight[u]; ok {
+			continue
+		}
+		if t, ok := m.failed[u]; ok {
 			if now.Sub(t) < m.opts.RetryAfter {
 				continue
 			}
-			delete(m.failed, k)
+			delete(m.failed, u)
 		}
+		queued[u] = true
 		if cached {
-			stale = append(stale, k)
+			stale = append(stale, u)
 		} else {
-			m.queue = append(m.queue, k)
+			m.queue = append(m.queue, u)
 		}
 	}
 	m.queue = append(m.queue, stale...)
@@ -190,18 +211,22 @@ func (m *Manager) Wanted() []geo.TileKey {
 
 // Refresh marks all cached tiles as outdated, for layers that change over time.
 // They are still returned by [Manager.Get] until they are loaded again on request.
-// If the fetcher has a Refresh method, it is called too, for dropping its own cached data.
 func (m *Manager) Refresh() {
 	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.gen++
 	clear(m.failed)
-	m.mu.Unlock()
-	if r, ok := m.fetcher.(interface{ Refresh() }); ok {
-		r.Refresh()
-	}
 }
 
-// Loading returns the number of tiles currently queued or downloading.
+// unit returns the first tile of the download unit containing key, and its number of tiles per side.
+func (m *Manager) unit(key geo.TileKey) (geo.TileKey, int) {
+	if g, ok := m.fetcher.(GroupFetcher); ok {
+		return g.Group(key)
+	}
+	return key, 1
+}
+
+// Loading returns the number of downloads queued or running: of single tiles, or of groups of tiles.
 func (m *Manager) Loading() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -227,7 +252,7 @@ func (m *Manager) work() {
 		if !ok {
 			return
 		}
-		tile, err := m.load(key, gen)
+		tiles, err := m.load(key, gen)
 
 		m.mu.Lock()
 		delete(m.inflight, key)
@@ -237,7 +262,9 @@ func (m *Manager) work() {
 				m.failed[key] = time.Now()
 			}
 		} else {
-			m.insert(tile)
+			for _, t := range tiles {
+				m.insert(t)
+			}
 		}
 		m.mu.Unlock()
 
@@ -247,7 +274,7 @@ func (m *Manager) work() {
 	}
 }
 
-// next blocks until a tile is queued, and marks it as in flight. It returns the current generation.
+// next blocks until a unit is queued, and marks it as in flight. It returns the current generation.
 func (m *Manager) next() (geo.TileKey, int, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -263,17 +290,31 @@ func (m *Manager) next() (geo.TileKey, int, bool) {
 	return key, m.gen, true
 }
 
-// load fetches a tile, and stamps it with the generation it was requested in.
-func (m *Manager) load(key geo.TileKey, gen int) (*Tile, error) {
+// load fetches the tiles of a unit, and stamps them with the generation they were requested in.
+func (m *Manager) load(first geo.TileKey, gen int) ([]*Tile, error) {
 	ctx, cancel := context.WithTimeout(m.ctx, m.opts.Timeout)
 	defer cancel()
 
-	img, err := m.fetcher.Fetch(ctx, key)
+	// Converts to RGBA off the UI goroutine.
+	tile := func(key geo.TileKey, img image.Image) *Tile {
+		return &Tile{Key: key, Op: paint.NewImageOp(img), gen: gen}
+	}
+	if _, n := m.unit(first); n > 1 {
+		imgs, err := m.fetcher.(GroupFetcher).FetchGroup(ctx, first, n)
+		if err != nil {
+			return nil, err
+		}
+		tiles := make([]*Tile, 0, len(imgs))
+		for i, img := range imgs {
+			tiles = append(tiles, tile(geo.TileKey{Z: first.Z, X: first.X + i%n, Y: first.Y + i/n}, img))
+		}
+		return tiles, nil
+	}
+	img, err := m.fetcher.Fetch(ctx, first)
 	if err != nil {
 		return nil, err
 	}
-	// Converts to RGBA off the UI goroutine.
-	return &Tile{Key: key, Op: paint.NewImageOp(img), gen: gen}, nil
+	return []*Tile{tile(first, img)}, nil
 }
 
 // insert adds a tile to the cache. The caller must hold the lock.
