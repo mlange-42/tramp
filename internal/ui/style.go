@@ -42,6 +42,8 @@ type Style struct {
 	SmallTextSize unit.Sp
 	// IconSize is the size of check box and radio button icons.
 	IconSize unit.Dp
+	// SwatchSize is the size of the color samples in the side panel.
+	SwatchSize unit.Dp
 
 	// ButtonInset is the padding inside buttons and drop-down headers.
 	ButtonInset layout.Inset
@@ -70,6 +72,8 @@ type Style struct {
 	PanelBorder color.NRGBA
 	// DividerColor is the color of the dividers between side panel, map and chart.
 	DividerColor color.NRGBA
+	// SwatchBorder is the border of the color samples in the side panel.
+	SwatchBorder color.NRGBA
 	// FieldBorder is the border of text fields, FieldFocus that of the focused one.
 	FieldBorder, FieldFocus color.NRGBA
 	// ToolbarBg is the background of the toolbar, SeparatorColor that of the lines between its groups.
@@ -179,6 +183,7 @@ func DefaultStyle() *Style {
 		TextSize:      13,
 		SmallTextSize: 12,
 		IconSize:      16,
+		SwatchSize:    12,
 
 		ButtonInset:  layout.Inset{Top: 3, Bottom: 3, Left: 8, Right: 6},
 		CornerRadius: 3,
@@ -194,6 +199,7 @@ func DefaultStyle() *Style {
 		PanelBg:        color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
 		PanelBorder:    neutral(0xa0),
 		DividerColor:   neutral(0xd8),
+		SwatchBorder:   color.NRGBA{A: 0x50},
 		FieldBorder:    neutral(0xb8),
 		FieldFocus:     brandBlue,
 		ToolbarBg:      neutral(0xf4),

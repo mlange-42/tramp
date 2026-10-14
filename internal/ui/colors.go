@@ -8,11 +8,11 @@ import (
 	"log"
 	"strconv"
 
+	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/widget"
-	"gioui.org/widget/material"
 	"github.com/ncruces/zenity"
 )
 
@@ -94,23 +94,28 @@ func (a *App) showColorDialog(items []*fileItem) {
 	})
 }
 
-// layoutSwatch draws a clickable color field, split into stripes for several colors.
+// layoutSwatch draws a clickable color sample, a small rounded square split into stripes for several colors.
+// It has a thin dark border, so that light colors stand out from the panel, and is highlighted while hovered.
 func (a *App) layoutSwatch(gtx layout.Context, clk *widget.Clickable, colors []color.NRGBA) layout.Dimensions {
 	st := a.style
-	return material.Clickable(gtx, clk, func(gtx layout.Context) layout.Dimensions {
-		return layout.UniformInset(st.Spacing/2).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			size := gtx.Dp(st.IconSize)
-			border := gtx.Dp(1)
-			r := image.Rectangle{Max: image.Pt(size, size)}
-			paint.FillShape(gtx.Ops, st.PanelBorder, clip.Rect(r).Op())
-			inner := r.Inset(border)
-			for i, c := range colors {
-				stripe := inner
-				stripe.Min.X = inner.Min.X + inner.Dx()*i/len(colors)
-				stripe.Max.X = inner.Min.X + inner.Dx()*(i+1)/len(colors)
-				paint.FillShape(gtx.Ops, c, clip.Rect(stripe).Op())
-			}
-			return layout.Dimensions{Size: r.Size()}
-		})
+	return clk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		box := gtx.Dp(st.IconSize + st.Spacing)
+		layoutButtonBg(gtx, st, image.Pt(box, box), clk.Hovered(), false)
+		size := gtx.Dp(st.SwatchSize)
+		off := (box - size) / 2
+		r := image.Rectangle{Min: image.Pt(off, off), Max: image.Pt(off+size, off+size)}
+		rr, border := gtx.Dp(st.CornerRadius), max(1, gtx.Dp(1))
+		paint.FillShape(gtx.Ops, st.SwatchBorder, clip.UniformRRect(r, rr).Op(gtx.Ops))
+		inner := r.Inset(border)
+		cl := clip.UniformRRect(inner, max(0, rr-border)).Push(gtx.Ops)
+		for i, c := range colors {
+			stripe := inner
+			stripe.Min.X = inner.Min.X + inner.Dx()*i/len(colors)
+			stripe.Max.X = inner.Min.X + inner.Dx()*(i+1)/len(colors)
+			paint.FillShape(gtx.Ops, c, clip.Rect(stripe).Op())
+		}
+		cl.Pop()
+		pointer.CursorPointer.Add(gtx.Ops)
+		return layout.Dimensions{Size: image.Pt(box, box)}
 	})
 }
