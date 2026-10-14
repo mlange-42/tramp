@@ -70,6 +70,8 @@ type Style struct {
 	PanelBorder color.NRGBA
 	// DividerColor is the color of the dividers between side panel, map and chart.
 	DividerColor color.NRGBA
+	// FieldBorder is the border of text fields, FieldFocus that of the focused one.
+	FieldBorder, FieldFocus color.NRGBA
 	// ToolbarBg is the background of the toolbar, SeparatorColor that of the lines between its groups.
 	ToolbarBg, SeparatorColor color.NRGBA
 	// StatusBg is the background of the status bar.
@@ -190,6 +192,8 @@ func DefaultStyle() *Style {
 		PanelBg:        color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
 		PanelBorder:    neutral(0xa0),
 		DividerColor:   neutral(0xd8),
+		FieldBorder:    neutral(0xb8),
+		FieldFocus:     brandBlue,
 		ToolbarBg:      neutral(0xf4),
 		SeparatorColor: neutral(0xc8),
 		StatusBg:       neutral(0xf4),

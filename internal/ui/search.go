@@ -373,6 +373,8 @@ func (a *App) layoutSearch(gtx layout.Context) layout.Dimensions {
 	st := a.style
 	gtx.Constraints.Min.X = min(gtx.Dp(st.SearchWidth), gtx.Constraints.Max.X)
 	gtx.Constraints.Max.X = gtx.Constraints.Min.X
+	// As high as the toolbar buttons.
+	gtx.Constraints.Min.Y = gtx.Dp(st.ToolIconSize + 2*st.ToolIconPad)
 	return a.search.layout(gtx, a, "Place or coordinates (Ctrl+F)", "Clear the search and its marker on the map", true)
 }
 
