@@ -140,8 +140,8 @@ type App struct {
 	// hover is the position on the selected item under the pointer in the chart, or near it on the map.
 	hover trackHover
 
-	openBtn   iconButton
-	newBtn    iconButton
+	openBtn iconButton
+	newBtn  iconButton
 	// emptyOpen is the button for opening files in the empty space of the side panel.
 	emptyOpen iconButton
 	fileList  widget.List
