@@ -35,6 +35,8 @@ func (a *App) recreateWindow(err error) bool {
 	w := new(app.Window)
 	w.Option(WindowOptions(&a.win)...)
 	a.window = w
+	// The new window starts with the plain title.
+	a.title = ""
 	a.current.Store(w)
 	return true
 }
