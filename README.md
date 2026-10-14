@@ -18,22 +18,14 @@ Written in [Go](https://go.dev), for Linux, Windows and macOS.
 
 ## Features
 
-- **Any map you like:**  
-  OpenStreetMap, topo and satellite maps with overlays for hillshading, hiking or cycling routes
-- **Explore your GPS tracks:**  
-  Color by speed, elevation or slope, with an interactive profile chart linked to the map
-- **Plan and edit:**  
-  Draw routes and waypoints by hand, or let routing do it on foot, by bike or by car
-- **Ready for your device:**  
-  Save routes as GPX with turn points, or as full tracks with elevations
-- **Search and routing:**  
-  Search for places and get routes by foot, bike or car, with alternatives and elevation profile
-- **Weather on the map:**  
-  Rain radar, warnings and forecasts from DWD, with a time slider
-- **Live position:**  
-  From USB, Bluetooth or network GPS receivers
-- **Works offline:**  
-  Viewed map and elevation tiles are cached on disk
+- **Any map you like:** OpenStreetMap, topo and satellite maps with overlays for hillshading, hiking or cycling routes
+- **Explore your GPS tracks:** Color by speed, elevation or slope, with an interactive profile chart linked to the map
+- **Plan and edit:** Draw routes and waypoints by hand, or let routing do it on foot, by bike or by car
+- **Ready for your device:** Save routes as GPX with turn points, or as full tracks with elevations
+- **Search and routing:** Search for places and get routes by foot, bike or car, with alternatives and elevation profile
+- **Weather on the map:** Rain radar, warnings and forecasts from DWD, with a time slider
+- **Live position:** From USB, Bluetooth or network GPS receivers
+- **Works offline:** Viewed map and elevation tiles are cached on disk
 
 Coming next: FIT and KML/KMZ files.
 
