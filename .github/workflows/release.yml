@@ -3,6 +3,7 @@ name: Release
 on:
   release:
     types: [ created ]
+  pull_request:
 
 env:
   # Headers required by Gio on Linux, see https://gioui.org/doc/install/linux
@@ -13,8 +14,14 @@ jobs:
     name: Linux build
     runs-on: ubuntu-latest
     steps:
-      - name: Get tag
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+      - name: Get version
+        # The tag for releases, the PR number otherwise.
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          else
+            echo "RELEASE_VERSION=pr-${{ github.event.number }}" >> $GITHUB_ENV
+          fi
         shell: bash
       - uses: actions/checkout@v4
       - name: Setup Go
@@ -33,20 +40,33 @@ jobs:
         run: |
           tar -czf tramp.tar.gz tramp
         shell: bash
-      - name: Upload binaries
+      - name: Upload binaries to release
+        if: github.event_name == 'release'
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: tramp.tar.gz
           asset_name: tramp-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
           tag: ${{ github.ref }}
+      - name: Upload binaries as artifact
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tramp-${{ env.RELEASE_VERSION }}-linux-amd64.tar.gz
+          path: tramp.tar.gz
 
   build-windows:
     name: Windows build
     runs-on: ubuntu-latest
     steps:
-      - name: Get tag
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+      - name: Get version
+        # The tag for releases, the PR number otherwise.
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          else
+            echo "RELEASE_VERSION=pr-${{ github.event.number }}" >> $GITHUB_ENV
+          fi
         shell: bash
       - uses: actions/checkout@v4
       - name: Setup Go
@@ -61,13 +81,20 @@ jobs:
         run: |
           zip -r tramp.zip tramp.exe
         shell: bash
-      - name: Upload binaries
+      - name: Upload binaries to release
+        if: github.event_name == 'release'
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: tramp.zip
           asset_name: tramp-${{ env.RELEASE_VERSION }}-windows-amd64.zip
           tag: ${{ github.ref }}
+      - name: Upload binaries as artifact
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tramp-${{ env.RELEASE_VERSION }}-windows-amd64.zip
+          path: tramp.zip
 
   build-macos:
     name: MacOS ${{ matrix.arch }} build
@@ -76,8 +103,14 @@ jobs:
         arch: [arm64, amd64]
     runs-on: macos-latest
     steps:
-      - name: Get tag
-        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+      - name: Get version
+        # The tag for releases, the PR number otherwise.
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            echo "RELEASE_VERSION=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          else
+            echo "RELEASE_VERSION=pr-${{ github.event.number }}" >> $GITHUB_ENV
+          fi
         shell: bash
       - uses: actions/checkout@v4
       - name: Setup Go
@@ -93,10 +126,17 @@ jobs:
         run: |
           zip -r tramp.zip tramp
         shell: bash
-      - name: Upload binaries
+      - name: Upload binaries to release
+        if: github.event_name == 'release'
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: tramp.zip
           asset_name: tramp-${{ env.RELEASE_VERSION }}-macos-${{ matrix.arch }}.zip
           tag: ${{ github.ref }}
+      - name: Upload binaries as artifact
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tramp-${{ env.RELEASE_VERSION }}-macos-${{ matrix.arch }}.zip
+          path: tramp.zip
