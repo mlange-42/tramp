@@ -232,6 +232,8 @@ type Select struct {
 	icons []*widget.Icon
 	// preview draws a preview of option i in place of an icon, in the options and the header, if not nil.
 	preview func(gtx layout.Context, i int) layout.Dimensions
+	// more is drawn below the options in the panel, if not nil.
+	more layout.Widget
 }
 
 // Selected returns the index of the selected option.
@@ -261,20 +263,31 @@ func (s *Select) Layout(gtx layout.Context, st *Style, options []string) layout.
 		s.lead = func(gtx layout.Context) layout.Dimensions { return s.preview(gtx, s.Selected()) }
 	}
 	return s.layout(gtx, st, options[s.Selected()], options, func(gtx layout.Context) layout.Dimensions {
-		return s.layoutOptions(gtx, st, len(options), func(i int) layout.Widget {
-			if s.icons != nil || s.preview != nil {
-				return func(gtx layout.Context) layout.Dimensions {
-					return s.layoutIconOption(gtx, st, i, options[i])
-				}
+		if s.more == nil {
+			return s.layoutList(gtx, st, options)
+		}
+		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return s.layoutList(gtx, st, options) }),
+			layout.Rigid(s.more),
+		)
+	})
+}
+
+// layoutList draws the options, for the panel of this drop-down or of another one.
+func (s *Select) layoutList(gtx layout.Context, st *Style, options []string) layout.Dimensions {
+	return s.layoutOptions(gtx, st, len(options), func(i int) layout.Widget {
+		if s.icons != nil || s.preview != nil {
+			return func(gtx layout.Context) layout.Dimensions {
+				return s.layoutIconOption(gtx, st, i, options[i])
 			}
-			rb := material.RadioButton(st.Theme, &s.enum, strconv.Itoa(i), options[i])
-			rb.Size = st.IconSize
-			rb.TextSize = st.TextSize
-			return rb.Layout
-		}, func(i int) bool {
-			k, ok := s.enum.Hovered()
-			return ok && k == strconv.Itoa(i)
-		})
+		}
+		rb := material.RadioButton(st.Theme, &s.enum, strconv.Itoa(i), options[i])
+		rb.Size = st.IconSize
+		rb.TextSize = st.TextSize
+		return rb.Layout
+	}, func(i int) bool {
+		k, ok := s.enum.Hovered()
+		return ok && k == strconv.Itoa(i)
 	})
 }
 

@@ -80,6 +80,8 @@ func (a *App) updateColoring(gtx layout.Context) {
 	if a.gradientSel.Update(gtx) {
 		a.metricGradients[a.colorBy.Selected()] = a.gradientSel.Selected()
 		a.tracksChanged = true
+		// The gradients are listed in the panel of the color-by drop-down.
+		a.colorBy.open = false
 	}
 }
 
@@ -249,22 +251,25 @@ func names[T any](items []T, name func(T) string) []string {
 	return out
 }
 
-// layoutColoring draws the coloring drop-downs in the toolbar.
+// layoutColoring draws the coloring drop-down in the toolbar. Its panel lists the metrics,
+// and the gradients below them while coloring. The header shows the gradient while coloring, else the palette icon.
 func (a *App) layoutColoring(gtx layout.Context) layout.Dimensions {
 	st := a.style
-	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return a.colorBy.Layout(gtx, st, metricNames)
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if a.colorMetric() == track.NoMetric {
-				return layout.Dimensions{}
-			}
-			return layout.Inset{Left: 1}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				return a.gradientSel.Layout(gtx, st, a.gradientNames)
-			})
-		}),
-	)
+	a.colorBy.lead, a.colorBy.more = nil, nil
+	if a.colorMetric() != track.NoMetric {
+		a.colorBy.lead = func(gtx layout.Context) layout.Dimensions {
+			return a.layoutGradientPreview(gtx, a.gradientSel.Selected())
+		}
+		a.colorBy.more = func(gtx layout.Context) layout.Dimensions {
+			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Rigid(sectionHeading(st, "Gradient", false)),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return a.gradientSel.layoutList(gtx, st, a.gradientNames)
+				}),
+			)
+		}
+	}
+	return a.colorBy.Layout(gtx, st, metricNames)
 }
 
 // initColoring sets the available gradients and the coloring from the settings.
