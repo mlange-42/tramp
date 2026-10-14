@@ -10,6 +10,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/text"
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/mapview"
 	"github.com/mlange-42/tramp/internal/track"
@@ -299,4 +300,31 @@ func (a *App) editHint() string {
 		return "Drag to move · Del to delete · Esc to deselect"
 	}
 	return "Click a point to select it · drag points to move · drag the small circles to insert"
+}
+
+// layoutEditHint draws the hint for the edit tool floating at the bottom center of the map, while editing.
+// It is at most half as wide as the map, so that it stays clear of the legend and the GPS button where possible,
+// and wraps if needed.
+func (a *App) layoutEditHint(gtx layout.Context) {
+	if a.editing == nil {
+		return
+	}
+	st := a.style
+	layout.S.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		gtx.Constraints.Min = image.Point{}
+		gtx.Constraints.Max.X /= 2
+		return layout.UniformInset(st.Spacing*2).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			macro := op.Record(gtx.Ops)
+			dims := layout.UniformInset(st.Spacing).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				l := st.SmallLabel(a.editHint())
+				l.Alignment = text.Middle
+				return l.Layout(gtx)
+			})
+			call := macro.Stop()
+			rr := gtx.Dp(st.CornerRadius)
+			paint.FillShape(gtx.Ops, st.LegendBg, clip.UniformRRect(image.Rectangle{Max: dims.Size}, rr).Op(gtx.Ops))
+			call.Add(gtx.Ops)
+			return dims
+		})
+	})
 }

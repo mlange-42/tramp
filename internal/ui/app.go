@@ -658,6 +658,7 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	above.Constraints = layout.Exact(image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y-a.layoutTimeline(gtx)))
 	a.layoutLegend(above)
 	a.layoutGPSButton(above)
+	a.layoutEditHint(above)
 	a.layoutNavPanel(gtx)
 	return dims
 }
@@ -732,9 +733,6 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	status := fmt.Sprintf("%s   zoom %4.1f (tiles %2d)", pos, a.mapView.View.Zoom, a.mapView.TileLevel())
 	if s := a.gpsStatus(); s != "" {
 		status += "   " + s
-	}
-	if a.editing != nil {
-		status += "   " + a.editHint()
 	}
 
 	var loading int
