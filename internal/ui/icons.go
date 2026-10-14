@@ -34,6 +34,7 @@ var (
 	iconSearch   = mustIcon(icons.ActionSearch)
 	iconPresets  = mustIcon(icons.ImageCollectionsBookmark)
 	iconCheck    = mustIcon(icons.NavigationCheck)
+	iconMinimize = mustIcon(icons.NavigationFullscreenExit)
 
 	toolIcons = [numTools]*widget.Icon{
 		mustIcon(icons.ActionTouchApp),

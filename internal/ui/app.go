@@ -658,6 +658,7 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	above.Constraints = layout.Exact(image.Pt(gtx.Constraints.Max.X, gtx.Constraints.Max.Y-a.layoutTimeline(gtx)))
 	a.layoutLegend(above)
 	a.layoutGPSButton(above)
+	a.layoutEditHint(above)
 	a.layoutNavPanel(gtx)
 	return dims
 }
@@ -733,9 +734,6 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	if s := a.gpsStatus(); s != "" {
 		status += "   " + s
 	}
-	if a.editing != nil {
-		status += "   " + a.editHint()
-	}
 
 	var loading int
 	if a.tiles != nil {
@@ -754,15 +752,26 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	macro := op.Record(gtx.Ops)
 	dims := st.BarInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
+		// Flex lays out rigid children first, so the sources link always gets its space,
+		// and the status and credits are truncated to the rest instead of wrapping.
 		return layout.Flex{}.Layout(gtx,
-			layout.Rigid(st.SmallLabel(status).Layout),
-			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
 			layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Min.X = gtx.Constraints.Max.X
-				l := st.SmallLabel(shortCredits(a.mapCredits()))
-				l.Alignment = text.End
-				l.MaxLines = 1
-				return l.Layout(gtx)
+				return layout.Flex{}.Layout(gtx,
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						l := st.SmallLabel(status)
+						l.MaxLines = 1
+						return l.Layout(gtx)
+					}),
+					layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
+					layout.Flexed(1, func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Min.X = gtx.Constraints.Max.X
+						l := st.SmallLabel(shortCredits(a.mapCredits()))
+						l.Alignment = text.End
+						l.MaxLines = 1
+						return l.Layout(gtx)
+					}),
+				)
 			}),
 			layout.Rigid(a.layoutSourcesLink),
 		)

@@ -223,6 +223,8 @@ type Window struct {
 	ChartClosed bool `yaml:"chart_closed,omitempty"`
 	// ChartAxis is the horizontal axis of the chart: distance, trip_time or clock_time.
 	ChartAxis string `yaml:"chart_axis,omitempty"`
+	// EditHintClosed is whether the hint on the map while editing is collapsed to an info icon.
+	EditHintClosed bool `yaml:"edit_hint_closed,omitempty"`
 }
 
 // Valid reports whether the window has a usable size.

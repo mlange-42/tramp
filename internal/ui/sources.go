@@ -128,6 +128,7 @@ func (a *App) layoutSourcesLink(gtx layout.Context) layout.Dimensions {
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						l := st.SmallLabel("Data sources")
 						l.Color = col
+						l.MaxLines = 1
 						return l.Layout(gtx)
 					}),
 				)
