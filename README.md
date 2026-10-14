@@ -13,7 +13,7 @@ Written in [Go](https://go.dev), for Linux, Windows and macOS.
 [![GitHub](https://img.shields.io/badge/github-repo-blue?logo=github)](https://github.com/mlange-42/tramp)
 [![MIT license](https://img.shields.io/badge/MIT-brightgreen?label=license)](https://github.com/mlange-42/tramp/blob/main/LICENSE)
 
-> **Status:** feature-rich and in daily use by its author, but not yet released.
+> **Status:** Feature-rich and in daily use by its author, but still under development.
 > Expect rough edges, and settings files that may still change.
 
 ## Features
@@ -39,7 +39,7 @@ Coming next: FIT and KML/KMZ files.
 
 ### Precompiled binary
 
-Binaries for Windows, Linux and macOS will be available on the GitHub [releases page](https://github.com/mlange-42/tramp/releases). [TODO].
+Binaries for Windows, Linux and macOS are available on the GitHub [releases page](https://github.com/mlange-42/tramp/releases).
 
 ### With Go
 
