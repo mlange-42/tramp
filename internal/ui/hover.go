@@ -12,6 +12,7 @@ import (
 	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/mapview"
+	"github.com/mlange-42/tramp/internal/track"
 )
 
 // trackHover is a position on the selected item, under the pointer in the chart or near it on the map.
@@ -24,12 +25,19 @@ type trackHover struct {
 	// value is the value of the chart's metric at the position, NaN if there is none.
 	// terrain is the terrain elevation, NaN if not shown.
 	value, terrain float64
+	// preview is set for the new end of a route being drawn, at the pointer. Then x is the length
+	// of the route with it in meters, whatever the chart's axis, see [App.previewHover].
+	preview bool
 }
 
 // updateHover finds the hovered position on the selected item: from the pointer position in the chart,
 // or otherwise from the pointer on the map if it is close enough to the item.
 func (a *App) updateHover(gtx layout.Context) {
 	a.hover = trackHover{}
+	if h, ok := a.previewHover(gtx); ok {
+		a.hover = h
+		return
+	}
 	c := &a.chart
 	it := a.selected
 	if c.info == nil || it == nil || it != c.item {
@@ -47,6 +55,61 @@ func (a *App) updateHover(gtx layout.Context) {
 		}
 	}
 }
+
+// previewHover returns the hover info for the new end of the route being drawn, at the pointer or the waypoint
+// it snaps to: the length of the route with it, and the elevation there, or the slope to it from the current end,
+// if the chart shows these for the route.
+func (a *App) previewHover(gtx layout.Context) (trackHover, bool) {
+	e, f := &a.editor, a.editing
+	if f == nil || !e.drawing || e.drag.active || !a.mapView.HoverValid {
+		return trackHover{}, false
+	}
+	route := &f.data.Routes[e.drawRoute]
+	if len(route.Points) == 0 {
+		return trackHover{}, false
+	}
+	end := route.Points[len(route.Points)-1]
+	if e.drawStart {
+		end = route.Points[0]
+	}
+	pos := a.mapView.Hover
+	if wi, ok := a.hoverSnap(gtx); ok {
+		pos = geo.ToMercator(f.data.Waypoints[wi].Pos)
+	}
+	d := geo.Distance(end.Pos, geo.ToLonLat(pos))
+	h := trackHover{valid: true, preview: true, pos: pos, x: route.Length() + d, value: math.NaN(), terrain: math.NaN()}
+
+	c := &a.chart
+	it := f.routeItem(e.drawRoute)
+	if c.info == nil || it == nil || c.item != it {
+		return h, true
+	}
+	ele, state := a.hoverElevation()
+	if state != elevKnown {
+		return h, true
+	}
+	switch c.info.metric {
+	case track.ElevationMetric:
+		h.value = ele
+	case track.SlopeMetric:
+		// The profile of the route has the elevations at its ends.
+		if len(it.points) == 1 && len(it.points[0]) > 0 && d >= minSlopeDistance {
+			pts := it.points[0]
+			endEle := pts[len(pts)-1].Ele
+			if e.drawStart {
+				// Drawn backwards, the new segment runs from the pointer to the start.
+				endEle = pts[0].Ele
+				h.value = (endEle - ele) / d * 100
+			} else {
+				h.value = (ele - endEle) / d * 100
+			}
+		}
+	}
+	return h, true
+}
+
+// minSlopeDistance is the shortest new segment of a route being drawn that a slope is shown for, in meters.
+const minSlopeDistance = 10
 
 // hoverAt returns the hovered position at fraction t of segment j of line i of the given lines,
 // which belong to the shown item.
@@ -139,6 +202,9 @@ func (a *App) hoverParts() []hoverPart {
 	if !math.IsNaN(a.hover.terrain) {
 		parts = append(parts, hoverPart{iconTerrain, c.info.formatValue(a.hover.terrain)})
 	}
+	if a.hover.preview {
+		return append(parts, hoverPart{iconDistance, formatDistance(a.hover.x)})
+	}
 	return append(parts, hoverPart{chartAxes[c.xAxis].icon, c.formatX(a.hover.x)})
 }
 
@@ -184,7 +250,7 @@ func (a *App) layoutHoverChart(gtx layout.Context) {
 	c := &a.chart
 	h := a.hover
 	plot := c.plot
-	if !h.valid || h.x < c.from || h.x > c.to || plot.Dx() <= 0 {
+	if !h.valid || h.preview && c.xAxis.timed() || h.x < c.from || h.x > c.to || plot.Dx() <= 0 {
 		return
 	}
 	st := a.style
