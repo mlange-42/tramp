@@ -9,6 +9,11 @@ TRAMP keeps its configuration in YAML files in the user's config directory:
 Errors and crash reports are written to `tramp.log` in the same directory.
 The log of the previous run is kept as `tramp.old.log`.
 
+Each file starts with the TRAMP version that wrote it and a `version` key with the version of the file's layout.
+Leave the key as it is. Newer versions of TRAMP update older files automatically.
+An older TRAMP doesn't read files written by a newer one with a different layout, and doesn't overwrite them.
+Instead, it uses the default settings and notes this in the log.
+
 ## Settings
 
 TRAMP remembers the opened files, the selected map, overlays, map position and window size in `settings.yaml`.

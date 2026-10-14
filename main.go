@@ -24,6 +24,7 @@ const (
 func main() {
 	setupLog()
 	log.Printf("TRAMP %s", ui.Version())
+	settings.WrittenBy = "TRAMP " + ui.Version()
 
 	state, exists, err := settings.Load()
 	if err != nil {
