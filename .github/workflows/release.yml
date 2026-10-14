@@ -5,6 +5,9 @@ on:
     types: [ created ]
   pull_request:
 
+permissions:
+  contents: write
+
 env:
   # Headers required by Gio on Linux, see https://gioui.org/doc/install/linux
   GIO_DEPS: gcc pkg-config libwayland-dev libx11-dev libx11-xcb-dev libxkbcommon-x11-dev libgles2-mesa-dev libegl1-mesa-dev libffi-dev libxcursor-dev libvulkan-dev
