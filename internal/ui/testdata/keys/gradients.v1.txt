@@ -1,2 +1,2 @@
-gradients[].colors[]
-gradients[].name
+gradients[].colors[] string
+gradients[].name string

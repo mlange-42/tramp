@@ -1,40 +1,40 @@
-maps[].attribution
-maps[].attribution_short
-maps[].attribution_url
-maps[].cache
-maps[].capabilities
-maps[].connections
-maps[].description
-maps[].enabled
-maps[].format
-maps[].layers
-maps[].max_zoom
-maps[].meta_tiles
-maps[].name
-maps[].section
-maps[].styles
-maps[].type
-maps[].url
-maps[].version
-overlays[].attribution
-overlays[].attribution_short
-overlays[].attribution_url
-overlays[].cache
-overlays[].capabilities
-overlays[].connections
-overlays[].description
-overlays[].enabled
-overlays[].format
-overlays[].layers
-overlays[].max_zoom
-overlays[].meta_tiles
-overlays[].name
-overlays[].opacity
-overlays[].refresh
-overlays[].section
-overlays[].shade
-overlays[].styles
-overlays[].time_step
-overlays[].type
-overlays[].url
-overlays[].version
+maps[].attribution string
+maps[].attribution_short string
+maps[].attribution_url string
+maps[].cache string
+maps[].capabilities string
+maps[].connections int
+maps[].description string
+maps[].enabled bool
+maps[].format string
+maps[].layers string
+maps[].max_zoom int
+maps[].meta_tiles int
+maps[].name string
+maps[].section string
+maps[].styles string
+maps[].type string
+maps[].url string
+maps[].version string
+overlays[].attribution string
+overlays[].attribution_short string
+overlays[].attribution_url string
+overlays[].cache string
+overlays[].capabilities string
+overlays[].connections int
+overlays[].description string
+overlays[].enabled bool
+overlays[].format string
+overlays[].layers string
+overlays[].max_zoom int
+overlays[].meta_tiles int
+overlays[].name string
+overlays[].opacity float32
+overlays[].refresh time.Duration
+overlays[].section string
+overlays[].shade bool
+overlays[].styles string
+overlays[].time_step time.Duration
+overlays[].type string
+overlays[].url string
+overlays[].version string

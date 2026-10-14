@@ -535,9 +535,10 @@ func addKeys(t reflect.Type, known map[string]bool) {
 	}
 }
 
-// KeyPaths returns the sorted paths of all keys of v's YAML file, for detecting changes of the keys in tests.
+// KeyPaths returns the sorted paths of all keys of v's YAML file with the Go types of their values,
+// for detecting changes of the keys and their types in tests.
 // Nested keys are joined by dots, list entries are marked by "[]" and the keys of maps by "*",
-// like "style.gradients.*" or "maps[].name".
+// like "style.gradients.* string" or "maps[].max_zoom int".
 func KeyPaths(v any) []string {
 	var paths []string
 	addKeyPaths(reflect.TypeOf(v), "", &paths)
@@ -559,7 +560,7 @@ func addKeyPaths(t reflect.Type, prefix string, paths *[]string) {
 	case reflect.Struct:
 	default:
 		if prefix != "" {
-			*paths = append(*paths, prefix)
+			*paths = append(*paths, prefix+" "+t.String())
 		}
 		return
 	}

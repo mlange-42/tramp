@@ -16,7 +16,8 @@ import (
 
 var updateKeys = flag.Bool("update-keys", false, "write the missing key snapshots of TestConfigKeys")
 
-// TestConfigKeys fails if the keys of a configuration file change without a new version of the file.
+// TestConfigKeys fails if the keys of a configuration file or the types of their values change
+// without a new version of the file.
 // The keys of each version are kept in testdata/keys. After raising a version, run
 //
 //	go test ./internal/ui -run TestConfigKeys -update-keys
@@ -53,7 +54,7 @@ func TestConfigKeys(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		want := strings.Fields(string(data))
+		want := strings.Split(strings.TrimSpace(strings.ReplaceAll(string(data), "\r\n", "\n")), "\n")
 		if slices.Equal(keys, want) {
 			continue
 		}
@@ -68,8 +69,8 @@ func TestConfigKeys(t *testing.T) {
 				diff = append(diff, "-"+k)
 			}
 		}
-		t.Errorf("%s: keys changed in version %d: %s\n"+
+		t.Errorf("%s: keys or their types changed in version %d:\n%s\n"+
 			"Raise the version of the file and run the test with -update-keys, see settings.FormatVersion",
-			file.name, version, strings.Join(diff, " "))
+			file.name, version, strings.Join(diff, "\n"))
 	}
 }
