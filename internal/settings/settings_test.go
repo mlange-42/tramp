@@ -1,13 +1,16 @@
 package settings
 
 import (
+	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
 func TestSaveLoad(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "sub", fileName)
+	path := filepath.Join(t.TempDir(), "sub", FileName)
 
 	def, exists, err := load(path)
 	if err != nil || exists {
@@ -85,7 +88,7 @@ func TestReadWriteYAML(t *testing.T) {
 }
 
 func TestPaneSizeDefaults(t *testing.T) {
-	path := filepath.Join(t.TempDir(), fileName)
+	path := filepath.Join(t.TempDir(), FileName)
 	if err := save(path, &Settings{Window: &Window{Width: 800, Height: 600}}); err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +107,7 @@ func TestRoutePointDefaults(t *testing.T) {
 		{50, 50, 50},
 		{-1, -1, -1},
 	} {
-		path := filepath.Join(t.TempDir(), fileName)
+		path := filepath.Join(t.TempDir(), FileName)
 		if err := save(path, &Settings{Routing: Routing{Tolerance: tc.val, SlightAngle: tc.val}}); err != nil {
 			t.Fatal(err)
 		}
@@ -115,5 +118,98 @@ func TestRoutePointDefaults(t *testing.T) {
 		if s.Routing.Tolerance != tc.wantTol || s.Routing.SlightAngle != tc.wantAngle {
 			t.Errorf("value %v: expected %v and %v, got %+v", tc.val, tc.wantTol, tc.wantAngle, s.Routing)
 		}
+	}
+}
+
+type versionedFile struct {
+	Name string `yaml:"name"`
+}
+
+func (versionedFile) FormatVersion() int { return 3 }
+
+func TestFileVersion(t *testing.T) {
+	type file struct {
+		Name string `yaml:"name,omitempty"`
+	}
+	dir := t.TempDir()
+	WrittenBy = "TRAMP v1.2.3"
+	t.Cleanup(func() { WrittenBy = "" })
+
+	path := filepath.Join(dir, "file.yaml")
+	if err := writeYAML(path, &file{Name: "a"}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "# Written by TRAMP v1.2.3\nversion: 1\nname: a\n"; string(data) != want {
+		t.Errorf("got %q, want %q", data, want)
+	}
+	var got file
+	if _, err := readYAML(path, &got); err != nil || got.Name != "a" {
+		t.Errorf("read back %+v, err %v", got, err)
+	}
+
+	// An empty struct must still give valid YAML.
+	if err := writeYAML(path, &file{}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readYAML(path, &got); err != nil {
+		t.Errorf("empty file: %v", err)
+	}
+
+	for _, tc := range []struct {
+		content string
+		newer   bool
+	}{
+		{"name: b\n", false},
+		{"version: 1\nname: b\n", false},
+		{"version: 2\nname: b\n", true},
+	} {
+		if err := os.WriteFile(path, []byte(tc.content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		got := file{Name: "unchanged"}
+		exists, err := readYAML(path, &got)
+		if !exists {
+			t.Errorf("%q: file not found", tc.content)
+		}
+		if tc.newer {
+			if !errors.Is(err, ErrNewerVersion) || got.Name != "unchanged" {
+				t.Errorf("%q: expected ErrNewerVersion and no change, got %+v, err %v", tc.content, got, err)
+			}
+		} else if err != nil || got.Name != "b" {
+			t.Errorf("%q: got %+v, err %v", tc.content, got, err)
+		}
+	}
+
+	// A type with its own version.
+	if err := writeYAML(path, &versionedFile{Name: "c"}); err != nil {
+		t.Fatal(err)
+	}
+	if data, _ := os.ReadFile(path); !strings.Contains(string(data), "\nversion: 3\n") {
+		t.Errorf("own version not written: %q", data)
+	}
+	var v versionedFile
+	if _, err := readYAML(path, &v); err != nil || v.Name != "c" {
+		t.Errorf("own version: got %+v, err %v", v, err)
+	}
+	if _, err := readYAML(path, &got); !errors.Is(err, ErrNewerVersion) {
+		t.Errorf("version 3 read as version 1: %v", err)
+	}
+}
+
+func TestNewerSettingsNotOverwritten(t *testing.T) {
+	path := filepath.Join(t.TempDir(), FileName)
+	if err := os.WriteFile(path, []byte("version: 99\ntile_cache: 5\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s, exists, err := load(path)
+	if !exists || !errors.Is(err, ErrNewerVersion) {
+		t.Fatalf("exists %v, err %v", exists, err)
+	}
+	if s.TileCache != DefaultTileCache {
+		t.Errorf("expected defaults, got tile cache %d", s.TileCache)
 	}
 }

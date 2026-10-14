@@ -11,10 +11,31 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+const dirName = "tramp"
+
+// FileName is the name of the settings file in the settings directory.
+const FileName = "settings.yaml"
+
+// Log files in the settings directory: that of the current run, and that of the previous one.
 const (
-	dirName  = "tramp"
-	fileName = "settings.yaml"
+	LogFile    = "tramp.log"
+	OldLogFile = "tramp.old.log"
 )
+
+// FormatVersion is the version of the layout of the YAML files, written to their "version" key.
+// Increase it when the layout of a file changes in a way that older versions of TRAMP
+// would misread, and migrate older files when reading them.
+// Files without the key are version 1.
+//
+// A type can have its own version by implementing FormatVersion() int.
+const FormatVersion = 1
+
+// ErrNewerVersion is returned for files written by a newer version of TRAMP, in a layout this version doesn't know.
+// Such files must not be overwritten, as this would lose their content.
+var ErrNewerVersion = errors.New("file was written by a newer version of TRAMP")
+
+// WrittenBy is written as a comment to the top of all files, like "TRAMP v0.1.0". Not written if empty.
+var WrittenBy string
 
 // Defaults for [Settings.TileCache] and [Settings.ElevationTileCache], in MB.
 const (
@@ -268,7 +289,7 @@ func CacheDir() (string, error) {
 
 // Path returns the path of the settings file.
 func Path() (string, error) {
-	return FilePath(fileName)
+	return FilePath(FileName)
 }
 
 // FilePath returns the path of the file with the given name in the settings directory.
@@ -383,16 +404,43 @@ func readYAML(path string, v any) (exists bool, err error) {
 	if err != nil {
 		return false, err
 	}
+	var header struct {
+		Version int `yaml:"version"`
+	}
+	if err := yaml.Unmarshal(data, &header); err != nil {
+		return true, fmt.Errorf("parsing %s: %w", path, err)
+	}
+	if want := formatVersion(v); header.Version > want {
+		return true, fmt.Errorf("reading %s: %w (version %d, known up to %d)", path, ErrNewerVersion, header.Version, want)
+	}
 	if err := yaml.Unmarshal(data, v); err != nil {
 		return true, fmt.Errorf("parsing %s: %w", path, err)
 	}
 	return true, nil
 }
 
+// formatVersion returns the version of the layout of v's YAML file, see [FormatVersion].
+func formatVersion(v any) int {
+	if fv, ok := v.(interface{ FormatVersion() int }); ok {
+		return fv.FormatVersion()
+	}
+	return FormatVersion
+}
+
+// writeYAML writes v, which must be a struct or map, to path.
+// The file starts with a comment with [WrittenBy] and the "version" key.
 func writeYAML(path string, v any) error {
-	data, err := yaml.Marshal(v)
+	body, err := yaml.Marshal(v)
 	if err != nil {
 		return err
+	}
+	var data []byte
+	if WrittenBy != "" {
+		data = fmt.Appendf(data, "# Written by %s\n", WrittenBy)
+	}
+	data = fmt.Appendf(data, "version: %d\n", formatVersion(v))
+	if string(body) != "{}\n" {
+		data = append(data, body...)
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err

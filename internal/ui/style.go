@@ -82,6 +82,8 @@ type Style struct {
 	SideBg color.NRGBA
 	// HintFg is the color of hint text, like in an empty side panel.
 	HintFg color.NRGBA
+	// WarningFg is the color of the warning icon of notices.
+	WarningFg color.NRGBA
 	// DragBg is the background of a side panel entry while it is dragged.
 	DragBg color.NRGBA
 	// SelectedBg is the background of the side panel entry shown in the chart.
@@ -204,6 +206,7 @@ func DefaultStyle() *Style {
 		StatusBg:       neutral(0xf4),
 		SideBg:         neutral(0xfa),
 		HintFg:         neutral(0x80),
+		WarningFg:      color.NRGBA{R: 0xe0, G: 0x90, B: 0x00, A: 0xff},
 		DragBg:         tint(0.12),
 		SelectedBg:     tint(0.25),
 		EditActive:     color.NRGBA{R: 0xd0, G: 0x40, B: 0x20, A: 0xff},

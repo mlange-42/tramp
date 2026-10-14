@@ -2,6 +2,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -15,19 +17,18 @@ import (
 	"github.com/mlange-42/tramp/internal/ui"
 )
 
-// Log files in the settings directory.
-const (
-	logFile    = "tramp.log"
-	oldLogFile = "tramp.old.log"
-)
+// notices are the problems with the configuration files, shown in the app.
+var notices []ui.Notice
 
 func main() {
 	setupLog()
 	log.Printf("TRAMP %s", ui.Version())
+	settings.WrittenBy = "TRAMP " + ui.Version()
 
 	state, exists, err := settings.Load()
 	if err != nil {
 		log.Printf("using default settings: %v", err)
+		addNotice(settings.FileName, "the default settings", err)
 	}
 
 	wmsConfig := loadWMS()
@@ -45,7 +46,8 @@ func main() {
 			SavePresets: savePresets,
 			State:       state,
 			// Track files to open, e.g. from "Open with" or dropping files on the executable.
-			Files: os.Args[1:],
+			Files:   os.Args[1:],
+			Notices: notices,
 		})
 		if !exists && err == nil {
 			saveSettings(a.State())
@@ -69,6 +71,7 @@ func loadWMS() ui.WMSConfig {
 	exists, err := settings.LoadFile(ui.WMSFile, &cfg)
 	if err != nil {
 		log.Printf("using default maps: %v", err)
+		addNotice(ui.WMSFile, "the built-in maps", err)
 		return ui.DefaultWMS()
 	}
 	if !exists {
@@ -93,6 +96,7 @@ func loadGradients() []ui.Gradient {
 	exists, err := settings.LoadFile(ui.GradientsFile, &cfg)
 	if err != nil {
 		log.Printf("using default gradients: %v", err)
+		addNotice(ui.GradientsFile, "the built-in gradients", err)
 		return nil
 	}
 	if !exists {
@@ -119,6 +123,7 @@ func loadPresets() ([]ui.Preset, func([]ui.Preset) error) {
 	exists, err := settings.LoadFile(ui.PresetsFile, &cfg)
 	if err != nil {
 		log.Printf("using default presets: %v", err)
+		addNotice(ui.PresetsFile, "the built-in presets", err)
 		cfg = ui.DefaultPresets()
 		return cfg.Presets, nil
 	}
@@ -138,9 +143,9 @@ func loadPresets() ([]ui.Preset, func([]ui.Preset) error) {
 	return presets, save
 }
 
-// setupLog writes the log and crash reports to [logFile] in the settings directory, in addition to stderr.
+// setupLog writes the log and crash reports to [settings.LogFile] in the settings directory, in addition to stderr.
 // Windows release builds have no console, so stderr goes nowhere.
-// The log of the previous run is kept as [oldLogFile].
+// The log of the previous run is kept as [settings.OldLogFile].
 func setupLog() {
 	dir, err := settings.Dir()
 	if err == nil {
@@ -150,9 +155,9 @@ func setupLog() {
 		log.Printf("creating log file: %v", err)
 		return
 	}
-	path := filepath.Join(dir, logFile)
+	path := filepath.Join(dir, settings.LogFile)
 	// Fails if another instance has the file open. The log is then appended.
-	_ = os.Rename(path, filepath.Join(dir, oldLogFile))
+	_ = os.Rename(path, filepath.Join(dir, settings.OldLogFile))
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		log.Printf("creating log file: %v", err)
@@ -164,6 +169,17 @@ func setupLog() {
 	if err := debug.SetCrashOutput(f, debug.CrashOptions{}); err != nil {
 		log.Printf("setting crash output: %v", err)
 	}
+}
+
+// addNotice adds the notice for a configuration file that could not be read, saying what is used instead.
+func addNotice(file, fallback string, err error) {
+	if errors.Is(err, settings.ErrNewerVersion) {
+		notices = append(notices, ui.Notice{Text: fmt.Sprintf(
+			"%s was written by a newer version of TRAMP. Using %s, and leaving the file unchanged.", file, fallback)})
+		return
+	}
+	notices = append(notices, ui.Notice{Text: fmt.Sprintf(
+		"Could not read %s. Using %s, and leaving the file unchanged.", file, fallback), LogLink: true})
 }
 
 func saveSettings(s settings.Settings) {
