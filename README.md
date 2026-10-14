@@ -4,27 +4,36 @@
 </a>
 </div>
 
-A free, open-source tool to visualize GPS tracks and plan routes on WMS maps. Written in [Go](https://go.dev), for Linux, Windows and MacOS.
+TRAMP is a fast, free desktop app for exploring your GPS tracks and planning the next tour,
+on open maps from all over the web. No account, no cloud, no ads.
+Written in [Go](https://go.dev), for Linux, Windows and macOS.
 
 [![Tests](https://github.com/mlange-42/tramp/actions/workflows/tests.yml/badge.svg)](https://github.com/mlange-42/tramp/actions/workflows/tests.yml)
 [![codecov](https://codecov.io/gh/mlange-42/tramp/graph/badge.svg?token=SIVgPByIsM)](https://codecov.io/gh/mlange-42/tramp)
 [![GitHub](https://img.shields.io/badge/github-repo-blue?logo=github)](https://github.com/mlange-42/tramp)
 [![MIT license](https://img.shields.io/badge/MIT-brightgreen?label=license)](https://github.com/mlange-42/tramp/blob/main/LICENSE)
 
-> **Status:** early development. Viewing GPX tracks and editing routes and waypoints work, but there is no release yet and things may change.
+> **Status:** feature-rich and in daily use by its author, but not yet released.
+> Expect rough edges, and settings files that may still change.
 
 ## Features
 
-- [x] GPX tracks on WMS and XYZ maps
-- [x] Coloring by speed, elevation or slope
-- [x] Profile chart, linked to the map
-- [x] Route and waypoint editing
-- [x] Elevation profile for route planning
-- [x] Live GPS position from USB and Bluetooth receivers
-- [x] Search for places and coordinates, routing
-- [x] Offline tile cache
-- [x] Weather overlays
-- [ ] FIT and KML/KMZ files
+- **Any map you like:** OpenStreetMap, topo and satellite maps with overlays for hillshading, hiking or cycling routes.
+- **Explore your GPS tracks:** Color by speed, elevation or slope, with an interactive profile chart linked to the map.
+- **Plan and edit:** Draw routes and waypoints by hand, or let routing do it for you.
+- **Search and routing:** Find places and get routes on foot, by bike or car, with alternatives and elevation profiles.
+- **Ready for your device:** Save routes as GPX with turn points, or as full tracks with elevations.
+- **Weather on the map:** Rain radar, warnings and forecasts from DWD, with a time slider.
+- **Live position:** From USB, Bluetooth or network GPS receivers.
+- **Works offline:** Viewed map and elevation tiles are cached on disk.
+
+Coming next: FIT and KML/KMZ files.
+
+<div align="center" width="100%">
+<img alt="TRAMP screenshot" src="docs/screenshot.webp">
+<br/>
+<i>Planning a walk to Königstein Fortress in Saxon Switzerland, colored by elevation, with the linked profile chart.</i>
+</div>
 
 ## Installation
 
