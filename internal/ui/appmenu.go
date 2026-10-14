@@ -21,10 +21,14 @@ var menuTitles = []string{"File", "Map", "Help"}
 // as labels and enabled states change.
 func (a *App) menuItems() [][]menuItem {
 	cacheOff := a.diskCache.tiles == nil && a.diskCache.elevation == nil
+	r := a.selectedFileRoute()
+	routeTrackable := r != nil && len(r.Points) >= 2
 	return [][]menuItem{
 		{
 			{label: "New file", shortcut: "Ctrl+N", icon: iconNew, action: a.newFile},
 			{label: "Open files…", shortcut: "Ctrl+O", icon: iconOpen, action: a.showOpenDialog},
+			menuSeparator,
+			{label: "Save route as track…", icon: iconSaveTrack, disabled: !routeTrackable, action: a.saveRouteTrack},
 			menuSeparator,
 			{label: "Open settings folder", icon: iconSettings, action: openSettingsFolder},
 			menuSeparator,

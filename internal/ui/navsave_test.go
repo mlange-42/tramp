@@ -187,3 +187,52 @@ func TestAddRouteElevations(t *testing.T) {
 		t.Error("expected no elevation after a failed download")
 	}
 }
+
+func TestRouteTrackFile(t *testing.T) {
+	r := track.Route{Name: "Loop", Desc: "Nice", Points: []track.Waypoint{
+		{Pos: geo.LonLat{Lon: 12, Lat: 51}, Ele: 100},
+		{Pos: geo.LonLat{Lon: 12, Lat: 51.001}},
+		{Pos: geo.LonLat{Lon: 12.001, Lat: 51.001}},
+	}}
+	f := routeTrackFile(&r)
+	if len(f.Tracks) != 1 || f.Tracks[0].Name != "Loop" || f.Tracks[0].Desc != "Nice" || len(f.Tracks[0].Segments) != 1 {
+		t.Fatalf("expected one named track with one segment, got %+v", f.Tracks)
+	}
+	pts := f.Tracks[0].Segments[0].Points
+	if pts[0].Pos != r.Points[0].Pos || pts[len(pts)-1].Pos != r.Points[2].Pos {
+		t.Errorf("expected the track from the start to the end of the route")
+	}
+	for i := 1; i < len(pts); i++ {
+		if d := geo.Distance(pts[i-1].Pos, pts[i].Pos); d > profileSpacing+1e-6 {
+			t.Fatalf("points %d and %d are %v m apart", i-1, i, d)
+		}
+	}
+	// The track's length is the route's length.
+	l := 0.0
+	for i := 1; i < len(pts); i++ {
+		l += geo.Distance(pts[i-1].Pos, pts[i].Pos)
+	}
+	if math.Abs(l-r.Length()) > 0.01 {
+		t.Errorf("expected length %v, got %v", r.Length(), l)
+	}
+	if f := routeTrackFile(&track.Route{Points: r.Points}); f.Tracks[0].Name != "Route" {
+		t.Errorf("expected a default name, got %q", f.Tracks[0].Name)
+	}
+}
+
+func TestSelectedFileRoute(t *testing.T) {
+	a, f := editApp(t, testPlanGPX)
+	a.selected = nil
+	if a.selectedFileRoute() != nil {
+		t.Error("expected no route without selection")
+	}
+	a.selected = f.routeItem(0)
+	if r := a.selectedFileRoute(); r != &f.data.Routes[0] {
+		t.Errorf("expected the selected route, got %v", r)
+	}
+	// The route found by routing is not a route of a file.
+	a.selected = &fileItem{kind: routeItem}
+	if a.selectedFileRoute() != nil {
+		t.Error("expected no route for an item outside the files")
+	}
+}

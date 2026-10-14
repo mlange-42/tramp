@@ -144,8 +144,16 @@ func TestMenuBar(t *testing.T) {
 	}
 	u.click(image.Pt(500, 400))
 
+	// Without a selected route, it can't be saved as track.
 	u.click(u.header(0))
 	u.clickItem(0, 3)
+	if !m[0].open {
+		t.Error("disabled item was chosen")
+	}
+	u.click(image.Pt(500, 400))
+
+	u.click(u.header(0))
+	u.clickItem(0, 5)
 	dir, err := settings.Dir()
 	if err != nil {
 		t.Fatal(err)
@@ -155,7 +163,7 @@ func TestMenuBar(t *testing.T) {
 	}
 	// Quit does nothing without window.
 	u.click(u.header(0))
-	u.clickItem(0, 5)
+	u.clickItem(0, 7)
 }
 
 func TestMenuCache(t *testing.T) {

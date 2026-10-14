@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"slices"
 	"strings"
 
 	"github.com/mlange-42/tramp/internal/elevation"
@@ -188,13 +189,61 @@ func (a *App) navTrackFile() *track.File {
 	}
 }
 
-// saveNavTrack saves the route as a GPX track with all its points, in a new file, which is opened.
-// Files with tracks are not edited, so it never goes into the edited file.
+// saveNavTrack saves the route as a GPX track with all its points, in a new file, see [App.saveTrackFile].
 func (a *App) saveNavTrack() {
 	if !a.nav.navSavable() {
 		return
 	}
-	data := a.navTrackFile()
+	a.saveTrackFile(a.navTrackFile())
+}
+
+// routeTrackFile returns a GPX file with a track along the lines of a route, with points at most
+// [profileSpacing] apart like its profile, so that the track gets elevations along the way.
+func routeTrackFile(r *track.Route) *track.File {
+	pos := make([]geo.LonLat, len(r.Points))
+	for i, p := range r.Points {
+		pos[i] = p.Pos
+	}
+	dense := track.Densify(pos, max(profileSpacing, r.Length()/maxProfilePoints))
+	seg := track.Segment{Points: make([]track.Point, len(dense))}
+	for i, p := range dense {
+		seg.Points[i] = track.Point{Pos: p, Ele: math.NaN()}
+	}
+	name := r.Name
+	if name == "" {
+		name = "Route"
+	}
+	return &track.File{
+		Format:  track.FormatGPX,
+		Creator: track.Creator,
+		Tracks:  []track.Track{{Name: name, Desc: r.Desc, Segments: []track.Segment{seg}}},
+	}
+}
+
+// selectedFileRoute returns the route of an open file selected for the chart, or nil.
+func (a *App) selectedFileRoute() *track.Route {
+	it := a.selected
+	if it == nil || it.kind != routeItem {
+		return nil
+	}
+	for _, f := range a.files {
+		if slices.Contains(f.items, it) && f.data != nil && it.nth < len(f.data.Routes) {
+			return &f.data.Routes[it.nth]
+		}
+	}
+	return nil
+}
+
+// saveRouteTrack saves the selected route of an open file as a track in a new file.
+func (a *App) saveRouteTrack() {
+	if r := a.selectedFileRoute(); r != nil && len(r.Points) >= 2 {
+		a.saveTrackFile(routeTrackFile(r))
+	}
+}
+
+// saveTrackFile saves a file with a track, after adding the terrain elevation to its points, as a new file,
+// which is opened with the track selected. Files with tracks are not edited, so it never goes into the edited file.
+func (a *App) saveTrackFile(data *track.File) {
 	svc := a.elev.service
 	a.createFileFrom("Save track", fileName(data.Tracks[0].Name)+".gpx", func() (*track.File, error) {
 		addTrackElevations(svc, &data.Tracks[0])
