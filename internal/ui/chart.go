@@ -124,6 +124,12 @@ type chartKey struct {
 func (a *App) updateChart() {
 	c := &a.chart
 	c.version++
+	// If the whole item was shown, it stays so when it changes, like when points are added while editing.
+	// Without a chart, the range is kept, unless it was empty for an item too short.
+	whole := !c.zoomed()
+	if c.info == nil {
+		whole = c.to <= c.from
+	}
 	c.chartData = chartData{}
 	it := a.selected
 	if it == nil {
@@ -175,7 +181,7 @@ func (a *App) updateChart() {
 		c.info = nil
 		c.hint = "Too short for a profile"
 	}
-	if it != c.item || c.xAxis.timed() != c.rangeTimed {
+	if it != c.item || c.xAxis.timed() != c.rangeTimed || whole {
 		c.item, c.rangeTimed = it, c.xAxis.timed()
 		c.from, c.to = 0, c.total
 	}
