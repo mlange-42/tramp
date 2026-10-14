@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime/debug"
 	"slices"
+	"strings"
 
 	"gioui.org/app"
 	_ "github.com/mlange-42/tramp/assets" // Windows icon
@@ -176,6 +177,14 @@ func addNotice(file, fallback string, err error) {
 	if errors.Is(err, settings.ErrNewerVersion) {
 		notices = append(notices, ui.Notice{Text: fmt.Sprintf(
 			"%s was written by a newer version of TRAMP. Using %s, and leaving the file unchanged.", file, fallback)})
+		return
+	}
+	var unknown *settings.UnknownKeysError
+	if errors.As(err, &unknown) {
+		// Like "Unknown key tile_cahce (line 3) in settings.yaml".
+		msg := unknown.Error()
+		notices = append(notices, ui.Notice{Text: fmt.Sprintf(
+			"%s%s in %s. Using %s, and leaving the file unchanged.", strings.ToUpper(msg[:1]), msg[1:], file, fallback)})
 		return
 	}
 	notices = append(notices, ui.Notice{Text: fmt.Sprintf(

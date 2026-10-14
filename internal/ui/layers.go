@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/mlange-42/tramp/internal/settings"
 	"github.com/mlange-42/tramp/internal/wms"
 	"go.yaml.in/yaml/v3"
 )
@@ -106,6 +107,9 @@ func (m Map) MarshalYAML() (any, error) {
 // UnmarshalYAML reads a map or section heading, and checks that it is not both or neither.
 func (m *Map) UnmarshalYAML(value *yaml.Node) error {
 	type plain Map
+	if err := settings.CheckKeys(value, (*plain)(m)); err != nil {
+		return err
+	}
 	if err := value.Decode((*plain)(m)); err != nil {
 		return err
 	}
@@ -124,6 +128,9 @@ func (o Overlay) MarshalYAML() (any, error) {
 // UnmarshalYAML reads an overlay or section heading, and checks that it is not both or neither.
 func (o *Overlay) UnmarshalYAML(value *yaml.Node) error {
 	type plain Overlay
+	if err := settings.CheckKeys(value, (*plain)(o)); err != nil {
+		return err
+	}
 	if err := value.Decode((*plain)(o)); err != nil {
 		return err
 	}

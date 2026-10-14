@@ -2,11 +2,16 @@
 package settings
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
+	"regexp"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -23,9 +28,12 @@ const (
 )
 
 // FormatVersion is the version of the layout of the YAML files, written to their "version" key.
-// Increase it when the layout of a file changes in a way that older versions of TRAMP
-// would misread, and migrate older files when reading them.
 // Files without the key are version 1.
+//
+// Increase it with every change of the keys of a file: when keys are added, as older versions of TRAMP
+// reject files with unknown keys, and when keys are renamed, moved or change their meaning,
+// migrating older files when reading them.
+// An older TRAMP then reports a file of a newer version instead of unknown keys.
 //
 // A type can have its own version by implementing FormatVersion() int.
 const FormatVersion = 1
@@ -33,6 +41,22 @@ const FormatVersion = 1
 // ErrNewerVersion is returned for files written by a newer version of TRAMP, in a layout this version doesn't know.
 // Such files must not be overwritten, as this would lose their content.
 var ErrNewerVersion = errors.New("file was written by a newer version of TRAMP")
+
+// UnknownKeysError is returned for files with keys that TRAMP doesn't know, like typos.
+type UnknownKeysError struct {
+	// Keys are the unknown keys, with their line numbers, like "tile_cahce (line 3)".
+	Keys []string
+}
+
+func (e *UnknownKeysError) Error() string {
+	if len(e.Keys) == 1 {
+		return "unknown key " + e.Keys[0]
+	}
+	return "unknown keys " + strings.Join(e.Keys, ", ")
+}
+
+// unknownField matches the errors of the YAML decoder for unknown keys, like "line 3: field x not found in type y".
+var unknownField = regexp.MustCompile(`^line (\d+): field (.+) not found in type`)
 
 // WrittenBy is written as a comment to the top of all files, like "TRAMP v0.1.0". Not written if empty.
 var WrittenBy string
@@ -413,10 +437,95 @@ func readYAML(path string, v any) (exists bool, err error) {
 	if want := formatVersion(v); header.Version > want {
 		return true, fmt.Errorf("reading %s: %w (version %d, known up to %d)", path, ErrNewerVersion, header.Version, want)
 	}
-	if err := yaml.Unmarshal(data, v); err != nil {
+	if err := decodeStrict(data, v); err != nil {
 		return true, fmt.Errorf("parsing %s: %w", path, err)
 	}
 	return true, nil
+}
+
+// decodeStrict decodes YAML data into v, a pointer, rejecting unknown keys with an [UnknownKeysError].
+// The "version" key is allowed in addition to those of v.
+func decodeStrict(data []byte, v any) error {
+	rv := reflect.ValueOf(v).Elem()
+	if rv.Kind() != reflect.Struct {
+		return yaml.Unmarshal(data, v)
+	}
+	// A struct with the version and v's fields inline.
+	wt := reflect.StructOf([]reflect.StructField{
+		{Name: "Version", Type: reflect.TypeFor[int](), Tag: `yaml:"version"`},
+		{Name: "Value", Type: rv.Type(), Tag: `yaml:",inline"`},
+	})
+	w := reflect.New(wt).Elem()
+	w.Field(1).Set(rv)
+	dec := yaml.NewDecoder(bytes.NewReader(data))
+	dec.KnownFields(true)
+	err := dec.Decode(w.Addr().Interface())
+	if errors.Is(err, io.EOF) {
+		// An empty file.
+		return nil
+	}
+	var te *yaml.TypeError
+	if errors.As(err, &te) {
+		var unknown UnknownKeysError
+		for _, msg := range te.Errors {
+			m := unknownField.FindStringSubmatch(msg)
+			if m == nil {
+				// Other errors, like a text for a number, are reported as they are.
+				return err
+			}
+			unknown.Keys = append(unknown.Keys, fmt.Sprintf("%s (line %s)", m[2], m[1]))
+		}
+		return &unknown
+	}
+	if err != nil {
+		return err
+	}
+	rv.Set(w.Field(1))
+	return nil
+}
+
+// CheckKeys reports the keys of a YAML mapping that are not fields of v, a struct or a pointer to one,
+// as a [yaml.TypeError] like those of the decoder for unknown keys, so that they are reported as [UnknownKeysError].
+// Custom UnmarshalYAML methods call it, as decoding a node ignores unknown keys.
+func CheckKeys(value *yaml.Node, v any) error {
+	if value.Kind != yaml.MappingNode {
+		return nil
+	}
+	t := reflect.TypeOf(v)
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	known := map[string]bool{}
+	addKeys(t, known)
+	var te yaml.TypeError
+	for i := 0; i+1 < len(value.Content); i += 2 {
+		if k := value.Content[i]; !known[k.Value] {
+			te.Errors = append(te.Errors, fmt.Sprintf("line %d: field %s not found in type %s", k.Line, k.Value, t))
+		}
+	}
+	if len(te.Errors) > 0 {
+		return &te
+	}
+	return nil
+}
+
+// addKeys adds the YAML keys of the fields of struct type t to known, including those of inline fields.
+func addKeys(t reflect.Type, known map[string]bool) {
+	for f := range t.Fields() {
+		if !f.IsExported() {
+			continue
+		}
+		name, opts, _ := strings.Cut(f.Tag.Get("yaml"), ",")
+		switch {
+		case name == "-":
+		case strings.Contains(opts, "inline"):
+			addKeys(f.Type, known)
+		case name == "":
+			known[strings.ToLower(f.Name)] = true
+		default:
+			known[name] = true
+		}
+	}
 }
 
 // formatVersion returns the version of the layout of v's YAML file, see [FormatVersion].
