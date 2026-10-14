@@ -304,22 +304,50 @@ func (a *App) editHint() string {
 
 // layoutEditHint draws the hint for the edit tool floating at the bottom center of the map, while editing.
 // It is at most half as wide as the map, so that it stays clear of the legend and the GPS button where possible,
-// and wraps if needed.
+// and wraps if needed. A button collapses it to an info icon, which shows the hint as its tooltip.
 func (a *App) layoutEditHint(gtx layout.Context) {
 	if a.editing == nil {
 		return
 	}
-	st := a.style
+	st, btn := a.style, &a.editor.hintBtn
+	if btn.Clicked(gtx) {
+		a.win.EditHintClosed = !a.win.EditHintClosed
+	}
+	hint := a.editHint()
 	layout.S.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min = image.Point{}
 		gtx.Constraints.Max.X /= 2
 		return layout.UniformInset(st.Spacing*2).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+			btn.tip.above = true
 			macro := op.Record(gtx.Ops)
-			dims := layout.UniformInset(st.Spacing).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				l := st.SmallLabel(a.editHint())
-				l.Alignment = text.Middle
-				return l.Layout(gtx)
-			})
+			var dims layout.Dimensions
+			if a.win.EditHintClosed {
+				dims = btn.LayoutFlat(gtx, st, iconInfo, st.Theme.Fg, hint)
+			} else {
+				dims = layout.Inset{Left: st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					// The button is laid out first, so that the text wraps in the space left by it.
+					bm := op.Record(gtx.Ops)
+					bd := btn.LayoutFlat(gtx, st, iconMinimize, st.HintFg, "Hide the hints, leaving an info icon")
+					bcall := bm.Stop()
+					tgtx := gtx
+					tgtx.Constraints.Max.X = max(0, gtx.Constraints.Max.X-bd.Size.X)
+					tm := op.Record(gtx.Ops)
+					td := layout.UniformInset(st.Spacing/2).Layout(tgtx, func(gtx layout.Context) layout.Dimensions {
+						l := st.SmallLabel(hint)
+						l.Alignment = text.Middle
+						return l.Layout(gtx)
+					})
+					tcall := tm.Stop()
+					h := max(td.Size.Y, bd.Size.Y)
+					stack := op.Offset(image.Pt(0, (h-td.Size.Y)/2)).Push(gtx.Ops)
+					tcall.Add(gtx.Ops)
+					stack.Pop()
+					stack = op.Offset(image.Pt(td.Size.X, (h-bd.Size.Y)/2)).Push(gtx.Ops)
+					bcall.Add(gtx.Ops)
+					stack.Pop()
+					return layout.Dimensions{Size: image.Pt(td.Size.X+bd.Size.X, h)}
+				})
+			}
 			call := macro.Stop()
 			rr := gtx.Dp(st.CornerRadius)
 			paint.FillShape(gtx.Ops, st.LegendBg, clip.UniformRRect(image.Rectangle{Max: dims.Size}, rr).Op(gtx.Ops))

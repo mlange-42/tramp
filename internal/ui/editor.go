@@ -70,6 +70,8 @@ type editor struct {
 	toolBtns [numTools]iconButton
 	// undoBtn and redoBtn undo and redo changes.
 	undoBtn, redoBtn iconButton
+	// hintBtn collapses the hint on the map to an info icon, and expands it again.
+	hintBtn iconButton
 
 	// sel is the selected vertex, if hasSel.
 	sel    vertex
