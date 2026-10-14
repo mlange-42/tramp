@@ -70,6 +70,8 @@ type Style struct {
 	PanelBorder color.NRGBA
 	// DividerColor is the color of the dividers between side panel, map and chart.
 	DividerColor color.NRGBA
+	// ToolbarBg is the background of the toolbar, SeparatorColor that of the lines between its groups.
+	ToolbarBg, SeparatorColor color.NRGBA
 	// StatusBg is the background of the status bar.
 	StatusBg color.NRGBA
 	// SideBg is the background of the side panel.
@@ -185,20 +187,22 @@ func DefaultStyle() *Style {
 		DividerGrip:  7,
 		MinPaneSize:  120,
 
-		PanelBg:      color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
-		PanelBorder:  neutral(0xa0),
-		DividerColor: neutral(0xd8),
-		StatusBg:     neutral(0xf4),
-		SideBg:       neutral(0xfa),
-		HintFg:       neutral(0x80),
-		DragBg:       tint(0.12),
-		SelectedBg:   tint(0.25),
-		EditActive:   color.NRGBA{R: 0xd0, G: 0x40, B: 0x20, A: 0xff},
-		MutedTrack:   color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xc0},
-		MutedCasing:  color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
-		ChartGrid:    color.NRGBA{A: 0x20},
-		ChartLine:    color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xd0},
-		ChartTerrain: color.NRGBA{R: 0xd0, G: 0x50, B: 0x10, A: 0xe0},
+		PanelBg:        color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
+		PanelBorder:    neutral(0xa0),
+		DividerColor:   neutral(0xd8),
+		ToolbarBg:      neutral(0xf4),
+		SeparatorColor: neutral(0xc8),
+		StatusBg:       neutral(0xf4),
+		SideBg:         neutral(0xfa),
+		HintFg:         neutral(0x80),
+		DragBg:         tint(0.12),
+		SelectedBg:     tint(0.25),
+		EditActive:     color.NRGBA{R: 0xd0, G: 0x40, B: 0x20, A: 0xff},
+		MutedTrack:     color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xc0},
+		MutedCasing:    color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
+		ChartGrid:      color.NRGBA{A: 0x20},
+		ChartLine:      color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xd0},
+		ChartTerrain:   color.NRGBA{R: 0xd0, G: 0x50, B: 0x10, A: 0xe0},
 
 		ChartLineWidth:   1.5,
 		ChartTickSpacing: 32,
@@ -236,8 +240,8 @@ func DefaultStyle() *Style {
 		EditHandleRing: color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xff},
 		EditMidFill:    color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xa0},
 		EditBand:       color.NRGBA{R: 0xd0, G: 0x40, B: 0x20, A: 0xc0},
-		ToolIconSize:   18,
-		ToolIconPad:    3,
+		ToolIconSize:   20,
+		ToolIconPad:    4,
 		EditHandleSize: 9,
 		EditMidSize:    7,
 	}
