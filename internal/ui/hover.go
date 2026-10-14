@@ -3,8 +3,10 @@ package ui
 import (
 	"image"
 	"math"
+	"slices"
 	"sort"
 
+	"gioui.org/f32"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -300,4 +302,46 @@ func (a *App) drawHoverDot(gtx layout.Context, p image.Point) {
 	inner := image.Rectangle{Min: p.Sub(image.Pt(r, r)), Max: p.Add(image.Pt(r, r))}
 	paint.FillShape(gtx.Ops, st.HoverRing, clip.Ellipse(outer).Op(gtx.Ops))
 	paint.FillShape(gtx.Ops, st.HoverColor, clip.Ellipse(inner).Op(gtx.Ops))
+}
+
+// layoutWaypointHover draws the name of the waypoint or route point marker under the pointer on the map,
+// for the shown files except the edited one, whose names are always shown, see [App.layoutEditMap].
+func (a *App) layoutWaypointHover(gtx layout.Context) {
+	if !a.mapView.HoverValid {
+		return
+	}
+	view := &a.mapView.View
+	hx, hy := view.ToScreen(a.mapView.Hover)
+	hover := f32.Pt(float32(hx), float32(hy))
+	hit := float32(gtx.Dp(a.style.HoverRadius))
+	var (
+		best   = float32(math.Inf(1))
+		name   string
+		at     f32.Point
+		radius float32
+	)
+	for _, it := range a.shownItems() {
+		if a.editing != nil && slices.Contains(a.editing.items, it) {
+			continue
+		}
+		for i, d := range it.dots {
+			if i >= len(it.dotNames) || it.dotNames[i] == "" {
+				continue
+			}
+			size := a.waypointSize
+			if d.Icon != nil {
+				size = a.symbolSize
+			}
+			r := float32(gtx.Dp(size)) / 2
+			x, y := view.ToScreen(d.Pos)
+			p := f32.Pt(float32(x), float32(y))
+			if d2 := dist2(p, hover); d2 <= max(r, hit)*max(r, hit) && d2 < best {
+				best, name, at, radius = d2, it.dotNames[i], p, r
+			}
+		}
+	}
+	if name == "" {
+		return
+	}
+	a.drawPointLabel(gtx, at, radius, name, func(f32.Point) bool { return true })
 }

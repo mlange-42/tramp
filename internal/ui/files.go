@@ -93,9 +93,11 @@ type fileItem struct {
 	terrainPts  [][]track.Point
 	terrain     [][]float64
 	terrainOnly bool
-	dots        []mapview.Dot
-	bounds      geo.Rect
-	color       color.NRGBA
+	// dots are the waypoints, or the route points with a symbol, drawn on the map, and dotNames their names.
+	dots     []mapview.Dot
+	dotNames []string
+	bounds   geo.Rect
+	color    color.NRGBA
 	// index is the position of the item in the file, independent of the panel order.
 	index int
 	// nth is the position of the item among the items of its kind in the file.
@@ -149,6 +151,7 @@ func buildItems(f *track.File) []*fileItem {
 			// Route points are drawn only with a symbol icon, not as plain dots.
 			if d := waypointDot(p); d.Icon != nil {
 				it.dots = append(it.dots, d)
+				it.dotNames = append(it.dotNames, p.Name)
 			}
 		}
 		it.lines = append(it.lines, mapview.NewPolyline(pts))
@@ -159,6 +162,7 @@ func buildItems(f *track.File) []*fileItem {
 		it := &fileItem{kind: waypointItem, name: "Waypoints", summary: count(len(f.Waypoints), "waypoint")}
 		for _, w := range f.Waypoints {
 			it.dots = append(it.dots, waypointDot(w))
+			it.dotNames = append(it.dotNames, w.Name)
 		}
 		items = append(items, it)
 	}
@@ -267,7 +271,7 @@ func (f *openFile) waypointsFirst() {
 // A route gets a new elevation profile.
 func (it *fileItem) setContent(n *fileItem) {
 	it.name, it.summary = n.name, n.summary
-	it.lines, it.points, it.dots, it.bounds = n.lines, n.points, n.dots, n.bounds
+	it.lines, it.points, it.dots, it.dotNames, it.bounds = n.lines, n.points, n.dots, n.dotNames, n.bounds
 	it.profile, it.terrainPts, it.terrain, it.terrainOnly = profileNone, nil, nil, false
 	it.clearCaches()
 }

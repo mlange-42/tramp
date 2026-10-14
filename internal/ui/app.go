@@ -654,6 +654,7 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	a.layoutNavMap(gtx)
 	a.layoutSearchMarker(gtx)
 	a.layoutEditMap(gtx)
+	a.layoutWaypointHover(gtx)
 	a.layoutHoverMap(gtx)
 	a.layoutGPSMarker(gtx)
 	// The legend and the GPS button are above the time strip, if shown.
