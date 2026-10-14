@@ -94,10 +94,10 @@ type fileItem struct {
 	terrain     [][]float64
 	terrainOnly bool
 	// dots are the waypoints, or the route points with a symbol, drawn on the map, and dotNames their names.
-	dots        []mapview.Dot
-	dotNames    []string
-	bounds      geo.Rect
-	color       color.NRGBA
+	dots     []mapview.Dot
+	dotNames []string
+	bounds   geo.Rect
+	color    color.NRGBA
 	// index is the position of the item in the file, independent of the panel order.
 	index int
 	// nth is the position of the item among the items of its kind in the file.
