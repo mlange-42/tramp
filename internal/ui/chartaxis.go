@@ -90,7 +90,14 @@ func (a *App) layoutAxisToggle(gtx layout.Context) layout.Dimensions {
 						l.Color = st.HintFg
 					}
 					macro := op.Record(gtx.Ops)
-					dims := l.Layout(gtx)
+					dims := layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+							size := gtx.Sp(st.SmallTextSize)
+							layoutIcon(gtx, chartAxes[i].icon, image.Point{}, size, l.Color)
+							return layout.Dimensions{Size: image.Pt(size+gtx.Dp(2), size)}
+						}),
+						layout.Rigid(l.Layout),
+					)
 					call := macro.Stop()
 					size := image.Pt(dims.Size.X+2*pad, gtx.Constraints.Max.Y)
 					bg := st.StatusBg

@@ -40,10 +40,11 @@ var (
 	iconDistance  = mustIcon(icons.ImageStraighten)
 	iconTripTime  = mustIcon(icons.ImageTimer)
 	iconClockTime = mustIcon(icons.DeviceAccessTime)
-	iconElevation = mustIcon(icons.ImageFilterHDR)
+	iconElevation = mustIcon(icons.EditorVerticalAlignTop)
+	iconMountain  = mustIcon(icons.ImageFilterHDR)
 	iconSpeed     = mustIcon(icons.MapsDirectionsRun)
 	iconSlope     = mustIcon(icons.DeviceSignalCellular4Bar)
-	iconNoColor   = mustIcon(icons.EditorFormatColorReset)
+	iconNoColor   = mustIcon(icons.ContentBlock)
 
 	toolIcons = [numTools]*widget.Icon{
 		mustIcon(icons.ActionTouchApp),

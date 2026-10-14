@@ -2,6 +2,7 @@
 package ui
 
 import (
+	"cmp"
 	"fmt"
 	"image"
 	"log"
@@ -276,7 +277,7 @@ func newApp(invalidate func(), opts Options) *App {
 	a.layerSelect.sections, a.overlaySel.sections = layerSections, overlaySections
 	a.colorBy.help, a.colorBy.icon = "Color tracks and routes by speed, elevation or slope", iconPalette
 	for _, m := range metrics {
-		a.colorBy.icons = append(a.colorBy.icons, m.icon)
+		a.colorBy.icons = append(a.colorBy.icons, cmp.Or(m.menuIcon, m.icon))
 	}
 	a.gradientSel.help, a.gradientSel.icon = "Color gradient", iconGradient
 	a.setLayer(max(0, slices.Index(a.layerNames, mapName)))
