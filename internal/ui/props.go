@@ -57,6 +57,7 @@ type props struct {
 	fields      [numPropFields]propField
 	sym         symbolPicker
 	deleteRoute iconButton
+	nameRoute   iconButton
 }
 
 // propValue returns the name or description of a target, and false if it doesn't exist.
@@ -131,6 +132,9 @@ func (a *App) updateProps(gtx layout.Context) {
 	p := &a.props
 	if p.deleteRoute.Clicked(gtx) {
 		a.deleteRoute()
+	}
+	if p.nameRoute.Clicked(gtx) {
+		a.nameRoute()
 	}
 	f := a.editing
 	route, point, hasRoute, hasPoint := propTarget{}, propTarget{}, false, false
@@ -257,6 +261,23 @@ func (a *App) deleteRoute() {
 	a.changed()
 }
 
+// nameRoute names the points of the route shown in the properties box, see [autoRouteNames].
+// From then on, the names are updated on each change of the route, see [updateAutoNames].
+func (a *App) nameRoute() {
+	f := a.editing
+	route, _, hasRoute, _ := a.propTargets()
+	if f == nil || !hasRoute || route.route >= len(f.data.Routes) {
+		return
+	}
+	a.commitProps()
+	r := route.route
+	if _, changed := autoRouteNames(f.data, r, f.edit.slightAngle); !changed {
+		return
+	}
+	f.change(func(d *track.File) { nameRoutePoints(d, r, f.edit.slightAngle) })
+	a.changed()
+}
+
 // layoutProps draws the properties box for the selection of the edited file, if there is one.
 func (a *App) layoutProps(gtx layout.Context) layout.Dimensions {
 	f := a.editing
@@ -297,7 +318,14 @@ func (a *App) layoutProps(gtx layout.Context) layout.Dimensions {
 
 	if hasRoute {
 		heading("Route", func(gtx layout.Context) layout.Dimensions {
-			return p.deleteRoute.Layout(gtx, st, iconDelete, "Delete the whole route", true, false)
+			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.nameRoute.Layout(gtx, st, iconNamePoints, nameRouteHelp, true, false)
+				}),
+				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+					return p.deleteRoute.Layout(gtx, st, iconDelete, "Delete the whole route", true, false)
+				}),
+			)
 		})
 		field("Name", routeNameField)
 		field("Desc", routeDescField)

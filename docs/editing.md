@@ -31,7 +31,15 @@ The elevation of the selected point is shown in its heading in the properties, l
 The names of the points of the edited file are shown on the map.
 Below the file list, the *Properties* box shows the name and description of the selected route,
 route point or waypoint. Changes apply on Enter, Tab or when clicking elsewhere, and Esc reverts them.
-The box also has a button to delete the whole route.
+The box also has a button to delete the whole route, and one to name its points automatically:
+by number and the turn at the point, like `01 Start`, `02 SL`, `03` and `04 End`.
+The turns are `SL`/`SR` for slight left/right, `L`/`R`, `HL`/`HR` for sharp ("hard") turns, and `U` for a U-turn;
+points where the route goes straight on get only their number.
+Slight turns below `routing.slight_angle` (see [settings](configuration.md#settings)) count as straight on.
+Points linked to a waypoint and points with other names keep their name, and all names are unique in the file,
+with a number added like `03 (2)` where needed, as devices merge points with the same name.
+Once named, the names are updated on every change of the route, so that numbers and turns stay correct
+and new points get a name. A route counts as named automatically while its first or last point has such a name.
 
 For points, *Symbol* opens a grid of the known symbols, by category, with a search field.
 Click a symbol to apply it, or × to remove it. Enter in the search field applies the typed name:
