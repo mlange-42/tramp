@@ -159,7 +159,7 @@ as a new GPX file that is opened. The original file is not changed.
 
 ## Coloring
 
-Use the palette drop-down in the toolbar to color all tracks by speed, elevation or slope, with a choice of color gradients.
+Use the coloring drop-down in the toolbar to color all tracks by speed, elevation or slope; its gradients are listed below the metrics.
 The color range covers the values of all visible tracks, ignoring the most extreme 2% at each end, and is shown in a legend on the map.
 The found route of the [routing](#routing) panel is colored as well, and counts for the color range while shown.
 Tracks and routes without the required data, like routes without times for speed, keep their own color.

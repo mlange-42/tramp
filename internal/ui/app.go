@@ -278,11 +278,12 @@ func newApp(invalidate func(), opts Options) *App {
 	a.overlaySel.icon = iconLayers
 	a.presetMenu.help, a.presetMenu.icon = "Presets of map and overlays", iconPresets
 	a.layerSelect.sections, a.overlaySel.sections = layerSections, overlaySections
-	a.colorBy.help, a.colorBy.icon = "Color tracks and routes by speed, elevation or slope", iconPalette
+	a.colorBy.help, a.colorBy.icon = "Color tracks and routes by speed, elevation or slope, with a choice of gradients", iconPalette
+	a.colorBy.sections = []Section{{Index: 0, Name: "Color by"}}
 	for _, m := range metrics {
 		a.colorBy.icons = append(a.colorBy.icons, cmp.Or(m.menuIcon, m.icon))
 	}
-	a.gradientSel.help, a.gradientSel.preview = "Color gradient", a.layoutGradientPreview
+	a.gradientSel.preview = a.layoutGradientPreview
 	a.setLayer(max(0, slices.Index(a.layerNames, mapName)))
 	for i, name := range a.overlayNames {
 		if slices.Contains(enabled, name) {
