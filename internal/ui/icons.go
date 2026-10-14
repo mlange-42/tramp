@@ -54,6 +54,16 @@ var (
 	iconSlope     = mustIcon(icons.DeviceSignalCellular4Bar)
 	iconNoColor   = mustIcon(icons.ContentBlock)
 
+	// itemKindIcons are the icons of tracks, routes and waypoints in the side panel.
+	// Routes and waypoints have the icons of the tools for drawing them.
+	itemKindIcons = [...]*widget.Icon{
+		trackItem:    mustIcon(icons.ContentGesture),
+		routeItem:    mustIcon(icons.ActionTimeline),
+		waypointItem: mustIcon(icons.MapsPlace),
+	}
+	// itemKindNames are the names of the item kinds, for tooltips.
+	itemKindNames = [...]string{trackItem: "Track", routeItem: "Route", waypointItem: "Waypoints"}
+
 	toolIcons = [numTools]*widget.Icon{
 		mustIcon(icons.ActionTouchApp),
 		mustIcon(icons.MapsAddLocation),

@@ -63,7 +63,7 @@ func TestNewOpenFile(t *testing.T) {
 	want := [][2]string{
 		{"Waypoints", "2 waypoints"},
 		{"Morning", "3.3 km · 1:30 h · 2 s"},
-		{"Route", "route · 11.1 km"},
+		{"Route", "11.1 km"},
 	}
 	if len(f.items) != len(want) {
 		t.Fatalf("expected %d items, got %d", len(want), len(f.items))
@@ -414,5 +414,31 @@ func TestRouteSymbols(t *testing.T) {
 	// Points without symbol or with a symbol without icon are not drawn.
 	if len(items) != 1 || len(items[0].dots) != 2 || items[0].dots[1].Icon != symbols.Unknown.Icon {
 		t.Errorf("unexpected route dots %+v", items[0].dots)
+	}
+}
+
+func TestSingleKind(t *testing.T) {
+	f := &openFile{}
+	if _, ok := f.singleKind(); ok {
+		t.Error("empty file has a single kind")
+	}
+	f.items = []*fileItem{{kind: routeItem}, {kind: routeItem}}
+	if k, ok := f.singleKind(); !ok || k != routeItem {
+		t.Errorf("unexpected kind %v %v", k, ok)
+	}
+	f.items = append(f.items, &fileItem{kind: waypointItem})
+	if _, ok := f.singleKind(); ok {
+		t.Error("mixed file has a single kind")
+	}
+}
+
+func TestKindColors(t *testing.T) {
+	red, blue := trackColors[0], trackColors[1]
+	f := &openFile{items: []*fileItem{{kind: routeItem, color: red}, {kind: waypointItem, color: blue}, {kind: routeItem, color: blue}, {kind: routeItem, color: red}}}
+	if c := f.kindColors(routeItem); !reflect.DeepEqual(c, []color.NRGBA{red, blue}) {
+		t.Errorf("unexpected route colors %v", c)
+	}
+	if c := f.kindColors(trackItem); len(c) != 0 {
+		t.Errorf("unexpected track colors %v", c)
 	}
 }

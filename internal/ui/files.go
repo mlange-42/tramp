@@ -118,6 +118,8 @@ type fileItem struct {
 func newOpenFile(path string, f *track.File) *openFile {
 	of := &openFile{path: path, data: f, name: filepath.Base(path)}
 	of.visible.Value = true
+	// Files with several items are expanded, to show what they contain.
+	of.expanded = true
 	of.items = buildItems(f)
 	for _, it := range of.items {
 		it.visible.Value = true
@@ -145,7 +147,7 @@ func buildItems(f *track.File) []*fileItem {
 	}
 	for i := range f.Routes {
 		r := &f.Routes[i]
-		it := &fileItem{kind: routeItem, nth: i, name: itemName(r.Name, "Route", i, len(f.Routes)), summary: "route · " + formatDistance(r.Length())}
+		it := &fileItem{kind: routeItem, nth: i, name: itemName(r.Name, "Route", i, len(f.Routes)), summary: formatDistance(r.Length())}
 		pts := make([]geo.Point, len(r.Points))
 		tps := make([]track.Point, len(r.Points))
 		for k, p := range r.Points {
@@ -453,6 +455,31 @@ func (f *openFile) firstChartable() *fileItem {
 		}
 	}
 	return nil
+}
+
+// singleKind returns the kind of the items of the file, if they are all of one kind.
+func (f *openFile) singleKind() (itemKind, bool) {
+	if len(f.items) == 0 {
+		return 0, false
+	}
+	k := f.items[0].kind
+	for _, it := range f.items[1:] {
+		if it.kind != k {
+			return 0, false
+		}
+	}
+	return k, true
+}
+
+// kindColors returns the distinct colors of the items of kind k, in item order.
+func (f *openFile) kindColors(k itemKind) []color.NRGBA {
+	var cols []color.NRGBA
+	for _, it := range f.items {
+		if it.kind == k && !slices.Contains(cols, it.color) {
+			cols = append(cols, it.color)
+		}
+	}
+	return cols
 }
 
 // colors returns the distinct colors of the items, in item order.

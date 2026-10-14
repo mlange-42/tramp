@@ -42,6 +42,8 @@ type Style struct {
 	SmallTextSize unit.Sp
 	// IconSize is the size of check box and radio button icons.
 	IconSize unit.Dp
+	// SmallIconSize is the size of the icons combined in the symbol of a file with items of several kinds.
+	SmallIconSize unit.Dp
 
 	// ButtonInset is the padding inside buttons and drop-down headers.
 	ButtonInset layout.Inset
@@ -179,6 +181,7 @@ func DefaultStyle() *Style {
 		TextSize:      13,
 		SmallTextSize: 12,
 		IconSize:      16,
+		SmallIconSize: 15,
 
 		ButtonInset:  layout.Inset{Top: 3, Bottom: 3, Left: 8, Right: 6},
 		CornerRadius: 3,

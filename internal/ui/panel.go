@@ -5,12 +5,14 @@ import (
 	"image/color"
 	"slices"
 
+	"gioui.org/font"
 	"gioui.org/gesture"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/mlange-42/tramp/internal/geo"
@@ -34,6 +36,8 @@ type rowDrag struct {
 	drag  gesture.Drag
 	hover gesture.Hover
 	tip   tooltip
+	// row is the hover state of the whole row, for showing its actions.
+	row gesture.Hover
 	// grabY is the pointer position in the handle when the drag started.
 	grabY    float32
 	dragging bool
@@ -187,9 +191,7 @@ func (a *App) layoutPanel(gtx layout.Context) layout.Dimensions {
 	paint.Fill(gtx.Ops, st.SideBg)
 	return st.SideInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		if len(a.files) == 0 {
-			l := st.SmallLabel("Nothing opened")
-			l.Color = st.HintFg
-			return l.Layout(gtx)
+			return layout.Center.Layout(gtx, a.layoutOpenPrompt)
 		}
 		a.panelRows = a.panelRows[:0]
 		for _, f := range a.files {
@@ -201,58 +203,161 @@ func (a *App) layoutPanel(gtx layout.Context) layout.Dimensions {
 			}
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Flexed(1, a.layoutFileList),
+			layout.Flexed(1, a.layoutFileArea),
 			layout.Rigid(a.layoutProps),
 		)
 	})
 }
 
+// layoutFileArea draws the list of files, and the prompt for opening files centered in the space below, if it fits.
+func (a *App) layoutFileArea(gtx layout.Context) layout.Dimensions {
+	st := a.style
+	size := gtx.Constraints.Max
+	gtx.Constraints.Min.Y = 0
+	list := a.layoutFileList(gtx)
+	rest := size.Y - list.Size.Y
+
+	macro := op.Record(gtx.Ops)
+	pgtx := gtx
+	pgtx.Constraints = layout.Constraints{Max: image.Pt(size.X, rest)}
+	prompt := a.layoutOpenPrompt(pgtx)
+	call := macro.Stop()
+	if margin := gtx.Dp(st.GroupSpacing); prompt.Size.Y+2*margin <= rest {
+		off := op.Offset(image.Pt((size.X-prompt.Size.X)/2, list.Size.Y+(rest-prompt.Size.Y)/2)).Push(gtx.Ops)
+		call.Add(gtx.Ops)
+		off.Pop()
+	}
+	return layout.Dimensions{Size: size}
+}
+
+// promptIconSize is the size of the icon of the button for opening files in the empty space of the side panel.
+const promptIconSize unit.Dp = 40
+
+// layoutOpenPrompt draws a large icon button for opening files, with a hint on the shortcuts below.
+func (a *App) layoutOpenPrompt(gtx layout.Context) layout.Dimensions {
+	st := a.style
+	return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			b := &a.emptyOpen
+			return withTooltip(gtx, st, &b.tip, b.btn.Hovered(), "Open GPX files (Ctrl+O)", func(gtx layout.Context) layout.Dimensions {
+				return b.btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					size, pad := gtx.Dp(promptIconSize), gtx.Dp(st.Spacing)
+					box := image.Pt(size+2*pad, size+2*pad)
+					layoutButtonBg(gtx, st, box, b.btn.Hovered(), false)
+					layoutIcon(gtx, iconOpen, image.Pt(pad, pad), size, st.HintFg)
+					pointer.CursorPointer.Add(gtx.Ops)
+					return layout.Dimensions{Size: box}
+				})
+			})
+		}),
+		layout.Rigid(layout.Spacer{Height: st.Spacing}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			l := st.SmallLabel("Ctrl+O to open, Ctrl+N for a new file")
+			l.Color = st.HintFg
+			return l.Layout(gtx)
+		}),
+	)
+}
+
 // layoutFileList draws the opened files and their items, scrolling if they don't fit.
 func (a *App) layoutFileList(gtx layout.Context) layout.Dimensions {
 	st := a.style
-	return material.List(st.Theme, &a.fileList).Layout(gtx, len(a.panelRows), func(gtx layout.Context, i int) layout.Dimensions {
+	// The scroll bar floats above the rows, so that their highlights reach the edge of the panel.
+	list := material.List(st.Theme, &a.fileList)
+	list.AnchorStrategy = material.Overlay
+	return list.Layout(gtx, len(a.panelRows), func(gtx layout.Context, i int) layout.Dimensions {
 		r := a.panelRows[i]
 		d := &r.file.drag
 		if r.item != nil {
 			d = &r.item.drag
 		}
+		// The actions of a row are shown while it is hovered, selected or dragged.
+		hovered := d.row.Update(gtx.Source)
+		actions := hovered || d.dragging || a.selectedRow(r)
 		macro := op.Record(gtx.Ops)
-		dims := layout.Inset{Bottom: st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		// Even space above and below, so that the content is centered in the highlight.
+		dims := layout.Inset{Top: st.Spacing / 2, Bottom: st.Spacing / 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			if r.item != nil {
-				return a.layoutItemRow(gtx, r.file, r.item)
+				return a.layoutItemRow(gtx, r.file, r.item, actions)
 			}
-			return a.layoutFileRow(gtx, r.file)
+			return a.layoutFileRow(gtx, r.file, actions)
 		})
 		call := macro.Stop()
 		d.height = dims.Size.Y
-		if d.dragging {
-			paint.FillShape(gtx.Ops, st.DragBg, clip.Rect{Max: dims.Size}.Op())
-		} else if a.selectedRow(r) {
-			paint.FillShape(gtx.Ops, st.SelectedBg, clip.Rect{Max: dims.Size}.Op())
+		// The highlight of an item starts right of the guide line below the chevron of the file,
+		// which connects the items of the file.
+		hl := image.Rectangle{Max: dims.Size}
+		if r.item != nil {
+			hl.Min.X = chevronWidth(gtx, st)
+			x, w := chevronWidth(gtx, st)/2, max(1, gtx.Dp(1))
+			paint.FillShape(gtx.Ops, st.SeparatorColor, clip.Rect(image.Rect(x-w/2, 0, x-w/2+w, dims.Size.Y)).Op())
+		}
+		var bg color.NRGBA
+		switch {
+		case d.dragging, hovered && !a.selectedRow(r):
+			bg = st.DragBg
+		case a.selectedRow(r):
+			bg = st.SelectedBg
+		}
+		if bg.A > 0 {
+			paint.FillShape(gtx.Ops, bg, clip.UniformRRect(hl, gtx.Dp(st.CornerRadius)).Op(gtx.Ops))
 		}
 		call.Add(gtx.Ops)
+		// On top of the row, passing events on to its buttons.
+		pass := pointer.PassOp{}.Push(gtx.Ops)
+		area := clip.Rect{Max: dims.Size}.Push(gtx.Ops)
+		d.row.Add(gtx.Ops)
+		area.Pop()
+		pass.Pop()
 		return dims
 	})
 }
 
-func (a *App) layoutFileRow(gtx layout.Context, f *openFile) layout.Dimensions {
+// rowAction draws w if show is set. Otherwise, it only takes the space of w,
+// so that the name next to it doesn't change its width.
+func rowAction(gtx layout.Context, show bool, w layout.Widget) layout.Dimensions {
+	macro := op.Record(gtx.Ops)
+	dims := w(gtx)
+	call := macro.Stop()
+	if show {
+		call.Add(gtx.Ops)
+	}
+	return dims
+}
+
+// layoutFileRow draws the row of a file. actions shows the buttons for closing, saving with terrain and dragging.
+// The edit button is always shown. The chevron for expanding the file comes first, or its space if the file has no items to show.
+func (a *App) layoutFileRow(gtx layout.Context, f *openFile, actions bool) layout.Dimensions {
 	st := a.style
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if !f.expandable() {
+				sz := chevronWidth(gtx, st)
+				return layout.Dimensions{Size: image.Pt(sz, sz)}
+			}
+			if f.expanded {
+				return f.expand.LayoutFlat(gtx, st, iconExpand, st.Theme.Fg, "Hide the tracks, routes and waypoints of the file")
+			}
+			return f.expand.LayoutFlat(gtx, st, iconNext, st.Theme.Fg, "Show the tracks, routes and waypoints of the file")
+		}),
 		layout.Rigid(a.visibilityToggle(&f.visible, &f.tips.visible, "Show or hide the file on the map")),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if len(f.items) == 0 {
-				return layout.Dimensions{}
+				// The space of the symbol, so that the names of all files are aligned.
+				return layout.Dimensions{Size: image.Pt(fileSymbolWidth(gtx, st), 0)}
 			}
 			return withTooltip(gtx, st, &f.tips.color, f.colorBtn.Hovered(), "Change the color of all tracks, routes and waypoints of the file",
-				func(gtx layout.Context) layout.Dimensions { return a.layoutSwatch(gtx, &f.colorBtn, f.colors()) })
+				func(gtx layout.Context) layout.Dimensions { return a.layoutFileSymbol(gtx, f) })
 		}),
-		layout.Flexed(1, a.rowText(&f.click, &f.tips.name, a.fileTitle(f), f.summary, f.visible.Value)),
+		layout.Flexed(1, a.rowText(&f.click, &f.tips.name, a.fileTitle(f), f.summary, f.visible.Value, true)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// Files with tracks are not edited, so they have this button in place of the edit button.
 			if !a.terrainSavable(f) {
 				return layout.Dimensions{}
 			}
-			return f.terrainBtn.LayoutFlat(gtx, st, iconTerrain, st.HintFg, "Save a copy with the terrain elevation for all track points")
+			return rowAction(gtx, actions, func(gtx layout.Context) layout.Dimensions {
+				return f.terrainBtn.LayoutFlat(gtx, st, iconTerrain, st.HintFg, "Save a copy with the terrain elevation for all track points")
+			})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if !f.editable() {
@@ -265,43 +370,50 @@ func (a *App) layoutFileRow(gtx layout.Context, f *openFile) layout.Dimensions {
 			return f.editBtn.LayoutFlat(gtx, st, iconEdit, col, tip)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if !f.expandable() {
-				return layout.Dimensions{}
-			}
-			if f.expanded {
-				return f.expand.LayoutFlat(gtx, st, iconCollapse, st.Theme.Fg, "Hide the tracks, routes and waypoints of the file")
-			}
-			return f.expand.LayoutFlat(gtx, st, iconExpand, st.Theme.Fg, "Show the tracks, routes and waypoints of the file")
+			return rowAction(gtx, actions, func(gtx layout.Context) layout.Dimensions {
+				return f.close.LayoutFlat(gtx, st, iconClose, st.Theme.Fg, "Close the file")
+			})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return f.close.LayoutFlat(gtx, st, iconClose, st.Theme.Fg, "Close the file")
+			return rowAction(gtx, actions, a.dragHandle(&f.drag))
 		}),
-		layout.Rigid(a.dragHandle(&f.drag)),
 	)
 }
 
-func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem) layout.Dimensions {
+// chevronWidth returns the width of the chevron for expanding a file in the side panel, a flat icon button.
+func chevronWidth(gtx layout.Context, st *Style) int {
+	return gtx.Dp(st.IconSize) + 2*gtx.Dp(st.Spacing/2)
+}
+
+// layoutItemRow draws the row of an item of a file, indented so that its name is aligned with the name of the file.
+// actions shows the drag handle.
+func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem, actions bool) layout.Dimensions {
 	st := a.style
-	return layout.Inset{Left: st.IconSize + st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-			layout.Rigid(a.visibilityToggle(&it.visible, &it.tips.visible, "Show or hide on the map")),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return withTooltip(gtx, st, &it.tips.color, it.colorBtn.Hovered(), "Change the color",
-					func(gtx layout.Context) layout.Dimensions {
-						return a.layoutSwatch(gtx, &it.colorBtn, []color.NRGBA{it.color})
-					})
-			}),
-			layout.Flexed(1, a.rowText(&it.click, &it.tips.name, it.name, it.summary, f.visible.Value && it.visible.Value)),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				// The waypoints stay on top, see [openFile.waypointsFirst].
-				if it.kind == waypointItem {
-					sz := gtx.Dp(st.IconSize + st.Spacing)
-					return layout.Dimensions{Size: image.Pt(sz, sz)}
-				}
-				return a.dragHandle(&it.drag)(gtx)
-			}),
-		)
-	})
+	// The file row has the chevron and the wider file symbol where the item row has its kind symbol.
+	indent := chevronWidth(gtx, st) + fileSymbolWidth(gtx, st) - kindSymbolWidth(gtx, st)
+	defer op.Offset(image.Pt(indent, 0)).Push(gtx.Ops).Pop()
+	gtx.Constraints.Max.X = max(0, gtx.Constraints.Max.X-indent)
+	gtx.Constraints.Min.X = min(gtx.Constraints.Min.X, gtx.Constraints.Max.X)
+	dims := layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(a.visibilityToggle(&it.visible, &it.tips.visible, "Show or hide on the map")),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return withTooltip(gtx, st, &it.tips.color, it.colorBtn.Hovered(), itemKindNames[it.kind]+". Click to change the color",
+				func(gtx layout.Context) layout.Dimensions {
+					return a.layoutKindSymbol(gtx, &it.colorBtn, itemKindIcons[it.kind], it.color, f.visible.Value && it.visible.Value)
+				})
+		}),
+		layout.Flexed(1, a.rowText(&it.click, &it.tips.name, it.name, it.summary, f.visible.Value && it.visible.Value, false)),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// The waypoints stay on top, see [openFile.waypointsFirst].
+			if it.kind == waypointItem {
+				sz := gtx.Dp(st.IconSize + st.Spacing)
+				return layout.Dimensions{Size: image.Pt(sz, sz)}
+			}
+			return rowAction(gtx, actions, a.dragHandle(&it.drag))
+		}),
+	)
+	dims.Size.X += indent
+	return dims
 }
 
 // fileTitle returns the name of the file, marked if it has unsaved changes.
@@ -312,20 +424,21 @@ func (a *App) fileTitle(f *openFile) string {
 	return f.name
 }
 
-// dragHandle returns a grip for dragging an entry, drawn as three horizontal lines.
+// dragHandle returns a grip for dragging an entry, drawn as two columns of three dots.
 func (a *App) dragHandle(d *rowDrag) layout.Widget {
 	st := a.style
 	return func(gtx layout.Context) layout.Dimensions {
 		avail := gtx.Constraints.Max.X
 		dims := layout.UniformInset(st.Spacing/2).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			size := gtx.Dp(st.IconSize)
-			w := size * 3 / 4
-			x := (size - w) / 2
-			th := max(1, gtx.Dp(1.5))
-			gap := gtx.Dp(4)
-			for i := -1; i <= 1; i++ {
-				y := size/2 + i*gap - th/2
-				paint.FillShape(gtx.Ops, st.HintFg, clip.Rect(image.Rect(x, y, x+w, y+th)).Op())
+			dot, gap := max(2, gtx.Dp(2.5)), gtx.Dp(5)
+			for col := range 2 {
+				for row := -1; row <= 1; row++ {
+					x := size/2 + (2*col-1)*gap/2 - dot/2
+					y := size/2 + row*gap - dot/2
+					r := image.Rect(x, y, x+dot, y+dot)
+					paint.FillShape(gtx.Ops, st.HintFg, clip.Ellipse(r).Op(gtx.Ops))
+				}
 			}
 			return layout.Dimensions{Size: image.Pt(size, size)}
 		})
@@ -365,26 +478,31 @@ func (a *App) visibilityToggle(b *widget.Bool, tip *tooltip, text string) layout
 }
 
 // rowText returns a clickable name with a summary line below.
-// Hidden entries are drawn in the hint color.
-func (a *App) rowText(clk *widget.Clickable, tip *tooltip, name, summary string, visible bool) layout.Widget {
+// Hidden entries are drawn in the hint color. bold is for the names of files.
+func (a *App) rowText(clk *widget.Clickable, tip *tooltip, name, summary string, visible, bold bool) layout.Widget {
 	st := a.style
 	return func(gtx layout.Context) layout.Dimensions {
 		return withTooltip(gtx, st, tip, clk.Hovered(), "Click to show the profile, double-click to zoom to it", func(gtx layout.Context) layout.Dimensions {
-			return a.rowName(gtx, clk, name, summary, visible)
+			return a.rowName(gtx, clk, name, summary, visible, bold)
 		})
 	}
 }
 
 // rowName draws a clickable name with a summary line below.
-func (a *App) rowName(gtx layout.Context, clk *widget.Clickable, name, summary string, visible bool) layout.Dimensions {
+func (a *App) rowName(gtx layout.Context, clk *widget.Clickable, name, summary string, visible, bold bool) layout.Dimensions {
 	st := a.style
-	return material.Clickable(gtx, clk, func(gtx layout.Context) layout.Dimensions {
+	// Without a highlight of its own, as the whole row is highlighted while hovered.
+	return clk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		pointer.CursorPointer.Add(gtx.Ops)
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		return layout.Inset{Left: st.Spacing / 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					l := st.Label(name)
 					l.MaxLines = 1
+					if bold {
+						l.Font.Weight = font.Bold
+					}
 					if !visible {
 						l.Color = st.HintFg
 					}
