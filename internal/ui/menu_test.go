@@ -115,7 +115,7 @@ func TestMenuBar(t *testing.T) {
 
 	// Disabled items do nothing, and the menu stays open.
 	u.click(u.header(1))
-	u.clickItem(1, 0)
+	u.clickItem(1, clearCacheItem)
 	if !m[1].open || u.a.dialogOpen.Load() {
 		t.Error("disabled item was chosen")
 	}
@@ -177,7 +177,7 @@ func TestMenuCache(t *testing.T) {
 	}
 
 	u.click(u.header(1))
-	u.clickItem(1, 1)
+	u.clickItem(1, clearCacheItem+1)
 	if lastArg(*started) != dir {
 		t.Errorf("expected the cache folder %s opened, got %v", dir, *started)
 	}
@@ -199,7 +199,7 @@ func TestMenuCache(t *testing.T) {
 	// Canceled: the tiles are kept.
 	answer(zenity.ErrCanceled)
 	u.click(u.header(1))
-	u.clickItem(1, 0)
+	u.clickItem(1, clearCacheItem)
 	waitDialog()
 	if u.a.diskCache.size() != 2000 {
 		t.Errorf("size %d after canceling, want 2000", u.a.diskCache.size())
@@ -208,7 +208,7 @@ func TestMenuCache(t *testing.T) {
 	// Confirmed: the tiles are deleted.
 	answer(nil)
 	u.click(u.header(1))
-	u.clickItem(1, 0)
+	u.clickItem(1, clearCacheItem)
 	waitDialog()
 	u.a.diskCache.tiles.Wait()
 	if u.a.diskCache.size() != 0 {

@@ -22,7 +22,10 @@ type menuItem struct {
 	icon     *widget.Icon
 	logo     bool
 	disabled bool
-	action   func()
+	// check makes the item a checkbox, shown checked if checked, in place of the icon.
+	// Choosing it keeps the menu open, for switching several.
+	check, checked bool
+	action         func()
 }
 
 // menuSeparator is a line between groups of items.
@@ -97,7 +100,7 @@ func (b *menuBar) update(gtx layout.Context, items [][]menuItem) {
 			}
 			it := items[i][j]
 			if it.label != "" && !it.disabled && it.action != nil {
-				m.open = false
+				m.open = it.check
 				it.action()
 			}
 		}
@@ -198,7 +201,7 @@ func (m *menu) layoutItems(gtx layout.Context, st *Style, items []menuItem) layo
 	// If any item has an icon, all labels leave room for one, so that they are aligned.
 	iconW := 0
 	for _, it := range items {
-		if it.icon != nil || it.logo {
+		if it.icon != nil || it.logo || it.check {
 			iconW = menuIconSize(gtx, st) + pad
 			break
 		}
@@ -246,6 +249,15 @@ func (m *menu) layoutItem(gtx layout.Context, st *Style, btn *widget.Clickable, 
 		off.Pop()
 		is := menuIconSize(gtx, st)
 		switch {
+		case it.check:
+			ic, ccol := st.Theme.Icon.CheckBoxUnchecked, col
+			if it.checked {
+				ic = st.Theme.Icon.CheckBoxChecked
+				if !it.disabled {
+					ccol = st.Theme.ContrastBg
+				}
+			}
+			layoutIcon(gtx, ic, image.Pt(0, (ld.Size.Y-is)/2), is, ccol)
 		case it.icon != nil:
 			layoutIcon(gtx, it.icon, image.Pt(0, (ld.Size.Y-is)/2), is, col)
 		case it.logo:

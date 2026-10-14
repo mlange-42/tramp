@@ -30,6 +30,11 @@ The elevation comes from elevation tiles downloaded from the internet, see the [
 
 Map and elevation tiles are stored on disk, so that areas already viewed work without an internet connection.
 *Map › Clear tile cache* deletes them, and shows how much space they take.
+The checkboxes at the top of the *Map* menu switch parts of the map view on and off:
+the coloring of tracks and of routes by value (see [Coloring](#coloring)), route points without symbol,
+the names of all waypoints or route points, the name of the point under the mouse pointer,
+the muting of the selected track outside the zoomed chart range, the color legend, and the scale bar.
+The menu stays open while switching them, and they are remembered.
 The size of the cache is limited in the [settings](configuration.md#settings).
 The *File* menu opens the folder with the settings files, and *Help* links to this documentation
 and shows the version under *About TRAMP*.
@@ -132,8 +137,8 @@ Waypoints with a symbol are drawn as markers with an icon.
 GPX does not standardize symbol names; TRAMP knows the common outdoor symbols in the names used by Garmin devices,
 like `Summit`, `Campground` or `Flag, Blue`, and some aliases like `Peak` or `Hut`, ignoring case and punctuation.
 Unknown symbols are drawn with a generic pin icon, waypoints without symbol as plain dots.
-Route points are drawn only if they have a symbol.
-Hover a waypoint or route point marker to see its name.
+Route points are drawn only if they have a symbol, or all with *Map › Route points*.
+Hover a waypoint or route point marker to see its name, or show all names with *Map › Waypoint names* and *Route point names*.
 
 The profile of a route is taken from the terrain elevation along its lines, sampled every 20 m,
 rather than from its points, which rarely have elevations.
@@ -158,6 +163,8 @@ Use the palette drop-down in the toolbar to color all tracks by speed, elevation
 The color range covers the values of all visible tracks, ignoring the most extreme 2% at each end, and is shown in a legend on the map.
 The found route of the [routing](#routing) panel is colored as well, and counts for the color range while shown.
 Tracks and routes without the required data, like routes without times for speed, keep their own color.
+*Map › Colored tracks* and *Colored routes* switch the coloring on the map off for tracks or for routes, including the found route;
+they then keep their own color. Their profile in the chart is still colored, and they still count for the color range.
 The chart then shows their elevation profile. The profile of a hidden track or route is not colored.
 
 The gradients can be changed in the [gradients configuration](configuration.md#gradients).

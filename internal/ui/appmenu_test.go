@@ -7,6 +7,9 @@ import (
 	"github.com/mlange-42/tramp/internal/settings"
 )
 
+// clearCacheItem is the index of "Clear tile cache" in the Map menu, after the view options and a separator.
+const clearCacheItem = int(numViewOptions) + 1
+
 func TestMenuItems(t *testing.T) {
 	a := newApp(func() {}, Options{Maps: DefaultMaps()})
 	items := a.menuItems()
@@ -14,7 +17,7 @@ func TestMenuItems(t *testing.T) {
 		t.Fatalf("%d item lists and %d menus for %d titles", len(items), len(a.menu.menus), len(menuTitles))
 	}
 	// Without disk cache, as in tests, its items are disabled.
-	for _, it := range items[1] {
+	for _, it := range items[1][clearCacheItem:] {
 		if !it.disabled {
 			t.Errorf("%q enabled without disk cache", it.label)
 		}
@@ -38,7 +41,7 @@ func TestMenuItems(t *testing.T) {
 	if got := a.diskCache.size(); got != 1500 {
 		t.Errorf("size %d, want 1500", got)
 	}
-	if it := a.menuItems()[1][0]; it.disabled || it.label != "Clear tile cache (1 KB)…" {
+	if it := a.menuItems()[1][clearCacheItem]; it.disabled || it.label != "Clear tile cache (1 KB)…" {
 		t.Errorf("got %q, disabled %v", it.label, it.disabled)
 	}
 	if err := a.diskCache.clear(); err != nil {

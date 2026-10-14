@@ -34,10 +34,11 @@ func (a *App) menuItems() [][]menuItem {
 			menuSeparator,
 			{label: "Quit", icon: iconQuit, action: a.closeWindow},
 		},
-		{
-			{label: fmt.Sprintf("Clear tile cache (%s)…", formatBytes(a.diskCache.size())), icon: iconClearCache, disabled: cacheOff, action: a.clearTileCache},
-			{label: "Open cache folder", icon: iconFolder, disabled: cacheOff, action: func() { openFolder(a.diskCache.dir) }},
-		},
+		append(a.viewOptionItems(),
+			menuSeparator,
+			menuItem{label: fmt.Sprintf("Clear tile cache (%s)…", formatBytes(a.diskCache.size())), icon: iconClearCache, disabled: cacheOff, action: a.clearTileCache},
+			menuItem{label: "Open cache folder", icon: iconFolder, disabled: cacheOff, action: func() { openFolder(a.diskCache.dir) }},
+		),
 		{
 			{label: "Documentation", icon: iconHelp, action: func() { openURL(docsURL) }},
 			{label: "Report an issue", icon: iconBug, action: func() { openURL(issuesURL) }},
