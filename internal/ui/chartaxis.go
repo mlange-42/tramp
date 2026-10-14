@@ -11,6 +11,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/widget"
 )
 
 // chartAxis is what the chart shows along the horizontal axis.
@@ -25,11 +26,15 @@ const (
 	clockTimeAxis
 )
 
-// chartAxes are the names of the axes in the toggle, and their keys in the settings file.
-var chartAxes = []struct{ name, key, help string }{
-	{"Dist", "distance", "Show the profile over the distance"},
-	{"Time", "trip_time", "Show the profile over the time since the start"},
-	{"Clock", "clock_time", "Show the profile over the time of day"},
+// chartAxes are the names of the axes in the toggle, their keys in the settings file,
+// and their icons in the hover label.
+var chartAxes = []struct {
+	name, key, help string
+	icon            *widget.Icon
+}{
+	{"Dist", "distance", "Show the profile over the distance", iconDistance},
+	{"Time", "trip_time", "Show the profile over the time since the start", iconTripTime},
+	{"Clock", "clock_time", "Show the profile over the time of day", iconClockTime},
 }
 
 // timeSteps are the tick steps for the time axes up to a day, in seconds.

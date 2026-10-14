@@ -12,6 +12,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/mapview"
 	"github.com/mlange-42/tramp/internal/track"
 )
@@ -42,14 +43,16 @@ type metricInfo struct {
 	gradient string
 	// symmetric centers the range on zero, for diverging gradients.
 	symmetric bool
+	// icon is shown in front of values in the hover label.
+	icon *widget.Icon
 }
 
 // metrics are the metrics to color tracks by, starting with no coloring.
 var metrics = []metricInfo{
 	{metric: track.NoMetric, key: "none", name: "None"},
-	{metric: track.SpeedMetric, key: "speed", name: "Speed", unit: "km/h", scale: 3.6, format: "%.0f", gradient: "Turbo"},
-	{metric: track.ElevationMetric, key: "elevation", name: "Elevation", unit: "m", scale: 1, format: "%.0f", gradient: "Viridis"},
-	{metric: track.SlopeMetric, key: "slope", name: "Slope", unit: "%", scale: 1, format: "%+.0f", gradient: "Blue–Red", symmetric: true},
+	{metric: track.SpeedMetric, key: "speed", name: "Speed", unit: "km/h", scale: 3.6, format: "%.0f", gradient: "Turbo", icon: iconSpeed},
+	{metric: track.ElevationMetric, key: "elevation", name: "Elevation", unit: "m", scale: 1, format: "%.0f", gradient: "Viridis", icon: iconElevation},
+	{metric: track.SlopeMetric, key: "slope", name: "Slope", unit: "%", scale: 1, format: "%+.0f", gradient: "Blue–Red", symmetric: true, icon: iconSlope},
 }
 
 // formatValue formats a value of the metric in its shown unit, with the unit.

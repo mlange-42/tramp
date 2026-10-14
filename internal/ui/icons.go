@@ -36,6 +36,14 @@ var (
 	iconCheck    = mustIcon(icons.NavigationCheck)
 	iconMinimize = mustIcon(icons.NavigationFullscreenExit)
 
+	// Icons of the horizontal chart axes and the metrics, in the hover label.
+	iconDistance  = mustIcon(icons.ImageStraighten)
+	iconTripTime  = mustIcon(icons.ImageTimer)
+	iconClockTime = mustIcon(icons.DeviceAccessTime)
+	iconElevation = mustIcon(icons.ImageFilterHDR)
+	iconSpeed     = mustIcon(icons.MapsDirectionsRun)
+	iconSlope     = mustIcon(icons.DeviceSignalCellular4Bar)
+
 	toolIcons = [numTools]*widget.Icon{
 		mustIcon(icons.ActionTouchApp),
 		mustIcon(icons.MapsAddLocation),
