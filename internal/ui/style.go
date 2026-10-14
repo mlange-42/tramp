@@ -11,10 +11,14 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"golang.org/x/image/font/gofont/gobold"
+	"golang.org/x/image/font/gofont/gobolditalic"
+	"golang.org/x/image/font/gofont/goitalic"
 	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/font/gofont/gomonobold"
 	"golang.org/x/image/font/gofont/gomonobolditalic"
 	"golang.org/x/image/font/gofont/gomonoitalic"
+	"golang.org/x/image/font/gofont/goregular"
 )
 
 // brandBlue is the blue of the UI, the middle of the gradient of the logo's tile.
@@ -27,7 +31,10 @@ var brandYellow = color.NRGBA{R: 0xf2, G: 0xc2, B: 0x30, A: 0xff}
 // Style collects the theme and all sizes and colors of the UI, to tune the look in one place.
 type Style struct {
 	// Theme provides fonts and the base palette for Gio's material widgets.
+	// Its face is the proportional Go font, which has digits of equal width.
 	Theme *material.Theme
+	// MonoFace is the monospaced typeface, for text aligned by padding with spaces, like the status bar.
+	MonoFace font.Typeface
 
 	// TextSize is the size of text in controls and labels.
 	TextSize unit.Sp
@@ -153,14 +160,16 @@ func DefaultStyle() *Style {
 	th.TextSize = 14
 	th.ContrastBg = brandBlue
 	th.Fg = mix(color.NRGBA{A: 0xff}, brandBlue, 0.35)
-	// A monospaced font keeps changing numbers, like coordinates, from moving around.
-	// System fonts remain as a fallback for glyphs that Go Mono lacks.
-	faces := monoFaces()
-	th.Shaper = text.NewShaper(text.WithCollection(faces))
-	th.Face = faces[0].Font.Typeface
+	// The Go fonts are embedded, so the UI looks the same on all systems.
+	// System fonts remain as a fallback for glyphs that they lack.
+	sans, mono := goFaces(goregular.TTF, gobold.TTF, goitalic.TTF, gobolditalic.TTF),
+		goFaces(gomono.TTF, gomonobold.TTF, gomonoitalic.TTF, gomonobolditalic.TTF)
+	th.Shaper = text.NewShaper(text.WithCollection(append(sans, mono...)))
+	th.Face = sans[0].Font.Typeface
 
 	return &Style{
 		Theme:         th,
+		MonoFace:      mono[0].Font.Typeface,
 		TextSize:      13,
 		SmallTextSize: 12,
 		IconSize:      16,
@@ -234,13 +243,13 @@ func DefaultStyle() *Style {
 	}
 }
 
-// monoFaces returns the Go Mono font faces, regular first.
-func monoFaces() []font.FontFace {
+// goFaces parses the faces of one of the Go fonts, in the given order.
+func goFaces(ttfs ...[]byte) []font.FontFace {
 	var faces []font.FontFace
-	for _, ttf := range [][]byte{gomono.TTF, gomonobold.TTF, gomonoitalic.TTF, gomonobolditalic.TTF} {
+	for _, ttf := range ttfs {
 		f, err := opentype.ParseCollection(ttf)
 		if err != nil {
-			panic(fmt.Errorf("parsing Go Mono font: %w", err))
+			panic(fmt.Errorf("parsing Go font: %w", err))
 		}
 		faces = append(faces, f[0])
 	}
@@ -255,6 +264,13 @@ func (s *Style) Label(txt string) material.LabelStyle {
 // SmallLabel returns a label with the small text size.
 func (s *Style) SmallLabel(txt string) material.LabelStyle {
 	return material.Label(s.Theme, s.SmallTextSize, txt)
+}
+
+// SmallMonoLabel returns a label with the small text size in the monospaced font.
+func (s *Style) SmallMonoLabel(txt string) material.LabelStyle {
+	l := s.SmallLabel(txt)
+	l.Font.Typeface = s.MonoFace
+	return l
 }
 
 // Button returns a button with the regular text size.

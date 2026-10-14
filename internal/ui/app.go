@@ -733,7 +733,7 @@ var hoverPlaceholder = fmt.Sprintf("%-*s", utf8.RuneCountInString(geo.LonLat{}.S
 
 func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	// The parts have a fixed width where possible, and the changing ones come last,
-	// so that the others don't move. The font is monospaced.
+	// so that the others don't move. The font is monospaced, as the status is padded with spaces.
 	pos := hoverPlaceholder
 	if a.mapView.HoverValid {
 		pos = geo.ToLonLat(a.mapView.Hover).String()
@@ -770,7 +770,7 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Min.X = gtx.Constraints.Max.X
 				return layout.Flex{}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						l := st.SmallLabel(status)
+						l := st.SmallMonoLabel(status)
 						l.MaxLines = 1
 						return l.Layout(gtx)
 					}),
