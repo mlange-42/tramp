@@ -2,7 +2,6 @@ package ui
 
 import (
 	"image"
-	"image/color"
 	"slices"
 
 	"gioui.org/font"
@@ -334,9 +333,9 @@ func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem, actio
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(a.visibilityToggle(&it.visible, &it.tips.visible, "Show or hide on the map")),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return withTooltip(gtx, st, &it.tips.color, it.colorBtn.Hovered(), "Change the color",
+				return withTooltip(gtx, st, &it.tips.color, it.colorBtn.Hovered(), itemKindNames[it.kind]+". Click to change the color",
 					func(gtx layout.Context) layout.Dimensions {
-						return a.layoutSwatch(gtx, &it.colorBtn, []color.NRGBA{it.color})
+						return a.layoutKindSymbol(gtx, &it.colorBtn, itemKindIcons[it.kind], it.color, f.visible.Value && it.visible.Value)
 					})
 			}),
 			layout.Flexed(1, a.rowText(&it.click, &it.tips.name, it.name, it.summary, f.visible.Value && it.visible.Value, false)),
