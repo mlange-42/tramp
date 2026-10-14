@@ -20,6 +20,12 @@ type WMSConfig struct {
 	Overlays []Overlay `yaml:"overlays"`
 }
 
+// WMSVersion is the version of the layout of the WMS configuration file, see [settings.FormatVersion].
+const WMSVersion = 1
+
+// FormatVersion returns [WMSVersion].
+func (WMSConfig) FormatVersion() int { return WMSVersion }
+
 // DefaultWMS returns the built-in maps and overlays.
 func DefaultWMS() WMSConfig {
 	return WMSConfig{Maps: DefaultMaps(), Overlays: DefaultOverlays()}

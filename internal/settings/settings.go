@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -27,16 +28,22 @@ const (
 	OldLogFile = "tramp.old.log"
 )
 
-// FormatVersion is the version of the layout of the YAML files, written to their "version" key.
+// FormatVersion is the version of the layout of YAML files, written to their "version" key,
+// for types without their own FormatVersion() int method. All configuration files have their own.
 // Files without the key are version 1.
 //
-// Increase it with every change of the keys of a file: when keys are added, as older versions of TRAMP
-// reject files with unknown keys, and when keys are renamed, moved or change their meaning,
+// Increase a file's version with every change of its keys: when keys are added, as older versions of TRAMP
+// reject files with unknown keys, and when keys are removed, renamed, moved or change their meaning,
 // migrating older files when reading them.
 // An older TRAMP then reports a file of a newer version instead of unknown keys.
-//
-// A type can have its own version by implementing FormatVersion() int.
+// TestConfigKeys in package ui fails if the keys change without a new version.
 const FormatVersion = 1
+
+// SettingsVersion is the version of the layout of the settings file, see [FormatVersion].
+const SettingsVersion = 1
+
+// FormatVersion returns [SettingsVersion].
+func (Settings) FormatVersion() int { return SettingsVersion }
 
 // ErrNewerVersion is returned for files written by a newer version of TRAMP, in a layout this version doesn't know.
 // Such files must not be overwritten, as this would lose their content.
@@ -525,6 +532,55 @@ func addKeys(t reflect.Type, known map[string]bool) {
 		default:
 			known[name] = true
 		}
+	}
+}
+
+// KeyPaths returns the sorted paths of all keys of v's YAML file, for detecting changes of the keys in tests.
+// Nested keys are joined by dots, list entries are marked by "[]" and the keys of maps by "*",
+// like "style.gradients.*" or "maps[].name".
+func KeyPaths(v any) []string {
+	var paths []string
+	addKeyPaths(reflect.TypeOf(v), "", &paths)
+	slices.Sort(paths)
+	return slices.Compact(paths)
+}
+
+func addKeyPaths(t reflect.Type, prefix string, paths *[]string) {
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	switch t.Kind() {
+	case reflect.Slice, reflect.Array:
+		addKeyPaths(t.Elem(), prefix+"[]", paths)
+		return
+	case reflect.Map:
+		addKeyPaths(t.Elem(), prefix+".*", paths)
+		return
+	case reflect.Struct:
+	default:
+		if prefix != "" {
+			*paths = append(*paths, prefix)
+		}
+		return
+	}
+	for f := range t.Fields() {
+		if !f.IsExported() {
+			continue
+		}
+		name, opts, _ := strings.Cut(f.Tag.Get("yaml"), ",")
+		switch {
+		case name == "-":
+			continue
+		case strings.Contains(opts, "inline"):
+			addKeyPaths(f.Type, prefix, paths)
+			continue
+		case name == "":
+			name = strings.ToLower(f.Name)
+		}
+		if prefix != "" {
+			name = prefix + "." + name
+		}
+		addKeyPaths(f.Type, name, paths)
 	}
 }
 

@@ -16,6 +16,12 @@ type GradientConfig struct {
 	Gradients []GradientDef `yaml:"gradients"`
 }
 
+// GradientsVersion is the version of the layout of the gradients file, see settings.FormatVersion.
+const GradientsVersion = 1
+
+// FormatVersion returns [GradientsVersion].
+func (GradientConfig) FormatVersion() int { return GradientsVersion }
+
 // GradientDef is a color gradient as stored in [GradientsFile].
 type GradientDef struct {
 	// Name is shown in the gradient drop-down. It must be unique.

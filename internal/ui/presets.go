@@ -24,6 +24,12 @@ type PresetConfig struct {
 	Presets []Preset `yaml:"presets"`
 }
 
+// PresetsVersion is the version of the layout of the presets file, see settings.FormatVersion.
+const PresetsVersion = 1
+
+// FormatVersion returns [PresetsVersion].
+func (PresetConfig) FormatVersion() int { return PresetsVersion }
+
 // Preset is a stored combination of a background map and overlays.
 type Preset struct {
 	// Name is shown in the list of presets. It must be unique.

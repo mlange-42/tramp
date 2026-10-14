@@ -1,0 +1,2 @@
+gradients[].colors[]
+gradients[].name
