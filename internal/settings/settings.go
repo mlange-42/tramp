@@ -11,9 +11,15 @@ import (
 	"go.yaml.in/yaml/v3"
 )
 
+const dirName = "tramp"
+
+// FileName is the name of the settings file in the settings directory.
+const FileName = "settings.yaml"
+
+// Log files in the settings directory: that of the current run, and that of the previous one.
 const (
-	dirName  = "tramp"
-	fileName = "settings.yaml"
+	LogFile    = "tramp.log"
+	OldLogFile = "tramp.old.log"
 )
 
 // FormatVersion is the version of the layout of the YAML files, written to their "version" key.
@@ -283,7 +289,7 @@ func CacheDir() (string, error) {
 
 // Path returns the path of the settings file.
 func Path() (string, error) {
-	return FilePath(fileName)
+	return FilePath(FileName)
 }
 
 // FilePath returns the path of the file with the given name in the settings directory.

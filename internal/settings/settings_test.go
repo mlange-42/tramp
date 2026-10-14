@@ -10,7 +10,7 @@ import (
 )
 
 func TestSaveLoad(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "sub", fileName)
+	path := filepath.Join(t.TempDir(), "sub", FileName)
 
 	def, exists, err := load(path)
 	if err != nil || exists {
@@ -88,7 +88,7 @@ func TestReadWriteYAML(t *testing.T) {
 }
 
 func TestPaneSizeDefaults(t *testing.T) {
-	path := filepath.Join(t.TempDir(), fileName)
+	path := filepath.Join(t.TempDir(), FileName)
 	if err := save(path, &Settings{Window: &Window{Width: 800, Height: 600}}); err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestRoutePointDefaults(t *testing.T) {
 		{50, 50, 50},
 		{-1, -1, -1},
 	} {
-		path := filepath.Join(t.TempDir(), fileName)
+		path := filepath.Join(t.TempDir(), FileName)
 		if err := save(path, &Settings{Routing: Routing{Tolerance: tc.val, SlightAngle: tc.val}}); err != nil {
 			t.Fatal(err)
 		}
@@ -201,7 +201,7 @@ func TestFileVersion(t *testing.T) {
 }
 
 func TestNewerSettingsNotOverwritten(t *testing.T) {
-	path := filepath.Join(t.TempDir(), fileName)
+	path := filepath.Join(t.TempDir(), FileName)
 	if err := os.WriteFile(path, []byte("version: 99\ntile_cache: 5\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

@@ -62,6 +62,8 @@ type Options struct {
 	State settings.Settings
 	// Files are opened in addition to State.Files, and shown on the map.
 	Files []string
+	// Notices are shown at the top of the map until closed, like problems with the configuration files.
+	Notices []Notice
 }
 
 // overlayState is an overlay with its tiles, which are only loaded while it is enabled.
@@ -182,6 +184,8 @@ type App struct {
 	menu menuBar
 	// about is the About window, opened from the Help menu.
 	about aboutView
+	// notices are the messages shown at the top of the map, see [App.notify].
+	notices []*notice
 
 	// nextColor is the index of the default color for the next opened file.
 	nextColor int
@@ -237,6 +241,9 @@ func newApp(invalidate func(), opts Options) *App {
 			service: newElevationService(opts.State.Elevation, opts.State.ElevationTileCache)},
 	}
 	a.menu = newMenuBar(menuTitles...)
+	for _, n := range opts.Notices {
+		a.notices = append(a.notices, &notice{Notice: n})
+	}
 	if a.elev.service != nil && a.diskCache.elevation != nil {
 		a.elev.service.SetDiskCache(a.diskCache.elevation, a.diskCache.maxAge())
 	}
@@ -524,6 +531,7 @@ func (a *App) update(gtx layout.Context) {
 
 	a.runUITasks()
 	a.updateAbout(gtx)
+	a.updateNotices(gtx)
 	a.menu.update(gtx, a.menuItems())
 	if a.openBtn.Clicked(gtx) || a.emptyOpen.Clicked(gtx) {
 		a.showOpenDialog()
@@ -678,6 +686,7 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	a.layoutGPSButton(above)
 	a.layoutEditHint(above)
 	a.layoutNavPanel(gtx)
+	a.layoutNotices(gtx)
 	return dims
 }
 
