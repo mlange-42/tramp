@@ -75,3 +75,33 @@ func TestFormatValue(t *testing.T) {
 		}
 	}
 }
+
+func TestPreviewHover(t *testing.T) {
+	a, f, gtx := editorApp(t)
+	a.setTool(routeTool)
+	route := f.data.Routes[0]
+	end := route.Points[1].Pos
+	a.mapView.Hover, a.mapView.HoverValid = geo.ToMercator(end), true
+	if _, ok := a.previewHover(gtx); ok {
+		t.Fatalf("expected no preview before drawing")
+	}
+
+	// Clicking the end continues the route. At the end, the preview is the length of the route.
+	click(a, gtx, end)
+	a.updateHover(gtx)
+	if h := a.hover; !h.valid || !h.preview || math.Abs(h.x-route.Length()) > 1e-6 {
+		t.Fatalf("expected the route length at the end, got %+v", h)
+	}
+
+	// Further on, the preview adds the distance to the pointer.
+	to := geo.LonLat{Lon: 12.1, Lat: 51.1}
+	a.mapView.Hover = geo.ToMercator(to)
+	a.updateHover(gtx)
+	want := route.Length() + geo.Distance(end, to)
+	if h := a.hover; !h.valid || math.Abs(h.x-want) > 1e-6 || math.Abs(h.pos.X-a.mapView.Hover.X) > 1e-9 {
+		t.Errorf("expected length %v at the pointer, got %+v", want, h)
+	}
+	if p := a.hoverParts(); len(p) != 1 || p[0].icon != iconDistance || p[0].text != formatDistance(want) {
+		t.Errorf("unexpected hover parts %v", p)
+	}
+}
