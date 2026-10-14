@@ -209,6 +209,15 @@ func (a *App) layoutLegend(gtx layout.Context) {
 	})
 }
 
+// layoutGradientPreview draws a small bar of gradient i, for the gradient drop-down, with space after it.
+func (a *App) layoutGradientPreview(gtx layout.Context, i int) layout.Dimensions {
+	st := a.style
+	h := gtx.Sp(st.TextSize) * 3 / 4
+	size := image.Pt(gtx.Dp(st.PreviewWidth), h)
+	layoutGradientBar(gtx, &a.gradients[i], size)
+	return layout.Dimensions{Size: image.Pt(size.X+gtx.Dp(st.Spacing), h)}
+}
+
 // layoutGradientBar draws a horizontal bar with the gradient.
 func layoutGradientBar(gtx layout.Context, g *Gradient, size image.Point) layout.Dimensions {
 	n := len(g.Stops) - 1

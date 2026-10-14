@@ -282,7 +282,7 @@ func newApp(invalidate func(), opts Options) *App {
 	for _, m := range metrics {
 		a.colorBy.icons = append(a.colorBy.icons, cmp.Or(m.menuIcon, m.icon))
 	}
-	a.gradientSel.help, a.gradientSel.icon = "Color gradient", iconGradient
+	a.gradientSel.help, a.gradientSel.preview = "Color gradient", a.layoutGradientPreview
 	a.setLayer(max(0, slices.Index(a.layerNames, mapName)))
 	for i, name := range a.overlayNames {
 		if slices.Contains(enabled, name) {

@@ -28,6 +28,8 @@ type popup struct {
 	help string
 	tip  tooltip
 	icon *widget.Icon
+	// lead is drawn before the label in place of icon, if not nil.
+	lead layout.Widget
 	// sections are headings in the list of options, in order of their index.
 	sections []Section
 	// tips are the tooltips of the options, if not empty, with their state in optTips.
@@ -89,6 +91,9 @@ func (p *popup) layoutHeader(gtx layout.Context, st *Style, label string, labelW
 		gtx.Constraints.Min = image.Point{}
 		content := layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if p.lead != nil {
+					return p.lead(gtx)
+				}
 				if p.icon == nil {
 					return layout.Dimensions{}
 				}
@@ -225,6 +230,8 @@ type Select struct {
 	enum widget.Enum
 	// icons are shown between the radio button and the label of each option, if not nil.
 	icons []*widget.Icon
+	// preview draws a preview of option i in place of an icon, in the options and the header, if not nil.
+	preview func(gtx layout.Context, i int) layout.Dimensions
 }
 
 // Selected returns the index of the selected option.
@@ -250,9 +257,12 @@ func (s *Select) Update(gtx layout.Context) bool {
 
 // Layout draws the drop-down, with the selected option as its label.
 func (s *Select) Layout(gtx layout.Context, st *Style, options []string) layout.Dimensions {
+	if s.preview != nil {
+		s.lead = func(gtx layout.Context) layout.Dimensions { return s.preview(gtx, s.Selected()) }
+	}
 	return s.layout(gtx, st, options[s.Selected()], options, func(gtx layout.Context) layout.Dimensions {
 		return s.layoutOptions(gtx, st, len(options), func(i int) layout.Widget {
-			if s.icons != nil {
+			if s.icons != nil || s.preview != nil {
 				return func(gtx layout.Context) layout.Dimensions {
 					return s.layoutIconOption(gtx, st, i, options[i])
 				}
@@ -268,7 +278,7 @@ func (s *Select) Layout(gtx layout.Context, st *Style, options []string) layout.
 	})
 }
 
-// layoutIconOption draws option i like a material radio button, with its icon between the button and the label.
+// layoutIconOption draws option i like a material radio button, with its icon or preview between the button and the label.
 func (s *Select) layoutIconOption(gtx layout.Context, st *Style, i int, label string) layout.Dimensions {
 	th := st.Theme
 	key := strconv.Itoa(i)
@@ -293,6 +303,11 @@ func (s *Select) layoutIconOption(gtx layout.Context, st *Style, i int, label st
 				return layout.Dimensions{Size: image.Pt(box, box)}
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if s.preview != nil {
+					return layout.Inset{Left: 2, Right: 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+						return s.preview(gtx, i)
+					})
+				}
 				ic := s.icons[i]
 				is := gtx.Sp(st.TextSize) * 5 / 4
 				if ic != nil {
