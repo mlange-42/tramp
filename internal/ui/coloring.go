@@ -142,9 +142,9 @@ func (l *legend) coloring() *mapview.Coloring {
 	return &mapview.Coloring{Min: l.min, Max: l.max, Colors: l.gradient.Bins(colorBins), Casing: casingColor, NoValue: l.noValue}
 }
 
-// label formats a value in the legend's unit.
+// label formats a value in the legend's unit, with the unit.
 func (l *legend) label(v float64) string {
-	return fmt.Sprintf(l.info.format, v*l.info.scale)
+	return l.info.formatValue(v)
 }
 
 // layoutLegend draws the scale bar, and the color bar with the value range if tracks are colored,
@@ -169,7 +169,7 @@ func (a *App) layoutLegend(gtx layout.Context) {
 			if l != nil {
 				gap(st.Spacing / 2)
 				rows = append(rows,
-					layout.Rigid(st.SmallLabel(fmt.Sprintf("%s (%s)", l.info.name, l.info.unit)).Layout),
+					layout.Rigid(st.SmallLabel(l.info.name).Layout),
 					layout.Rigid(layout.Spacer{Height: st.Spacing / 2}.Layout),
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 						return layoutGradientBar(gtx, l.gradient, image.Pt(gtx.Dp(st.LegendWidth), gtx.Dp(10)))
