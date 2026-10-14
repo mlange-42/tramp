@@ -2,6 +2,7 @@ package ui
 
 import (
 	"image"
+	"image/color"
 	"slices"
 
 	"gioui.org/font"
@@ -212,7 +213,10 @@ func (a *App) layoutPanel(gtx layout.Context) layout.Dimensions {
 // layoutFileList draws the opened files and their items, scrolling if they don't fit.
 func (a *App) layoutFileList(gtx layout.Context) layout.Dimensions {
 	st := a.style
-	return material.List(st.Theme, &a.fileList).Layout(gtx, len(a.panelRows), func(gtx layout.Context, i int) layout.Dimensions {
+	// The scroll bar floats above the rows, so that their highlights reach the edge of the panel.
+	list := material.List(st.Theme, &a.fileList)
+	list.AnchorStrategy = material.Overlay
+	return list.Layout(gtx, len(a.panelRows), func(gtx layout.Context, i int) layout.Dimensions {
 		r := a.panelRows[i]
 		d := &r.file.drag
 		if r.item != nil {
@@ -222,7 +226,8 @@ func (a *App) layoutFileList(gtx layout.Context) layout.Dimensions {
 		hovered := d.row.Update(gtx.Source)
 		actions := hovered || d.dragging || a.selectedRow(r)
 		macro := op.Record(gtx.Ops)
-		dims := layout.Inset{Bottom: st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		// Even space above and below, so that the content is centered in the highlight.
+		dims := layout.Inset{Top: st.Spacing / 2, Bottom: st.Spacing / 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			if r.item != nil {
 				return a.layoutItemRow(gtx, r.file, r.item, actions)
 			}
@@ -230,18 +235,23 @@ func (a *App) layoutFileList(gtx layout.Context) layout.Dimensions {
 		})
 		call := macro.Stop()
 		d.height = dims.Size.Y
-		switch {
-		case d.dragging:
-			paint.FillShape(gtx.Ops, st.DragBg, clip.Rect{Max: dims.Size}.Op())
-		case a.selectedRow(r):
-			paint.FillShape(gtx.Ops, st.SelectedBg, clip.Rect{Max: dims.Size}.Op())
-		case hovered:
-			paint.FillShape(gtx.Ops, st.DragBg, clip.Rect{Max: dims.Size}.Op())
-		}
+		// The highlight of an item starts right of the guide line below the chevron of the file,
+		// which connects the items of the file.
+		hl := image.Rectangle{Max: dims.Size}
 		if r.item != nil {
-			// A guide line below the chevron of the file connects its items.
+			hl.Min.X = chevronWidth(gtx, st)
 			x, w := chevronWidth(gtx, st)/2, max(1, gtx.Dp(1))
 			paint.FillShape(gtx.Ops, st.SeparatorColor, clip.Rect(image.Rect(x-w/2, 0, x-w/2+w, dims.Size.Y)).Op())
+		}
+		var bg color.NRGBA
+		switch {
+		case d.dragging, hovered && !a.selectedRow(r):
+			bg = st.DragBg
+		case a.selectedRow(r):
+			bg = st.SelectedBg
+		}
+		if bg.A > 0 {
+			paint.FillShape(gtx.Ops, bg, clip.UniformRRect(hl, gtx.Dp(st.CornerRadius)).Op(gtx.Ops))
 		}
 		call.Add(gtx.Ops)
 		// On top of the row, passing events on to its buttons.
