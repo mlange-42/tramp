@@ -13,7 +13,8 @@ Each file starts with the TRAMP version that wrote it and a `version` key with t
 Leave the key as it is. Newer versions of TRAMP update older files automatically.
 An older TRAMP doesn't read files written by a newer one with a different layout, and doesn't overwrite them.
 Instead, it uses the defaults and shows a notice.
-The same happens for files that can't be read, e.g. because of a typo; the details are in `tramp.log`.
+The same happens for files that can't be read, e.g. because of a syntax error; the details are in `tramp.log`.
+Unknown keys, like typos in key names, are reported too, instead of being silently ignored.
 
 ## Settings
 

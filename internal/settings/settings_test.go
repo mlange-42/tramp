@@ -213,3 +213,46 @@ func TestNewerSettingsNotOverwritten(t *testing.T) {
 		t.Errorf("expected defaults, got tile cache %d", s.TileCache)
 	}
 }
+
+func TestUnknownKeys(t *testing.T) {
+	path := filepath.Join(t.TempDir(), FileName)
+	for _, tc := range []struct {
+		content string
+		keys    []string
+	}{
+		{"version: 1\ntile_cache: 5\n", nil},
+		{"", nil},
+		{"tile_cahce: 5\n", []string{"tile_cahce (line 1)"}},
+		{"tile_cache: 5\nstyle:\n  trak_width: 2\n  route_width: 2\nfoo: 1\n", []string{"trak_width (line 3)", "foo (line 5)"}},
+	} {
+		if err := os.WriteFile(path, []byte(tc.content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		s := Settings{TileCache: 1}
+		_, err := readYAML(path, &s)
+		var ue *UnknownKeysError
+		if tc.keys == nil {
+			if err != nil {
+				t.Errorf("%q: %v", tc.content, err)
+			}
+			continue
+		}
+		if !errors.As(err, &ue) || !reflect.DeepEqual(ue.Keys, tc.keys) {
+			t.Errorf("%q: expected unknown keys %v, got %v", tc.content, tc.keys, err)
+		}
+		if s.TileCache != 1 {
+			t.Errorf("%q: settings changed despite the error: %+v", tc.content, s)
+		}
+	}
+
+	// Other errors are not reported as unknown keys.
+	if err := os.WriteFile(path, []byte("tile_cache: lots\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var s Settings
+	_, err := readYAML(path, &s)
+	var ue *UnknownKeysError
+	if err == nil || errors.As(err, &ue) {
+		t.Errorf("expected a type error, got %v", err)
+	}
+}

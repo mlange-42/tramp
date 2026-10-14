@@ -1,12 +1,16 @@
 package ui
 
 import (
+	"errors"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/mlange-42/tramp/internal/settings"
 	"github.com/mlange-42/tramp/internal/wms"
 	"go.yaml.in/yaml/v3"
 )
@@ -146,5 +150,53 @@ overlays:
 	// The configuration itself is unchanged, so that it is saved with the disabled layers.
 	if len(cfg.Maps) != 6 || len(cfg.Overlays) != 2 {
 		t.Error("configuration was changed")
+	}
+}
+
+func TestWMSUnknownKeys(t *testing.T) {
+	// The settings directory in a temporary directory, on all systems.
+	dir := t.TempDir()
+	t.Setenv("AppData", dir)
+	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
+	path, err := settings.FilePath(WMSFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := `maps:
+  - section: Maps
+  - name: OSM
+    url: https://tile.example.com/{z}/{x}/{y}.png
+    max_zoon: 19
+overlays:
+  - name: Hillshade
+    url: https://tile.example.com/{z}/{x}/{y}.png
+    opacty: 0.5
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var cfg WMSConfig
+	_, err = settings.LoadFile(WMSFile, &cfg)
+	var ue *settings.UnknownKeysError
+	if want := []string{"max_zoon (line 5)", "opacty (line 9)"}; !errors.As(err, &ue) || !reflect.DeepEqual(ue.Keys, want) {
+		t.Errorf("expected unknown keys %v, got %v", want, err)
+	}
+
+	// Without the typos, the file is read.
+	content = `maps:
+  - section: Maps
+  - name: OSM
+    url: https://tile.example.com/{z}/{x}/{y}.png
+    max_zoom: 19
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := settings.LoadFile(WMSFile, &cfg); err != nil || len(cfg.Maps) != 2 {
+		t.Errorf("expected 2 entries, got %+v, err %v", cfg.Maps, err)
 	}
 }
