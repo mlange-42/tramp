@@ -36,6 +36,14 @@ var (
 	iconCheck    = mustIcon(icons.NavigationCheck)
 	iconMinimize = mustIcon(icons.NavigationFullscreenExit)
 
+	// Icons of the main menu items, besides those of the toolbar.
+	iconSettings   = mustIcon(icons.ActionSettings)
+	iconQuit       = mustIcon(icons.ActionExitToApp)
+	iconClearCache = mustIcon(icons.ContentDeleteSweep)
+	iconFolder     = mustIcon(icons.FileFolder)
+	iconHelp       = mustIcon(icons.ActionHelpOutline)
+	iconBug        = mustIcon(icons.ActionBugReport)
+
 	// Icons of the horizontal chart axes and the metrics, in the hover label and the color-by drop-down.
 	iconDistance  = mustIcon(icons.ImageStraighten)
 	iconTripTime  = mustIcon(icons.ImageTimer)

@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"runtime/debug"
 
+	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/io/event"
 	"gioui.org/io/key"
@@ -35,6 +36,33 @@ const aboutWidth unit.Dp = 480
 
 // aboutScrim darkens the window behind the About window.
 var aboutScrim = color.NRGBA{A: 0x60}
+
+// logoImages are the decoded sizes of the app icon drawn by [layoutLogo], by size in pixels.
+// A failed decoding is kept as a zero image, so that it is tried only once.
+var logoImages = map[int]paint.ImageOp{}
+
+// layoutLogo draws the app logo as an icon of the given size at an offset,
+// scaled down from the smallest size of the app icon that is at least as large.
+func layoutLogo(gtx layout.Context, at image.Point, size int) {
+	data, s := assets.IconPNG(size)
+	img, ok := logoImages[s]
+	if !ok {
+		if m, err := png.Decode(bytes.NewReader(data)); err != nil {
+			log.Printf("logo: %v", err)
+		} else {
+			img = paint.NewImageOp(m)
+		}
+		logoImages[s] = img
+	}
+	if img.Size().X == 0 {
+		return
+	}
+	defer op.Offset(at).Push(gtx.Ops).Pop()
+	scale := float32(size) / float32(img.Size().X)
+	defer op.Affine(f32.Affine2D{}.Scale(f32.Point{}, f32.Pt(scale, scale))).Push(gtx.Ops).Pop()
+	img.Add(gtx.Ops)
+	paint.PaintOp{}.Add(gtx.Ops)
+}
 
 // Version returns the version of TRAMP, like "v0.3.0", from the build information Go stamps into the binary:
 // the tag of the commit it was built from, or a pseudo-version with the commit's time and hash.
