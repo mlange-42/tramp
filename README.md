@@ -13,7 +13,7 @@ Written in [Go](https://go.dev), for Linux, Windows and macOS.
 [![GitHub](https://img.shields.io/badge/github-repo-blue?logo=github)](https://github.com/mlange-42/tramp)
 [![MIT license](https://img.shields.io/badge/MIT-brightgreen?label=license)](https://github.com/mlange-42/tramp/blob/main/LICENSE)
 
-> **Status:** feature-rich and in daily use by its author, but not yet released.
+> **Status:** Feature-rich and in daily use by its author, but still under development.
 > Expect rough edges, and settings files that may still change.
 
 ## Features
@@ -39,7 +39,14 @@ Coming next: FIT and KML/KMZ files.
 
 ### Precompiled binary
 
-Binaries for Windows, Linux and macOS will be available on the GitHub [releases page](https://github.com/mlange-42/tramp/releases). [TODO].
+Binaries for Windows, Linux and macOS are available on the GitHub [releases page](https://github.com/mlange-42/tramp/releases).
+Download the archive for your system, unpack it and run `tramp`. There is nothing to install.
+
+The binaries are not signed, so your system may warn you on the first start:
+
+- **Windows:** SmartScreen may say "Windows protected your PC". Click "More info", then "Run anyway".
+- **macOS:** Gatekeeper blocks apps from unidentified developers. Right-click `tramp`, choose "Open" and confirm,
+  or remove the quarantine flag in a terminal: `xattr -d com.apple.quarantine tramp`
 
 ### With Go
 
@@ -55,7 +62,9 @@ On Windows, add `-ldflags="-H windowsgui"` to prevent a console window from open
 
 ### Requirements
 
-On Linux, the file dialog requires `zenity`, `kdialog` or a similar tool, which most desktops have installed.
+On Linux, TRAMP needs the Wayland or X11, xkbcommon and EGL/Vulkan libraries,
+and the file dialog requires `zenity`, `kdialog` or a similar tool.
+Most desktops have all of these installed.
 
 ## Documentation
 
