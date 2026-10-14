@@ -44,7 +44,7 @@ func (a *App) layoutEditMap(gtx layout.Context) {
 	a.drawRubberBand(gtx)
 
 	// While a point is dragged, the midpoints are not needed, and would cover the segment lengths.
-	if e.tool == selectTool && !(e.drag.active && e.drag.moved) {
+	if e.tool == selectTool && (!e.drag.active || !e.drag.moved) {
 		mr := float32(gtx.Dp(st.EditMidSize)) / 2
 		for ri := range d.Routes {
 			pts := d.Routes[ri].Points
