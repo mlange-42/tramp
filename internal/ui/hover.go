@@ -306,8 +306,9 @@ func (a *App) drawHoverDot(gtx layout.Context, p image.Point) {
 
 // layoutWaypointHover draws the name of the waypoint or route point marker under the pointer on the map,
 // for the shown files except the edited one, whose names are always shown, see [App.layoutEditMap].
+// Not drawn for items whose names are all shown, see [App.layoutPointNames].
 func (a *App) layoutWaypointHover(gtx layout.Context) {
-	if !a.mapView.HoverValid {
+	if !a.mapView.HoverValid || !a.showing(showHoverNames) {
 		return
 	}
 	view := &a.mapView.View
@@ -321,22 +322,19 @@ func (a *App) layoutWaypointHover(gtx layout.Context) {
 		radius float32
 	)
 	for _, it := range a.shownItems() {
-		if a.editing != nil && slices.Contains(a.editing.items, it) {
+		if a.namesShown(it) || (a.editing != nil && slices.Contains(a.editing.items, it)) {
 			continue
 		}
-		for i, d := range it.dots {
-			if i >= len(it.dotNames) || it.dotNames[i] == "" {
+		dots, names := a.itemDots(it)
+		for i, d := range dots {
+			if i >= len(names) || names[i] == "" {
 				continue
 			}
-			size := a.waypointSize
-			if d.Icon != nil {
-				size = a.symbolSize
-			}
-			r := float32(gtx.Dp(size)) / 2
+			r := a.dotRadius(gtx, d.Icon != nil)
 			x, y := view.ToScreen(d.Pos)
 			p := f32.Pt(float32(x), float32(y))
 			if d2 := dist2(p, hover); d2 <= max(r, hit)*max(r, hit) && d2 < best {
-				best, name, at, radius = d2, it.dotNames[i], p, r
+				best, name, at, radius = d2, names[i], p, r
 			}
 		}
 	}

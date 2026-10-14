@@ -52,6 +52,16 @@ elevation:
   encoding: ''             # for another service: terrarium or mapbox
   tile_size: 0             # for another service: edge length of the tiles in pixels
   max_zoom: 0              # for another service: highest tile level
+show:                      # parts of the map view, switched in the Map menu
+  track_colors: true       # color tracks by value
+  route_colors: true       # color routes by value
+  route_points: false      # route points without symbol
+  waypoint_names: false    # names of all waypoints
+  route_point_names: false # names of all route points
+  hover_names: true        # name of the point under the pointer
+  muted: true              # mute the selected track outside the zoomed chart range
+  color_legend: true       # legend of the coloring
+  scale_bar: true          # scale bar
 ```
 
 Sizes are in device-independent pixels.

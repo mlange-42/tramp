@@ -70,6 +70,9 @@ type Settings struct {
 	Window *Window `yaml:"window,omitempty"`
 	// Files are the opened track files, in panel order.
 	Files []File `yaml:"files,omitempty"`
+	// Show are the features of the map view switched on or off in the Map menu, by name.
+	// Missing ones have their default.
+	Show map[string]bool `yaml:"show,omitempty"`
 }
 
 // Style is how tracks, routes and waypoints are drawn on the map.

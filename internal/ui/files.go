@@ -96,8 +96,11 @@ type fileItem struct {
 	// dots are the waypoints, or the route points with a symbol, drawn on the map, and dotNames their names.
 	dots     []mapview.Dot
 	dotNames []string
-	bounds   geo.Rect
-	color    color.NRGBA
+	// plainDots are the route points without symbol, drawn only if switched on in the Map menu, and plainNames their names.
+	plainDots  []mapview.Dot
+	plainNames []string
+	bounds     geo.Rect
+	color      color.NRGBA
 	// index is the position of the item in the file, independent of the panel order.
 	index int
 	// nth is the position of the item among the items of its kind in the file.
@@ -148,10 +151,13 @@ func buildItems(f *track.File) []*fileItem {
 		for k, p := range r.Points {
 			pts[k] = geo.ToMercator(p.Pos)
 			tps[k] = track.Point{Pos: p.Pos, Ele: p.Ele, Time: p.Time}
-			// Route points are drawn only with a symbol icon, not as plain dots.
+			// Route points without symbol icon are drawn only if switched on, see [App.itemDots].
 			if d := waypointDot(p); d.Icon != nil {
 				it.dots = append(it.dots, d)
 				it.dotNames = append(it.dotNames, p.Name)
+			} else {
+				it.plainDots = append(it.plainDots, d)
+				it.plainNames = append(it.plainNames, p.Name)
 			}
 		}
 		it.lines = append(it.lines, mapview.NewPolyline(pts))
@@ -272,6 +278,7 @@ func (f *openFile) waypointsFirst() {
 func (it *fileItem) setContent(n *fileItem) {
 	it.name, it.summary = n.name, n.summary
 	it.lines, it.points, it.dots, it.dotNames, it.bounds = n.lines, n.points, n.dots, n.dotNames, n.bounds
+	it.plainDots, it.plainNames = n.plainDots, n.plainNames
 	it.profile, it.terrainPts, it.terrain, it.terrainOnly = profileNone, nil, nil, false
 	it.clearCaches()
 }
@@ -678,10 +685,14 @@ func (a *App) fileState() []settings.File {
 func (a *App) updateTracks() {
 	items := a.shownItems()
 	groups := a.lineGroups(items)
-	// The found route counts for the color range while it is shown.
-	ranged := groups
+	// The color range covers all shown items, also those not colored on the map, as the chart is colored by it.
+	// The found route counts for it while it is shown.
+	ranged := make([]mapview.LineGroup, 0, len(items)+1)
+	for _, it := range items {
+		ranged = append(ranged, mapview.LineGroup{Values: it.lineValues(a.colorMetric())})
+	}
 	if it := a.nav.item; it != nil && a.shown(it) {
-		ranged = append(slices.Clone(groups), mapview.LineGroup{Values: it.lineValues(a.colorMetric())})
+		ranged = append(ranged, mapview.LineGroup{Values: it.lineValues(a.colorMetric())})
 	}
 	a.legend = a.newLegend(ranged)
 	// The chart first, as it decides which item is zoomed in on.
@@ -689,7 +700,7 @@ func (a *App) updateTracks() {
 	// While the chart is zoomed in, the selected item is muted, and the part visible in the chart
 	// is drawn on top, see [App.updateHighlight]. Its values still count for the color range.
 	for i, it := range items {
-		if a.chart.zoomedOn(it) {
+		if a.chart.zoomedOn(it) && a.showing(showMuted) {
 			groups[i].Color, groups[i].Values, groups[i].Casing = a.style.MutedTrack, nil, a.style.MutedCasing
 		}
 	}
@@ -748,7 +759,7 @@ func (a *App) updateHighlight() {
 	if a.legend != nil {
 		coloring = a.legend.coloring()
 	}
-	lines, vals := rangeLines(it.lines, c.xs, it.lineValues(a.colorMetric()), key.from, key.to)
+	lines, vals := rangeLines(it.lines, c.xs, a.coloredValues(it), key.from, key.to)
 	a.highlight.Set([]mapview.LineGroup{{
 		Color:  it.color,
 		Lines:  lines,
@@ -817,18 +828,19 @@ func (a *App) shownItems() []*fileItem {
 	return items
 }
 
-// lineGroups returns the map drawing of the items, colored by the selected metric.
+// lineGroups returns the map drawing of the items, colored by the selected metric if enabled for their kind.
 func (a *App) lineGroups(items []*fileItem) []mapview.LineGroup {
 	groups := make([]mapview.LineGroup, len(items))
 	for i, it := range items {
+		dots, _ := a.itemDots(it)
 		groups[i] = mapview.LineGroup{
 			Color:      it.color,
 			Lines:      it.lines,
-			Dots:       it.dots,
+			Dots:       dots,
 			Width:      a.lineWidth(it),
 			DotSize:    a.waypointSize,
 			MarkerSize: a.symbolSize,
-			Values:     it.lineValues(a.colorMetric()),
+			Values:     a.coloredValues(it),
 		}
 	}
 	return groups

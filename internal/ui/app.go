@@ -145,6 +145,9 @@ type App struct {
 	fileList  widget.List
 	files     []*openFile
 	panelRows []panelRow
+	// flipped are the view options of the Map menu that differ from their default, see [App.showing].
+	// This way, the zero App has the defaults.
+	flipped [numViewOptions]bool
 	// tracksChanged requests updating the lines on the map.
 	tracksChanged bool
 	dialogOpen    atomic.Bool
@@ -293,6 +296,7 @@ func newApp(invalidate func(), opts Options) *App {
 	} else {
 		a.mapView.Fit(worldBounds)
 	}
+	a.initViewOptions(opts.State.Show)
 	a.initColoring(opts.Gradients, opts.State.Style.ColorBy, opts.State.Style.Gradients)
 	a.openFiles(slices.Clone(opts.State.Files), false)
 	files := make([]settings.File, len(opts.Files))
@@ -349,6 +353,7 @@ func (a *App) State() settings.Settings {
 		Elevation: a.elev.cfg,
 		Window:    new(a.win),
 		Files:     a.fileState(),
+		Show:      a.viewOptionsState(),
 	}
 	s.Window.PanelWidth = float32(a.split.Size)
 	s.Window.ChartHeight = float32(a.chartSplit.Size)
@@ -653,6 +658,7 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 	}
 	a.layoutNavMap(gtx)
 	a.layoutSearchMarker(gtx)
+	a.layoutPointNames(gtx)
 	a.layoutEditMap(gtx)
 	a.layoutWaypointHover(gtx)
 	a.layoutHoverMap(gtx)

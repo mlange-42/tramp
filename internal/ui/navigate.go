@@ -722,13 +722,13 @@ func (a *App) updateNavLines() {
 	route := mapview.LineGroup{Color: st.NavLine, Width: st.NavLineWidth, Lines: n.line}
 	var coloring *mapview.Coloring
 	switch it := n.item; {
-	case a.chart.zoomedOn(it):
+	case a.chart.zoomedOn(it) && a.showing(showMuted):
 		// Like the tracks, the route is muted while the chart is zoomed in on it,
 		// with the part shown in the chart drawn on top, see [App.layoutNavMap].
 		route.Color = a.style.MutedTrack
 	case it != nil && a.legend != nil:
 		// Colored by value along the lines of the profile, which follow the route.
-		if vals := it.lineValues(a.colorMetric()); vals != nil {
+		if vals := a.coloredValues(it); vals != nil {
 			route.Lines, route.Values = it.lines, vals
 			coloring = a.legend.coloring()
 		}

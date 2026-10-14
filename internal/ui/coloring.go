@@ -12,6 +12,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/mapview"
 	"github.com/mlange-42/tramp/internal/track"
@@ -146,40 +147,57 @@ func (l *legend) label(v float64) string {
 
 // layoutLegend draws the scale bar, and the color bar with the value range if tracks are colored,
 // in the bottom left corner of the map.
+// Both can be switched off in the Map menu, see [viewOptions]. Without anything to show, there is no box.
 func (a *App) layoutLegend(gtx layout.Context) {
 	l := a.legend
+	if !a.showing(showColorLegend) {
+		l = nil
+	}
 	st := a.style
 	layout.SW.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.UniformInset(st.Spacing).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			macro := op.Record(gtx.Ops)
-			dims := layout.UniformInset(st.Spacing).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-				// Overlay legend images get at most 60% of the map height, leaving room for the rest.
-				rows := a.overlayLegendRows(gtx, gtx.Constraints.Max.Y*6/10)
+			// Overlay legend images get at most 60% of the map height, leaving room for the rest.
+			rows := a.overlayLegendRows(gtx, gtx.Constraints.Max.Y*6/10)
+			// gap separates the parts of the box.
+			gap := func(h unit.Dp) {
 				if len(rows) > 0 {
-					rows = append(rows, layout.Rigid(layout.Spacer{Height: st.Spacing / 2}.Layout))
+					rows = append(rows, layout.Rigid(layout.Spacer{Height: h}.Layout))
 				}
+			}
+			if l != nil {
+				gap(st.Spacing / 2)
+				rows = append(rows,
+					layout.Rigid(st.SmallLabel(fmt.Sprintf("%s (%s)", l.info.name, l.info.unit)).Layout),
+					layout.Rigid(layout.Spacer{Height: st.Spacing / 2}.Layout),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						return layoutGradientBar(gtx, l.gradient, image.Pt(gtx.Dp(st.LegendWidth), gtx.Dp(10)))
+					}),
+					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+						gtx.Constraints.Min.X = gtx.Dp(st.LegendWidth)
+						gtx.Constraints.Max.X = gtx.Constraints.Min.X
+						return layout.Flex{}.Layout(gtx,
+							layout.Rigid(st.SmallLabel(l.label(l.min)).Layout),
+							layout.Flexed(1, layout.Spacer{}.Layout),
+							layout.Rigid(st.SmallLabel(l.label(l.max)).Layout),
+						)
+					}),
+				)
+			}
+			if a.showing(showScaleBar) {
 				if l != nil {
-					rows = append(rows,
-						layout.Rigid(st.SmallLabel(fmt.Sprintf("%s (%s)", l.info.name, l.info.unit)).Layout),
-						layout.Rigid(layout.Spacer{Height: st.Spacing / 2}.Layout),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							return layoutGradientBar(gtx, l.gradient, image.Pt(gtx.Dp(st.LegendWidth), gtx.Dp(10)))
-						}),
-						layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-							gtx.Constraints.Min.X = gtx.Dp(st.LegendWidth)
-							gtx.Constraints.Max.X = gtx.Constraints.Min.X
-							return layout.Flex{}.Layout(gtx,
-								layout.Rigid(st.SmallLabel(l.label(l.min)).Layout),
-								layout.Flexed(1, layout.Spacer{}.Layout),
-								layout.Rigid(st.SmallLabel(l.label(l.max)).Layout),
-							)
-						}),
-						layout.Rigid(layout.Spacer{Height: st.Spacing}.Layout),
-					)
+					gap(st.Spacing)
+				} else {
+					gap(st.Spacing / 2)
 				}
 				rows = append(rows, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					return layoutScaleBar(gtx, st, &a.mapView.View, gtx.Dp(st.LegendWidth))
 				}))
+			}
+			if len(rows) == 0 {
+				return layout.Dimensions{}
+			}
+			macro := op.Record(gtx.Ops)
+			dims := layout.UniformInset(st.Spacing).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				return layout.Flex{Axis: layout.Vertical}.Layout(gtx, rows...)
 			})
 			call := macro.Stop()
