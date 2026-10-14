@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"slices"
 
+	"gioui.org/font"
 	"gioui.org/gesture"
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
@@ -262,10 +263,20 @@ func rowAction(gtx layout.Context, show bool, w layout.Widget) layout.Dimensions
 }
 
 // layoutFileRow draws the row of a file. actions shows the buttons for closing, saving with terrain and dragging.
-// The edit button is always shown, and the expand button while the file has items to show.
+// The edit button is always shown. The chevron for expanding the file comes first, or its space if the file has no items to show.
 func (a *App) layoutFileRow(gtx layout.Context, f *openFile, actions bool) layout.Dimensions {
 	st := a.style
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			if !f.expandable() {
+				sz := gtx.Dp(st.IconSize) + 2*gtx.Dp(st.Spacing/2)
+				return layout.Dimensions{Size: image.Pt(sz, sz)}
+			}
+			if f.expanded {
+				return f.expand.LayoutFlat(gtx, st, iconExpand, st.Theme.Fg, "Hide the tracks, routes and waypoints of the file")
+			}
+			return f.expand.LayoutFlat(gtx, st, iconNext, st.Theme.Fg, "Show the tracks, routes and waypoints of the file")
+		}),
 		layout.Rigid(a.visibilityToggle(&f.visible, &f.tips.visible, "Show or hide the file on the map")),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if len(f.items) == 0 {
@@ -274,7 +285,7 @@ func (a *App) layoutFileRow(gtx layout.Context, f *openFile, actions bool) layou
 			return withTooltip(gtx, st, &f.tips.color, f.colorBtn.Hovered(), "Change the color of all tracks, routes and waypoints of the file",
 				func(gtx layout.Context) layout.Dimensions { return a.layoutSwatch(gtx, &f.colorBtn, f.colors()) })
 		}),
-		layout.Flexed(1, a.rowText(&f.click, &f.tips.name, a.fileTitle(f), f.summary, f.visible.Value)),
+		layout.Flexed(1, a.rowText(&f.click, &f.tips.name, a.fileTitle(f), f.summary, f.visible.Value, true)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			// Files with tracks are not edited, so they have this button in place of the edit button.
 			if !a.terrainSavable(f) {
@@ -293,15 +304,6 @@ func (a *App) layoutFileRow(gtx layout.Context, f *openFile, actions bool) layou
 				col, tip = st.EditActive, "Stop editing"
 			}
 			return f.editBtn.LayoutFlat(gtx, st, iconEdit, col, tip)
-		}),
-		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			if !f.expandable() {
-				return layout.Dimensions{}
-			}
-			if f.expanded {
-				return f.expand.LayoutFlat(gtx, st, iconCollapse, st.Theme.Fg, "Hide the tracks, routes and waypoints of the file")
-			}
-			return f.expand.LayoutFlat(gtx, st, iconExpand, st.Theme.Fg, "Show the tracks, routes and waypoints of the file")
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			return rowAction(gtx, actions, func(gtx layout.Context) layout.Dimensions {
@@ -326,7 +328,7 @@ func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem, actio
 						return a.layoutSwatch(gtx, &it.colorBtn, []color.NRGBA{it.color})
 					})
 			}),
-			layout.Flexed(1, a.rowText(&it.click, &it.tips.name, it.name, it.summary, f.visible.Value && it.visible.Value)),
+			layout.Flexed(1, a.rowText(&it.click, &it.tips.name, it.name, it.summary, f.visible.Value && it.visible.Value, false)),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				// The waypoints stay on top, see [openFile.waypointsFirst].
 				if it.kind == waypointItem {
@@ -401,18 +403,18 @@ func (a *App) visibilityToggle(b *widget.Bool, tip *tooltip, text string) layout
 }
 
 // rowText returns a clickable name with a summary line below.
-// Hidden entries are drawn in the hint color.
-func (a *App) rowText(clk *widget.Clickable, tip *tooltip, name, summary string, visible bool) layout.Widget {
+// Hidden entries are drawn in the hint color. bold is for the names of files.
+func (a *App) rowText(clk *widget.Clickable, tip *tooltip, name, summary string, visible, bold bool) layout.Widget {
 	st := a.style
 	return func(gtx layout.Context) layout.Dimensions {
 		return withTooltip(gtx, st, tip, clk.Hovered(), "Click to show the profile, double-click to zoom to it", func(gtx layout.Context) layout.Dimensions {
-			return a.rowName(gtx, clk, name, summary, visible)
+			return a.rowName(gtx, clk, name, summary, visible, bold)
 		})
 	}
 }
 
 // rowName draws a clickable name with a summary line below.
-func (a *App) rowName(gtx layout.Context, clk *widget.Clickable, name, summary string, visible bool) layout.Dimensions {
+func (a *App) rowName(gtx layout.Context, clk *widget.Clickable, name, summary string, visible, bold bool) layout.Dimensions {
 	st := a.style
 	// Without a highlight of its own, as the whole row is highlighted while hovered.
 	return clk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
@@ -423,6 +425,9 @@ func (a *App) rowName(gtx layout.Context, clk *widget.Clickable, name, summary s
 				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 					l := st.Label(name)
 					l.MaxLines = 1
+					if bold {
+						l.Font.Weight = font.Bold
+					}
 					if !visible {
 						l.Color = st.HintFg
 					}
