@@ -12,6 +12,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
 	"github.com/mlange-42/tramp/internal/geo"
@@ -190,9 +191,7 @@ func (a *App) layoutPanel(gtx layout.Context) layout.Dimensions {
 	paint.Fill(gtx.Ops, st.SideBg)
 	return st.SideInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		if len(a.files) == 0 {
-			l := st.SmallLabel("Nothing opened")
-			l.Color = st.HintFg
-			return l.Layout(gtx)
+			return layout.Center.Layout(gtx, a.layoutOpenPrompt)
 		}
 		a.panelRows = a.panelRows[:0]
 		for _, f := range a.files {
@@ -204,10 +203,60 @@ func (a *App) layoutPanel(gtx layout.Context) layout.Dimensions {
 			}
 		}
 		return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
-			layout.Flexed(1, a.layoutFileList),
+			layout.Flexed(1, a.layoutFileArea),
 			layout.Rigid(a.layoutProps),
 		)
 	})
+}
+
+// layoutFileArea draws the list of files, and the prompt for opening files centered in the space below, if it fits.
+func (a *App) layoutFileArea(gtx layout.Context) layout.Dimensions {
+	st := a.style
+	size := gtx.Constraints.Max
+	gtx.Constraints.Min.Y = 0
+	list := a.layoutFileList(gtx)
+	rest := size.Y - list.Size.Y
+
+	macro := op.Record(gtx.Ops)
+	pgtx := gtx
+	pgtx.Constraints = layout.Constraints{Max: image.Pt(size.X, rest)}
+	prompt := a.layoutOpenPrompt(pgtx)
+	call := macro.Stop()
+	if margin := gtx.Dp(st.GroupSpacing); prompt.Size.Y+2*margin <= rest {
+		off := op.Offset(image.Pt((size.X-prompt.Size.X)/2, list.Size.Y+(rest-prompt.Size.Y)/2)).Push(gtx.Ops)
+		call.Add(gtx.Ops)
+		off.Pop()
+	}
+	return layout.Dimensions{Size: size}
+}
+
+// promptIconSize is the size of the icon of the button for opening files in the empty space of the side panel.
+const promptIconSize unit.Dp = 40
+
+// layoutOpenPrompt draws a large icon button for opening files, with a hint on the shortcuts below.
+func (a *App) layoutOpenPrompt(gtx layout.Context) layout.Dimensions {
+	st := a.style
+	return layout.Flex{Axis: layout.Vertical, Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			b := &a.emptyOpen
+			return withTooltip(gtx, st, &b.tip, b.btn.Hovered(), "Open GPX files (Ctrl+O)", func(gtx layout.Context) layout.Dimensions {
+				return b.btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+					size, pad := gtx.Dp(promptIconSize), gtx.Dp(st.Spacing)
+					box := image.Pt(size+2*pad, size+2*pad)
+					layoutButtonBg(gtx, st, box, b.btn.Hovered(), false)
+					layoutIcon(gtx, iconOpen, image.Pt(pad, pad), size, st.HintFg)
+					pointer.CursorPointer.Add(gtx.Ops)
+					return layout.Dimensions{Size: box}
+				})
+			})
+		}),
+		layout.Rigid(layout.Spacer{Height: st.Spacing}.Layout),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			l := st.SmallLabel("Ctrl+O to open, Ctrl+N for a new file")
+			l.Color = st.HintFg
+			return l.Layout(gtx)
+		}),
+	)
 }
 
 // layoutFileList draws the opened files and their items, scrolling if they don't fit.

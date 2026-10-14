@@ -142,6 +142,8 @@ type App struct {
 
 	openBtn   iconButton
 	newBtn    iconButton
+	// emptyOpen is the button for opening files in the empty space of the side panel.
+	emptyOpen iconButton
 	fileList  widget.List
 	files     []*openFile
 	panelRows []panelRow
@@ -521,7 +523,7 @@ func (a *App) update(gtx layout.Context) {
 	a.runUITasks()
 	a.updateAbout(gtx)
 	a.menu.update(gtx, a.menuItems())
-	if a.openBtn.Clicked(gtx) {
+	if a.openBtn.Clicked(gtx) || a.emptyOpen.Clicked(gtx) {
 		a.showOpenDialog()
 	}
 	if a.newBtn.Clicked(gtx) {
