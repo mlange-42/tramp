@@ -25,27 +25,27 @@ func (a *App) menuItems() [][]menuItem {
 	routeTrackable := r != nil && len(r.Points) >= 2
 	return [][]menuItem{
 		{
-			{label: "New file", shortcut: "Ctrl+N", icon: iconNew, action: a.newFile},
-			{label: "Open files…", shortcut: "Ctrl+O", icon: iconOpen, action: a.showOpenDialog},
+			{label: "New file", shortcut: "Ctrl+N", tip: "Create a new GPX file, and edit its routes and waypoints", icon: iconNew, action: a.newFile},
+			{label: "Open files…", shortcut: "Ctrl+O", tip: "Open GPX files", icon: iconOpen, action: a.showOpenDialog},
 			menuSeparator,
-			{label: "Save route as track…", icon: iconSaveTrack, disabled: !routeTrackable, action: a.saveRouteTrack},
+			{label: "Save route as track…", tip: "Save the route selected in the side panel or chart as a GPX track in a new file, with the terrain elevation", icon: iconSaveTrack, disabled: !routeTrackable, action: a.saveRouteTrack},
 			menuSeparator,
-			{label: "Open settings folder", icon: iconSettings, action: openSettingsFolder},
+			{label: "Open settings folder", tip: "Open the folder with settings.yaml and the other configuration files", icon: iconSettings, action: openSettingsFolder},
 			menuSeparator,
-			{label: "Quit", icon: iconQuit, action: a.closeWindow},
+			{label: "Quit", tip: "Close TRAMP, asking to save unsaved changes", icon: iconQuit, action: a.closeWindow},
 		},
 		append(a.viewOptionItems(),
 			menuSeparator,
-			menuItem{label: fmt.Sprintf("Clear tile cache (%s)…", formatBytes(a.diskCache.size())), icon: iconClearCache, disabled: cacheOff, action: a.clearTileCache},
-			menuItem{label: "Open cache folder", icon: iconFolder, disabled: cacheOff, action: func() { openFolder(a.diskCache.dir) }},
+			menuItem{label: fmt.Sprintf("Clear tile cache (%s)…", formatBytes(a.diskCache.size())), tip: "Delete the map and elevation tiles stored on disk for offline use", icon: iconClearCache, disabled: cacheOff, action: a.clearTileCache},
+			menuItem{label: "Open cache folder", tip: "Open the folder with the stored map and elevation tiles", icon: iconFolder, disabled: cacheOff, action: func() { openFolder(a.diskCache.dir) }},
 		),
 		{
-			{label: "Documentation", icon: iconHelp, action: func() { openURL(docsURL) }},
-			{label: "Report an issue", icon: iconBug, action: func() { openURL(issuesURL) }},
+			{label: "Documentation", tip: "Open the documentation in the browser", icon: iconHelp, action: func() { openURL(docsURL) }},
+			{label: "Report an issue", tip: "Open the issue tracker in the browser, for bugs and ideas", icon: iconBug, action: func() { openURL(issuesURL) }},
 			menuSeparator,
-			{label: "Data sources", icon: iconInfo, action: func() { a.sources.open = true }},
+			{label: "Data sources", tip: "List the sources of maps, overlays, elevation, routing and search, with their credits", icon: iconInfo, action: func() { a.sources.open = true }},
 			menuSeparator,
-			{label: "About TRAMP", logo: true, action: func() { a.about.open = true }},
+			{label: "About TRAMP", tip: "Show the version, the license and the contact", logo: true, action: func() { a.about.open = true }},
 		},
 	}
 }

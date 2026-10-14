@@ -30,20 +30,30 @@ type viewOptionInfo struct {
 	// key is the name in the settings file.
 	key   string
 	label string
+	tip   string
 	// def is the state if the settings don't have it.
 	def bool
 }
 
 var viewOptions = [numViewOptions]viewOptionInfo{
-	showTrackColors:     {key: "track_colors", label: "Colored tracks", def: true},
-	showRouteColors:     {key: "route_colors", label: "Colored routes", def: true},
-	showRoutePoints:     {key: "route_points", label: "Route points", def: false},
-	showWaypointNames:   {key: "waypoint_names", label: "Waypoint names", def: false},
-	showRoutePointNames: {key: "route_point_names", label: "Route point names", def: false},
-	showHoverNames:      {key: "hover_names", label: "Names on hover", def: true},
-	showMuted:           {key: "muted", label: "Muted outside chart zoom", def: true},
-	showColorLegend:     {key: "color_legend", label: "Color legend", def: true},
-	showScaleBar:        {key: "scale_bar", label: "Scale bar", def: true},
+	showTrackColors: {key: "track_colors", label: "Colored tracks", def: true,
+		tip: "Color tracks on the map by the value selected in the toolbar. The chart is always colored"},
+	showRouteColors: {key: "route_colors", label: "Colored routes", def: true,
+		tip: "Color routes on the map by the value selected in the toolbar, also the found route. The chart is always colored"},
+	showRoutePoints: {key: "route_points", label: "Route points", def: false,
+		tip: "Draw all route points as dots. Points with a symbol are always drawn"},
+	showWaypointNames: {key: "waypoint_names", label: "Waypoint names", def: false,
+		tip: "Show the names of all waypoints on the map"},
+	showRoutePointNames: {key: "route_point_names", label: "Route point names", def: false,
+		tip: "Show the names of all route points on the map"},
+	showHoverNames: {key: "hover_names", label: "Names on hover", def: true,
+		tip: "Show the name of the waypoint or route point under the mouse pointer"},
+	showMuted: {key: "muted", label: "Muted outside chart zoom", def: true,
+		tip: "While the chart is zoomed in, draw the rest of the selected track or route in gray"},
+	showColorLegend: {key: "color_legend", label: "Color legend", def: true,
+		tip: "Show the colors and the value range of the coloring at the bottom left of the map"},
+	showScaleBar: {key: "scale_bar", label: "Scale bar", def: true,
+		tip: "Show the scale bar at the bottom left of the map"},
 }
 
 // initViewOptions sets the view options from the settings, with the defaults for missing ones.
@@ -75,7 +85,7 @@ func (a *App) viewOptionsState() map[string]bool {
 func (a *App) viewOptionItems() []menuItem {
 	items := make([]menuItem, numViewOptions)
 	for i, o := range viewOptions {
-		items[i] = menuItem{label: o.label, check: true, checked: a.showing(viewOption(i)), action: func() { a.toggleViewOption(viewOption(i)) }}
+		items[i] = menuItem{label: o.label, tip: o.tip, check: true, checked: a.showing(viewOption(i)), action: func() { a.toggleViewOption(viewOption(i)) }}
 	}
 	return items
 }

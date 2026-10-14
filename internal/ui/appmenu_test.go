@@ -16,6 +16,13 @@ func TestMenuItems(t *testing.T) {
 	if len(items) != len(menuTitles) || len(a.menu.menus) != len(menuTitles) {
 		t.Fatalf("%d item lists and %d menus for %d titles", len(items), len(a.menu.menus), len(menuTitles))
 	}
+	for i, menu := range items {
+		for _, it := range menu {
+			if it.label != "" && it.tip == "" {
+				t.Errorf("%s › %s has no tooltip", menuTitles[i], it.label)
+			}
+		}
+	}
 	// Without disk cache, as in tests, its items are disabled.
 	for _, it := range items[1][clearCacheItem:] {
 		if !it.disabled {
