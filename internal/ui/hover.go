@@ -9,6 +9,7 @@ import (
 	"gioui.org/op"
 	"gioui.org/op/clip"
 	"gioui.org/op/paint"
+	"gioui.org/widget"
 	"github.com/mlange-42/tramp/internal/geo"
 	"github.com/mlange-42/tramp/internal/mapview"
 )
@@ -121,16 +122,42 @@ func nearestSegment(lines []mapview.Polyline, p geo.Point, radius float64) (i, j
 	return i, j, t, ok
 }
 
-// hoverText returns the label for the hovered position: the value, if any, and the position on the horizontal axis.
-func (a *App) hoverText() string {
-	x := a.chart.formatX(a.hover.x)
+// hoverPart is a part of the hover label: a text with an icon in front, telling what it is.
+type hoverPart struct {
+	icon *widget.Icon
+	text string
+}
+
+// hoverParts returns the parts of the label for the hovered position: the value, if any, the terrain elevation,
+// if shown, and the position on the horizontal axis.
+func (a *App) hoverParts() []hoverPart {
+	c := &a.chart
+	var parts []hoverPart
+	if !math.IsNaN(a.hover.value) {
+		parts = append(parts, hoverPart{c.info.icon, c.info.formatValue(a.hover.value)})
+	}
 	if !math.IsNaN(a.hover.terrain) {
-		x = "terrain " + a.chart.info.formatValue(a.hover.terrain) + " · " + x
+		parts = append(parts, hoverPart{iconTerrain, c.info.formatValue(a.hover.terrain)})
 	}
-	if math.IsNaN(a.hover.value) {
-		return x
+	return append(parts, hoverPart{chartAxes[c.xAxis].icon, c.formatX(a.hover.x)})
+}
+
+// layoutHoverParts draws the parts of the hover label in a row.
+func (a *App) layoutHoverParts(gtx layout.Context) layout.Dimensions {
+	st := a.style
+	parts := a.hoverParts()
+	children := make([]layout.FlexChild, 0, 2*len(parts))
+	for i, p := range parts {
+		if i > 0 {
+			children = append(children, layout.Rigid(layout.Spacer{Width: st.Spacing * 2}.Layout))
+		}
+		children = append(children, layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			size := gtx.Sp(st.SmallTextSize)
+			layoutIcon(gtx, p.icon, image.Point{}, size, st.Theme.Fg)
+			return layout.Dimensions{Size: image.Pt(size+gtx.Dp(2), size)}
+		}), layout.Rigid(st.SmallLabel(p.text).Layout))
 	}
-	return a.chart.info.formatValue(a.hover.value) + " · " + x
+	return layout.Flex{Alignment: layout.Middle}.Layout(gtx, children...)
 }
 
 // recordHoverLabel records the label for the hovered position on its background, at the origin.
@@ -141,7 +168,7 @@ func (a *App) recordHoverLabel(gtx layout.Context) (op.CallOp, image.Point) {
 	lgtx := gtx
 	lgtx.Constraints = layout.Constraints{Max: gtx.Constraints.Max}
 	inner := op.Record(gtx.Ops)
-	dims := st.SmallLabel(a.hoverText()).Layout(lgtx)
+	dims := a.layoutHoverParts(lgtx)
 	label := inner.Stop()
 	size := dims.Size.Add(image.Pt(2*pad, 0))
 	paint.FillShape(gtx.Ops, st.LegendBg, clip.UniformRRect(image.Rectangle{Max: size}, gtx.Dp(st.CornerRadius)).Op(gtx.Ops))

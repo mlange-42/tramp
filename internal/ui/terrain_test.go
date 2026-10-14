@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/mlange-42/tramp/internal/settings"
@@ -76,8 +75,8 @@ func TestTrackTerrain(t *testing.T) {
 		t.Errorf("expected the range to cover both lines, got %v to %v", lo, hi)
 	}
 	a.hover = c.hoverAt(rec.lines, 0, 0, 0.5)
-	if s := a.hoverText(); !strings.HasPrefix(s, "108 m · terrain 123 m · ") {
-		t.Errorf("unexpected hover text %q", s)
+	if p := a.hoverParts(); len(p) != 3 || p[0] != (hoverPart{iconElevation, "108 m"}) || p[1] != (hoverPart{iconTerrain, "123 m"}) {
+		t.Errorf("unexpected hover parts %v", p)
 	}
 
 	// Other metrics have no terrain line.

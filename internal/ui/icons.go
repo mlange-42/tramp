@@ -36,6 +36,16 @@ var (
 	iconCheck    = mustIcon(icons.NavigationCheck)
 	iconMinimize = mustIcon(icons.NavigationFullscreenExit)
 
+	// Icons of the horizontal chart axes and the metrics, in the hover label and the color-by drop-down.
+	iconDistance  = mustIcon(icons.ImageStraighten)
+	iconTripTime  = mustIcon(icons.ImageTimer)
+	iconClockTime = mustIcon(icons.DeviceAccessTime)
+	iconElevation = mustIcon(icons.EditorVerticalAlignTop)
+	iconMountain  = mustIcon(icons.ImageFilterHDR)
+	iconSpeed     = mustIcon(icons.MapsDirectionsRun)
+	iconSlope     = mustIcon(icons.DeviceSignalCellular4Bar)
+	iconNoColor   = mustIcon(icons.ContentBlock)
+
 	toolIcons = [numTools]*widget.Icon{
 		mustIcon(icons.ActionTouchApp),
 		mustIcon(icons.MapsAddLocation),
