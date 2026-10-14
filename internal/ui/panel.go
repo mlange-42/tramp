@@ -239,6 +239,11 @@ func (a *App) layoutFileList(gtx layout.Context) layout.Dimensions {
 		case hovered:
 			paint.FillShape(gtx.Ops, st.DragBg, clip.Rect{Max: dims.Size}.Op())
 		}
+		if r.item != nil {
+			// A guide line below the chevron of the file connects its items.
+			x, w := chevronWidth(gtx, st)/2, max(1, gtx.Dp(1))
+			paint.FillShape(gtx.Ops, st.SeparatorColor, clip.Rect(image.Rect(x-w/2, 0, x-w/2+w, dims.Size.Y)).Op())
+		}
 		call.Add(gtx.Ops)
 		// On top of the row, passing events on to its buttons.
 		pass := pointer.PassOp{}.Push(gtx.Ops)
@@ -269,7 +274,7 @@ func (a *App) layoutFileRow(gtx layout.Context, f *openFile, actions bool) layou
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if !f.expandable() {
-				sz := gtx.Dp(st.IconSize) + 2*gtx.Dp(st.Spacing/2)
+				sz := chevronWidth(gtx, st)
 				return layout.Dimensions{Size: image.Pt(sz, sz)}
 			}
 			if f.expanded {
@@ -316,10 +321,16 @@ func (a *App) layoutFileRow(gtx layout.Context, f *openFile, actions bool) layou
 	)
 }
 
-// layoutItemRow draws the row of an item of a file. actions shows the drag handle.
+// chevronWidth returns the width of the chevron for expanding a file in the side panel, a flat icon button.
+func chevronWidth(gtx layout.Context, st *Style) int {
+	return gtx.Dp(st.IconSize) + 2*gtx.Dp(st.Spacing/2)
+}
+
+// layoutItemRow draws the row of an item of a file, indented further than the content of the file row.
+// actions shows the drag handle.
 func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem, actions bool) layout.Dimensions {
 	st := a.style
-	return layout.Inset{Left: st.IconSize + st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	return layout.Inset{Left: st.IconSize + 3*st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(a.visibilityToggle(&it.visible, &it.tips.visible, "Show or hide on the map")),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
