@@ -187,7 +187,10 @@ func (a *App) drawPointLabel(gtx layout.Context, p f32.Point, r float32, name st
 	dims := l.Layout(gtx)
 	call := macro.Stop()
 
-	x := int(p.X+r) + gtx.Dp(3)
+	// The gap grows with the handle or marker, and clears its ring, its highlight when active, and the label's padding.
+	ring := float32(gtx.Dp(1.5))
+	gap := max(float32(gtx.Dp(2)), r/2)
+	x := int(p.X+r+ring+gap) + pad
 	y := int(p.Y) - dims.Size.Y/2
 	defer op.Offset(image.Pt(x, y)).Push(gtx.Ops).Pop()
 	bg := image.Rect(-pad, 0, dims.Size.X+pad, dims.Size.Y)

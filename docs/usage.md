@@ -133,6 +133,7 @@ GPX does not standardize symbol names; TRAMP knows the common outdoor symbols in
 like `Summit`, `Campground` or `Flag, Blue`, and some aliases like `Peak` or `Hut`, ignoring case and punctuation.
 Unknown symbols are drawn with a generic pin icon, waypoints without symbol as plain dots.
 Route points are drawn only if they have a symbol.
+Hover a waypoint or route point marker to see its name.
 
 The profile of a route is taken from the terrain elevation along its lines, sampled every 20 m,
 rather than from its points, which rarely have elevations.
