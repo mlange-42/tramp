@@ -18,6 +18,9 @@ type menuItem struct {
 	label string
 	// shortcut is the keyboard shortcut shown after the label, like "Ctrl+O". May be empty.
 	shortcut string
+	// icon is shown before the label, if not nil, or the app logo if logo is set.
+	icon     *widget.Icon
+	logo     bool
 	disabled bool
 	action   func()
 }
@@ -192,6 +195,15 @@ func (m *menu) layoutItems(gtx layout.Context, st *Style, items []menuItem) layo
 	pad := gtx.Dp(st.Spacing)
 	labelW := maxLabelWidth(gtx, st, labels)
 	shortcutW := maxLabelWidth(gtx, st, shortcuts)
+	// If any item has an icon, all labels leave room for one, so that they are aligned.
+	iconW := 0
+	for _, it := range items {
+		if it.icon != nil || it.logo {
+			iconW = menuIconSize(gtx, st) + pad
+			break
+		}
+	}
+	labelW += iconW
 	width := labelW + 2*pad
 	if shortcutW > 0 {
 		width += gtx.Dp(menuItemGap) + shortcutW
@@ -203,13 +215,19 @@ func (m *menu) layoutItems(gtx layout.Context, st *Style, items []menuItem) layo
 			if it.label == "" {
 				return m.layoutSeparator(gtx, st, width)
 			}
-			return m.layoutItem(gtx, st, &m.btns[i], it, width, labelW)
+			return m.layoutItem(gtx, st, &m.btns[i], it, width, labelW, iconW)
 		})
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
 }
 
-func (m *menu) layoutItem(gtx layout.Context, st *Style, btn *widget.Clickable, it menuItem, width, labelW int) layout.Dimensions {
+// menuIconSize returns the size of the icons of menu items.
+func menuIconSize(gtx layout.Context, st *Style) int {
+	return gtx.Sp(st.TextSize) * 5 / 4
+}
+
+// layoutItem draws an item with its label at iconW, after the icon if it has one, and the shortcut at labelW.
+func (m *menu) layoutItem(gtx layout.Context, st *Style, btn *widget.Clickable, it menuItem, width, labelW, iconW int) layout.Dimensions {
 	if it.disabled {
 		gtx = gtx.Disabled()
 	}
@@ -223,7 +241,16 @@ func (m *menu) layoutItem(gtx layout.Context, st *Style, btn *widget.Clickable, 
 		}
 		l := st.Label(it.label)
 		l.Color = col
+		off := op.Offset(image.Pt(iconW, 0)).Push(gtx.Ops)
 		ld := l.Layout(gtx)
+		off.Pop()
+		is := menuIconSize(gtx, st)
+		switch {
+		case it.icon != nil:
+			layoutIcon(gtx, it.icon, image.Pt(0, (ld.Size.Y-is)/2), is, col)
+		case it.logo:
+			layoutLogo(gtx, image.Pt(0, (ld.Size.Y-is)/2), is)
+		}
 		if it.shortcut != "" {
 			s := st.Label(it.shortcut)
 			s.Color = st.HintFg
@@ -237,7 +264,7 @@ func (m *menu) layoutItem(gtx layout.Context, st *Style, btn *widget.Clickable, 
 		if !it.disabled && btn.Hovered() {
 			paint.FillShape(gtx.Ops, st.DragBg, clip.Rect{Max: size}.Op())
 		}
-		off := op.Offset(image.Pt(pad, pad/2)).Push(gtx.Ops)
+		off = op.Offset(image.Pt(pad, pad/2)).Push(gtx.Ops)
 		content.Add(gtx.Ops)
 		off.Pop()
 		if !it.disabled {

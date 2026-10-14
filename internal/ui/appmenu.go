@@ -23,24 +23,24 @@ func (a *App) menuItems() [][]menuItem {
 	cacheOff := a.diskCache.tiles == nil && a.diskCache.elevation == nil
 	return [][]menuItem{
 		{
-			{label: "New file", shortcut: "Ctrl+N", action: a.newFile},
-			{label: "Open files…", shortcut: "Ctrl+O", action: a.showOpenDialog},
+			{label: "New file", shortcut: "Ctrl+N", icon: iconNew, action: a.newFile},
+			{label: "Open files…", shortcut: "Ctrl+O", icon: iconOpen, action: a.showOpenDialog},
 			menuSeparator,
-			{label: "Open settings folder", action: openSettingsFolder},
+			{label: "Open settings folder", icon: iconSettings, action: openSettingsFolder},
 			menuSeparator,
-			{label: "Quit", action: a.closeWindow},
+			{label: "Quit", icon: iconQuit, action: a.closeWindow},
 		},
 		{
-			{label: fmt.Sprintf("Clear tile cache (%s)…", formatBytes(a.diskCache.size())), disabled: cacheOff, action: a.clearTileCache},
-			{label: "Open cache folder", disabled: cacheOff, action: func() { openFolder(a.diskCache.dir) }},
+			{label: fmt.Sprintf("Clear tile cache (%s)…", formatBytes(a.diskCache.size())), icon: iconClearCache, disabled: cacheOff, action: a.clearTileCache},
+			{label: "Open cache folder", icon: iconFolder, disabled: cacheOff, action: func() { openFolder(a.diskCache.dir) }},
 		},
 		{
-			{label: "Documentation", action: func() { openURL(docsURL) }},
-			{label: "Report an issue", action: func() { openURL(issuesURL) }},
+			{label: "Documentation", icon: iconHelp, action: func() { openURL(docsURL) }},
+			{label: "Report an issue", icon: iconBug, action: func() { openURL(issuesURL) }},
 			menuSeparator,
-			{label: "Data sources", action: func() { a.sources.open = true }},
+			{label: "Data sources", icon: iconInfo, action: func() { a.sources.open = true }},
 			menuSeparator,
-			{label: "About TRAMP", action: func() { a.about.open = true }},
+			{label: "About TRAMP", logo: true, action: func() { a.about.open = true }},
 		},
 	}
 }
