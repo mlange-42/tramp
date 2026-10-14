@@ -98,13 +98,18 @@ func (a *App) showColorDialog(items []*fileItem) {
 func (a *App) layoutKindSymbol(gtx layout.Context, clk *widget.Clickable, ic *widget.Icon, col color.NRGBA, visible bool) layout.Dimensions {
 	st := a.style
 	return clk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		box := gtx.Dp(st.IconSize + st.Spacing)
+		box := kindSymbolWidth(gtx, st)
 		layoutButtonBg(gtx, st, image.Pt(box, box), clk.Hovered(), false)
 		size := gtx.Dp(st.IconSize)
 		layoutStripedIcon(gtx, ic, image.Pt((box-size)/2, (box-size)/2), size, []color.NRGBA{col}, visible)
 		pointer.CursorPointer.Add(gtx.Ops)
 		return layout.Dimensions{Size: image.Pt(box, box)}
 	})
+}
+
+// kindSymbolWidth returns the width of the symbol of an item in the side panel, see [App.layoutKindSymbol].
+func kindSymbolWidth(gtx layout.Context, st *Style) int {
+	return gtx.Dp(st.IconSize + st.Spacing)
 }
 
 // fileSymbolWidth returns the width of the symbol of a file in the side panel, see [App.layoutFileSymbol].

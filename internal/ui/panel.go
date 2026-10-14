@@ -326,30 +326,35 @@ func chevronWidth(gtx layout.Context, st *Style) int {
 	return gtx.Dp(st.IconSize) + 2*gtx.Dp(st.Spacing/2)
 }
 
-// layoutItemRow draws the row of an item of a file, indented further than the content of the file row.
+// layoutItemRow draws the row of an item of a file, indented so that its name is aligned with the name of the file.
 // actions shows the drag handle.
 func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem, actions bool) layout.Dimensions {
 	st := a.style
-	return layout.Inset{Left: st.IconSize + 3*st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-			layout.Rigid(a.visibilityToggle(&it.visible, &it.tips.visible, "Show or hide on the map")),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				return withTooltip(gtx, st, &it.tips.color, it.colorBtn.Hovered(), itemKindNames[it.kind]+". Click to change the color",
-					func(gtx layout.Context) layout.Dimensions {
-						return a.layoutKindSymbol(gtx, &it.colorBtn, itemKindIcons[it.kind], it.color, f.visible.Value && it.visible.Value)
-					})
-			}),
-			layout.Flexed(1, a.rowText(&it.click, &it.tips.name, it.name, it.summary, f.visible.Value && it.visible.Value, false)),
-			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-				// The waypoints stay on top, see [openFile.waypointsFirst].
-				if it.kind == waypointItem {
-					sz := gtx.Dp(st.IconSize + st.Spacing)
-					return layout.Dimensions{Size: image.Pt(sz, sz)}
-				}
-				return rowAction(gtx, actions, a.dragHandle(&it.drag))
-			}),
-		)
-	})
+	// The file row has the chevron and the wider file symbol where the item row has its kind symbol.
+	indent := chevronWidth(gtx, st) + fileSymbolWidth(gtx, st) - kindSymbolWidth(gtx, st)
+	defer op.Offset(image.Pt(indent, 0)).Push(gtx.Ops).Pop()
+	gtx.Constraints.Max.X = max(0, gtx.Constraints.Max.X-indent)
+	gtx.Constraints.Min.X = min(gtx.Constraints.Min.X, gtx.Constraints.Max.X)
+	dims := layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+		layout.Rigid(a.visibilityToggle(&it.visible, &it.tips.visible, "Show or hide on the map")),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return withTooltip(gtx, st, &it.tips.color, it.colorBtn.Hovered(), itemKindNames[it.kind]+". Click to change the color",
+				func(gtx layout.Context) layout.Dimensions {
+					return a.layoutKindSymbol(gtx, &it.colorBtn, itemKindIcons[it.kind], it.color, f.visible.Value && it.visible.Value)
+				})
+		}),
+		layout.Flexed(1, a.rowText(&it.click, &it.tips.name, it.name, it.summary, f.visible.Value && it.visible.Value, false)),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			// The waypoints stay on top, see [openFile.waypointsFirst].
+			if it.kind == waypointItem {
+				sz := gtx.Dp(st.IconSize + st.Spacing)
+				return layout.Dimensions{Size: image.Pt(sz, sz)}
+			}
+			return rowAction(gtx, actions, a.dragHandle(&it.drag))
+		}),
+	)
+	dims.Size.X += indent
+	return dims
 }
 
 // fileTitle returns the name of the file, marked if it has unsaved changes.
