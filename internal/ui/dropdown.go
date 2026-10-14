@@ -6,7 +6,6 @@ import (
 	"image/color"
 	"strconv"
 
-	"gioui.org/f32"
 	"gioui.org/font"
 	"gioui.org/io/event"
 	"gioui.org/io/pointer"
@@ -80,33 +79,44 @@ func (p *popup) layout(gtx layout.Context, st *Style, label string, sizes []stri
 	return dims
 }
 
+// layoutHeader draws the header flat like the toolbar buttons: highlighted while hovered or open,
+// and as high as them. The arrow follows the label, and the space up to labelWidth comes after it.
 func (p *popup) layoutHeader(gtx layout.Context, st *Style, label string, labelWidth int) layout.Dimensions {
-	th := st.Theme
-	btn := material.ButtonLayout(th, &p.header)
-	btn.CornerRadius = st.CornerRadius
-	return btn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		return st.ButtonInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-			return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					if p.icon == nil {
-						return layout.Dimensions{}
-					}
-					size := gtx.Sp(st.TextSize) * 5 / 4
-					layoutIcon(gtx, p.icon, image.Point{}, size, th.ContrastFg)
-					return layout.Dimensions{Size: image.Pt(size+gtx.Dp(st.Spacing/2), size)}
-				}),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					gtx.Constraints.Min.X = labelWidth
-					l := st.Label(label)
-					l.Color = th.ContrastFg
-					return l.Layout(gtx)
-				}),
-				layout.Rigid(layout.Spacer{Width: st.Spacing}.Layout),
-				layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-					return layoutArrow(gtx, float32(gtx.Sp(st.TextSize))*0.6, th.ContrastFg, p.open)
-				}),
-			)
-		})
+	return p.header.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		col := st.Theme.Fg
+		var labelW int
+		macro := op.Record(gtx.Ops)
+		gtx.Constraints.Min = image.Point{}
+		content := layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				if p.icon == nil {
+					return layout.Dimensions{}
+				}
+				size := gtx.Sp(st.TextSize) * 5 / 4
+				layoutIcon(gtx, p.icon, image.Point{}, size, col)
+				return layout.Dimensions{Size: image.Pt(size+gtx.Dp(st.Spacing/2), size)}
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				l := st.Label(label)
+				l.Color = col
+				dims := l.Layout(gtx)
+				labelW = dims.Size.X
+				return dims
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layoutChevron(gtx, st, col, p.open)
+			}),
+		)
+		call := macro.Stop()
+
+		pad := gtx.Dp(st.Spacing)
+		w := content.Size.X + max(0, labelWidth-labelW) + 2*pad
+		size := image.Pt(w, max(gtx.Dp(st.ToolIconSize+2*st.ToolIconPad), content.Size.Y))
+		layoutButtonBg(gtx, st, size, p.header.Hovered(), p.open)
+		defer op.Offset(image.Pt(pad, (size.Y-content.Size.Y)/2)).Push(gtx.Ops).Pop()
+		call.Add(gtx.Ops)
+		pointer.CursorPointer.Add(gtx.Ops)
+		return layout.Dimensions{Size: size}
 	})
 }
 
@@ -123,23 +133,30 @@ func maxLabelWidth(gtx layout.Context, st *Style, labels []string) int {
 	return w
 }
 
-// layoutArrow draws a small triangle of the given width, pointing down, or up if open.
-func layoutArrow(gtx layout.Context, w float32, col color.NRGBA, up bool) layout.Dimensions {
-	h := w / 2
-	var path clip.Path
-	path.Begin(gtx.Ops)
-	if up {
-		path.MoveTo(f32.Pt(0, h))
-		path.LineTo(f32.Pt(w, h))
-		path.LineTo(f32.Pt(w/2, 0))
-	} else {
-		path.MoveTo(f32.Pt(0, 0))
-		path.LineTo(f32.Pt(w, 0))
-		path.LineTo(f32.Pt(w/2, h))
+// layoutChevron draws a chevron after a drop-down label, pointing down, or up if open.
+func layoutChevron(gtx layout.Context, st *Style, col color.NRGBA, open bool) layout.Dimensions {
+	ic := iconExpand
+	if open {
+		ic = iconCollapse
 	}
-	path.Close()
-	paint.FillShape(gtx.Ops, col, clip.Outline{Path: path.End()}.Op())
-	return layout.Dimensions{Size: image.Pt(int(w), int(h))}
+	size := gtx.Sp(st.TextSize) * 5 / 4
+	layoutIcon(gtx, ic, image.Pt(gtx.Dp(2), 0), size, col)
+	return layout.Dimensions{Size: image.Pt(size+gtx.Dp(2), size)}
+}
+
+// layoutButtonBg draws the background of a flat button of the given size:
+// none at rest, a light tint while hovered and a stronger one while active.
+func layoutButtonBg(gtx layout.Context, st *Style, size image.Point, hovered, active bool) {
+	var bg color.NRGBA
+	switch {
+	case active:
+		bg = st.SelectedBg
+	case hovered:
+		bg = st.DragBg
+	default:
+		return
+	}
+	paint.FillShape(gtx.Ops, bg, clip.UniformRRect(image.Rectangle{Max: size}, gtx.Dp(st.CornerRadius)).Op(gtx.Ops))
 }
 
 // layoutPanel draws content on a bordered background.

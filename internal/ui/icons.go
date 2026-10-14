@@ -7,8 +7,6 @@ import (
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op"
-	"gioui.org/op/clip"
-	"gioui.org/op/paint"
 	"gioui.org/widget"
 	"golang.org/x/exp/shiny/materialdesign/icons"
 )
@@ -81,7 +79,7 @@ func (b *iconButton) Clicked(gtx layout.Context) bool {
 	return b.btn.Clicked(gtx)
 }
 
-// Layout draws the button for a toolbar, with a background that is highlighted if active.
+// Layout draws the button for a toolbar, flat unless hovered or active.
 // A disabled button is grayed out.
 func (b *iconButton) Layout(gtx layout.Context, st *Style, ic *widget.Icon, tip string, enabled, active bool) layout.Dimensions {
 	avail := gtx.Constraints.Max.X
@@ -91,15 +89,8 @@ func (b *iconButton) Layout(gtx layout.Context, st *Style, ic *widget.Icon, tip 
 	}
 	dims := b.btn.Layout(bgtx, func(gtx layout.Context) layout.Dimensions {
 		size, pad := gtx.Dp(st.ToolIconSize), gtx.Dp(st.ToolIconPad)
-		box := image.Rectangle{Max: image.Pt(size+2*pad, size+2*pad)}
-		bg := st.StatusBg
-		switch {
-		case active:
-			bg = st.SelectedBg
-		case enabled && b.btn.Hovered():
-			bg = st.DragBg
-		}
-		paint.FillShape(gtx.Ops, bg, clip.UniformRRect(box, gtx.Dp(st.CornerRadius)).Op(gtx.Ops))
+		box := image.Pt(size+2*pad, size+2*pad)
+		layoutButtonBg(gtx, st, box, enabled && b.btn.Hovered(), active)
 		col := st.Theme.Fg
 		if !enabled {
 			col = st.HintFg
@@ -108,7 +99,7 @@ func (b *iconButton) Layout(gtx layout.Context, st *Style, ic *widget.Icon, tip 
 		if enabled && !active {
 			pointer.CursorPointer.Add(gtx.Ops)
 		}
-		return layout.Dimensions{Size: box.Max}
+		return layout.Dimensions{Size: box}
 	})
 	b.tip.Layout(gtx, st, b.btn.Hovered(), dims.Size, avail, tip)
 	return dims
