@@ -63,7 +63,7 @@ func TestNewOpenFile(t *testing.T) {
 	want := [][2]string{
 		{"Waypoints", "2 waypoints"},
 		{"Morning", "3.3 km · 1:30 h · 2 s"},
-		{"Route", "route · 11.1 km"},
+		{"Route", "11.1 km"},
 	}
 	if len(f.items) != len(want) {
 		t.Fatalf("expected %d items, got %d", len(want), len(f.items))

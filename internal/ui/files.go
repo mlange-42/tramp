@@ -147,7 +147,7 @@ func buildItems(f *track.File) []*fileItem {
 	}
 	for i := range f.Routes {
 		r := &f.Routes[i]
-		it := &fileItem{kind: routeItem, nth: i, name: itemName(r.Name, "Route", i, len(f.Routes)), summary: "route · " + formatDistance(r.Length())}
+		it := &fileItem{kind: routeItem, nth: i, name: itemName(r.Name, "Route", i, len(f.Routes)), summary: formatDistance(r.Length())}
 		pts := make([]geo.Point, len(r.Points))
 		tps := make([]track.Point, len(r.Points))
 		for k, p := range r.Points {
