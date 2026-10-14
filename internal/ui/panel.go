@@ -34,6 +34,8 @@ type rowDrag struct {
 	drag  gesture.Drag
 	hover gesture.Hover
 	tip   tooltip
+	// row is the hover state of the whole row, for showing its actions.
+	row gesture.Hover
 	// grabY is the pointer position in the handle when the drag started.
 	grabY    float32
 	dragging bool
@@ -216,26 +218,52 @@ func (a *App) layoutFileList(gtx layout.Context) layout.Dimensions {
 		if r.item != nil {
 			d = &r.item.drag
 		}
+		// The actions of a row are shown while it is hovered, selected or dragged.
+		hovered := d.row.Update(gtx.Source)
+		actions := hovered || d.dragging || a.selectedRow(r)
 		macro := op.Record(gtx.Ops)
 		dims := layout.Inset{Bottom: st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			if r.item != nil {
-				return a.layoutItemRow(gtx, r.file, r.item)
+				return a.layoutItemRow(gtx, r.file, r.item, actions)
 			}
-			return a.layoutFileRow(gtx, r.file)
+			return a.layoutFileRow(gtx, r.file, actions)
 		})
 		call := macro.Stop()
 		d.height = dims.Size.Y
-		if d.dragging {
+		switch {
+		case d.dragging:
 			paint.FillShape(gtx.Ops, st.DragBg, clip.Rect{Max: dims.Size}.Op())
-		} else if a.selectedRow(r) {
+		case a.selectedRow(r):
 			paint.FillShape(gtx.Ops, st.SelectedBg, clip.Rect{Max: dims.Size}.Op())
+		case hovered:
+			paint.FillShape(gtx.Ops, st.DragBg, clip.Rect{Max: dims.Size}.Op())
 		}
 		call.Add(gtx.Ops)
+		// On top of the row, passing events on to its buttons.
+		pass := pointer.PassOp{}.Push(gtx.Ops)
+		area := clip.Rect{Max: dims.Size}.Push(gtx.Ops)
+		d.row.Add(gtx.Ops)
+		area.Pop()
+		pass.Pop()
 		return dims
 	})
 }
 
-func (a *App) layoutFileRow(gtx layout.Context, f *openFile) layout.Dimensions {
+// rowAction draws w if show is set. Otherwise, it only takes the space of w,
+// so that the name next to it doesn't change its width.
+func rowAction(gtx layout.Context, show bool, w layout.Widget) layout.Dimensions {
+	macro := op.Record(gtx.Ops)
+	dims := w(gtx)
+	call := macro.Stop()
+	if show {
+		call.Add(gtx.Ops)
+	}
+	return dims
+}
+
+// layoutFileRow draws the row of a file. actions shows the buttons for closing, saving with terrain and dragging.
+// The edit button is always shown, and the expand button while the file has items to show.
+func (a *App) layoutFileRow(gtx layout.Context, f *openFile, actions bool) layout.Dimensions {
 	st := a.style
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 		layout.Rigid(a.visibilityToggle(&f.visible, &f.tips.visible, "Show or hide the file on the map")),
@@ -252,7 +280,9 @@ func (a *App) layoutFileRow(gtx layout.Context, f *openFile) layout.Dimensions {
 			if !a.terrainSavable(f) {
 				return layout.Dimensions{}
 			}
-			return f.terrainBtn.LayoutFlat(gtx, st, iconTerrain, st.HintFg, "Save a copy with the terrain elevation for all track points")
+			return rowAction(gtx, actions, func(gtx layout.Context) layout.Dimensions {
+				return f.terrainBtn.LayoutFlat(gtx, st, iconTerrain, st.HintFg, "Save a copy with the terrain elevation for all track points")
+			})
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if !f.editable() {
@@ -274,13 +304,18 @@ func (a *App) layoutFileRow(gtx layout.Context, f *openFile) layout.Dimensions {
 			return f.expand.LayoutFlat(gtx, st, iconExpand, st.Theme.Fg, "Show the tracks, routes and waypoints of the file")
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return f.close.LayoutFlat(gtx, st, iconClose, st.Theme.Fg, "Close the file")
+			return rowAction(gtx, actions, func(gtx layout.Context) layout.Dimensions {
+				return f.close.LayoutFlat(gtx, st, iconClose, st.Theme.Fg, "Close the file")
+			})
 		}),
-		layout.Rigid(a.dragHandle(&f.drag)),
+		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+			return rowAction(gtx, actions, a.dragHandle(&f.drag))
+		}),
 	)
 }
 
-func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem) layout.Dimensions {
+// layoutItemRow draws the row of an item of a file. actions shows the drag handle.
+func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem, actions bool) layout.Dimensions {
 	st := a.style
 	return layout.Inset{Left: st.IconSize + st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
@@ -298,7 +333,7 @@ func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem) layou
 					sz := gtx.Dp(st.IconSize + st.Spacing)
 					return layout.Dimensions{Size: image.Pt(sz, sz)}
 				}
-				return a.dragHandle(&it.drag)(gtx)
+				return rowAction(gtx, actions, a.dragHandle(&it.drag))
 			}),
 		)
 	})
@@ -312,20 +347,21 @@ func (a *App) fileTitle(f *openFile) string {
 	return f.name
 }
 
-// dragHandle returns a grip for dragging an entry, drawn as three horizontal lines.
+// dragHandle returns a grip for dragging an entry, drawn as two columns of three dots.
 func (a *App) dragHandle(d *rowDrag) layout.Widget {
 	st := a.style
 	return func(gtx layout.Context) layout.Dimensions {
 		avail := gtx.Constraints.Max.X
 		dims := layout.UniformInset(st.Spacing/2).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			size := gtx.Dp(st.IconSize)
-			w := size * 3 / 4
-			x := (size - w) / 2
-			th := max(1, gtx.Dp(1.5))
-			gap := gtx.Dp(4)
-			for i := -1; i <= 1; i++ {
-				y := size/2 + i*gap - th/2
-				paint.FillShape(gtx.Ops, st.HintFg, clip.Rect(image.Rect(x, y, x+w, y+th)).Op())
+			dot, gap := max(2, gtx.Dp(2.5)), gtx.Dp(5)
+			for col := range 2 {
+				for row := -1; row <= 1; row++ {
+					x := size/2 + (2*col-1)*gap/2 - dot/2
+					y := size/2 + row*gap - dot/2
+					r := image.Rect(x, y, x+dot, y+dot)
+					paint.FillShape(gtx.Ops, st.HintFg, clip.Ellipse(r).Op(gtx.Ops))
+				}
 			}
 			return layout.Dimensions{Size: image.Pt(size, size)}
 		})
@@ -378,7 +414,9 @@ func (a *App) rowText(clk *widget.Clickable, tip *tooltip, name, summary string,
 // rowName draws a clickable name with a summary line below.
 func (a *App) rowName(gtx layout.Context, clk *widget.Clickable, name, summary string, visible bool) layout.Dimensions {
 	st := a.style
-	return material.Clickable(gtx, clk, func(gtx layout.Context) layout.Dimensions {
+	// Without a highlight of its own, as the whole row is highlighted while hovered.
+	return clk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		pointer.CursorPointer.Add(gtx.Ops)
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		return layout.Inset{Left: st.Spacing / 2}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 			return layout.Flex{Axis: layout.Vertical}.Layout(gtx,
