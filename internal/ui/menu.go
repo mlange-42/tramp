@@ -18,6 +18,8 @@ type menuItem struct {
 	label string
 	// shortcut is the keyboard shortcut shown after the label, like "Ctrl+O". May be empty.
 	shortcut string
+	// tip is the tooltip, shown while the item is hovered. May be empty.
+	tip string
 	// icon is shown before the label, if not nil, or the app logo if logo is set.
 	icon     *widget.Icon
 	logo     bool
@@ -39,8 +41,9 @@ type menu struct {
 	open   bool
 	// panel is the event tag for the list's background. The menu itself is the tag of the area around it.
 	panel int
-	// btns are the clickables of the items, in item order.
+	// btns are the clickables of the items, in item order, and tips their tooltips.
 	btns []widget.Clickable
+	tips []tooltip
 	// bounds is the area of the header in the menu bar, at the last layout.
 	bounds image.Rectangle
 }
@@ -139,6 +142,7 @@ func (b *menuBar) layout(gtx layout.Context, st *Style, items [][]menuItem) layo
 func (m *menu) layout(gtx layout.Context, st *Style, items []menuItem) layout.Dimensions {
 	if len(m.btns) != len(items) {
 		m.btns = make([]widget.Clickable, len(items))
+		m.tips = make([]tooltip, len(items))
 	}
 	dims := m.layoutHeader(gtx, st)
 	if !m.open {
@@ -218,7 +222,11 @@ func (m *menu) layoutItems(gtx layout.Context, st *Style, items []menuItem) layo
 			if it.label == "" {
 				return m.layoutSeparator(gtx, st, width)
 			}
-			return m.layoutItem(gtx, st, &m.btns[i], it, width, labelW, iconW)
+			dims := m.layoutItem(gtx, st, &m.btns[i], it, width, labelW, iconW)
+			if it.tip != "" {
+				m.tips[i].Layout(gtx, st, m.btns[i].Hovered(), dims.Size, gtx.Constraints.Max.X, it.tip)
+			}
+			return dims
 		})
 	}
 	return layout.Flex{Axis: layout.Vertical}.Layout(gtx, children...)
