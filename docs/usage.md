@@ -140,6 +140,11 @@ It is shown in the chart, and its ascent and descent in the side panel, like ↑
 The elevations are downloaded in the background when the file is opened or the route is changed,
 see the [settings](configuration.md#settings) for the elevation source.
 
+*File › Save route as track…* saves the route selected in the side panel or chart as a GPX track, in a new file.
+The track follows the straight lines of the route, with a point at least every 20 m with the terrain elevation.
+For a route found with [Routing](#routing), use its *Save as GPX track* button instead,
+which keeps all points of the found route rather than those of the saved route.
+
 For the track shown in the chart, the terrain elevation along it is drawn as a second, orange line in the elevation profile,
 for comparing it with the recorded elevation, which is often off by some meters.
 Tracks without recorded elevation use the terrain instead, for the profile and for coloring by elevation or slope.
