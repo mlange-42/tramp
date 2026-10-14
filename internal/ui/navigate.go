@@ -913,7 +913,7 @@ func (a *App) layoutNavContent(gtx layout.Context) layout.Dimensions {
 		n.profileBtns[i].tip.right = true
 	}
 	header := layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-		children := make([]layout.FlexChild, 0, 2*len(n.profileBtns)+8)
+		children := make([]layout.FlexChild, 0, 2*len(n.profileBtns)+9)
 		for i := range n.profileBtns {
 			if i > 0 {
 				children = append(children, layout.Rigid(layout.Spacer{Width: 1}.Layout))
@@ -923,6 +923,7 @@ func (a *App) layoutNavContent(gtx layout.Context) layout.Dimensions {
 			}))
 		}
 		children = append(children,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions { return layoutToolSeparator(gtx, st) }),
 			layout.Flexed(1, layout.Spacer{}.Layout),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return n.viaBtn.Layout(gtx, st, iconAddVia, "Add a via point before the target", true, false)

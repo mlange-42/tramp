@@ -676,12 +676,14 @@ func (a *App) layoutMap(gtx layout.Context) layout.Dimensions {
 
 func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 	st := a.style
-	return st.BarInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	sep := layout.Rigid(func(gtx layout.Context) layout.Dimensions { return layoutToolSeparator(gtx, st) })
+	macro := op.Record(gtx.Ops)
+	dims := st.BarInset.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.menu.layout(gtx, st, a.menuItems())
 			}),
-			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
+			sep,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.newBtn.Layout(gtx, st, iconNew, "New GPX file for routes and waypoints (Ctrl+N)", true, false)
 			}),
@@ -689,7 +691,7 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.openBtn.Layout(gtx, st, iconOpen, "Open GPX files (Ctrl+O)", true, false)
 			}),
-			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
+			sep,
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.layerSelect.Layout(gtx, st, a.layerNames)
 			}),
@@ -701,16 +703,16 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return a.presetMenu.layout(gtx, st, a.presets, a.presetActive)
 			}),
-			layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
+			sep,
 			layout.Rigid(a.layoutColoring),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				if a.editing == nil {
 					return layout.Dimensions{}
 				}
 				return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-					layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
+					sep,
 					layout.Rigid(a.layoutTools),
-					layout.Rigid(layout.Spacer{Width: st.GroupSpacing}.Layout),
+					sep,
 					layout.Rigid(a.layoutUndoRedo),
 				)
 			}),
@@ -725,6 +727,22 @@ func (a *App) layoutToolbar(gtx layout.Context) layout.Dimensions {
 			layout.Rigid(a.layoutSearch),
 		)
 	})
+	call := macro.Stop()
+
+	// The background sets the toolbar off from the side panel and the map, with a divider below.
+	paint.FillShape(gtx.Ops, st.ToolbarBg, clip.Rect(image.Rectangle{Max: dims.Size}).Op())
+	line := max(1, gtx.Dp(1))
+	paint.FillShape(gtx.Ops, st.DividerColor, clip.Rect(image.Rect(0, dims.Size.Y-line, dims.Size.X, dims.Size.Y)).Op())
+	call.Add(gtx.Ops)
+	return dims
+}
+
+// layoutToolSeparator draws a thin vertical line between groups of toolbar controls,
+// with space on both sides and as high as the icons.
+func layoutToolSeparator(gtx layout.Context, st *Style) layout.Dimensions {
+	pad, w, h := gtx.Dp(st.GroupSpacing/2), max(1, gtx.Dp(1)), gtx.Dp(st.ToolIconSize)
+	paint.FillShape(gtx.Ops, st.SeparatorColor, clip.Rect(image.Rect(pad, 0, pad+w, h)).Op())
+	return layout.Dimensions{Size: image.Pt(2*pad+w, h)}
 }
 
 // hoverPlaceholder is shown in the status bar instead of the position while the pointer is not on the map,
@@ -733,7 +751,7 @@ var hoverPlaceholder = fmt.Sprintf("%-*s", utf8.RuneCountInString(geo.LonLat{}.S
 
 func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 	// The parts have a fixed width where possible, and the changing ones come last,
-	// so that the others don't move. The font is monospaced.
+	// so that the others don't move. The font is monospaced, as the status is padded with spaces.
 	pos := hoverPlaceholder
 	if a.mapView.HoverValid {
 		pos = geo.ToLonLat(a.mapView.Hover).String()
@@ -770,7 +788,7 @@ func (a *App) layoutStatus(gtx layout.Context) layout.Dimensions {
 				gtx.Constraints.Min.X = gtx.Constraints.Max.X
 				return layout.Flex{}.Layout(gtx,
 					layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-						l := st.SmallLabel(status)
+						l := st.SmallMonoLabel(status)
 						l.MaxLines = 1
 						return l.Layout(gtx)
 					}),

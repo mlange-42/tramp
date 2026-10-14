@@ -400,22 +400,27 @@ func layoutPropRow(gtx layout.Context, st *Style, label string, w layout.Widget)
 	)
 }
 
-// layoutFieldBox draws content full width in a box with a border, highlighted if active.
+// layoutFieldBox draws content full width in a box with rounded corners and a border, highlighted if active.
+// The box is at least as high as the minimum constraint, with the content centered vertically.
 func layoutFieldBox(gtx layout.Context, st *Style, active bool, content layout.Widget) layout.Dimensions {
 	border := max(1, gtx.Dp(1))
+	minY := gtx.Constraints.Min.Y
+	gtx.Constraints.Min.Y = 0
 	macro := op.Record(gtx.Ops)
-	dims := layout.UniformInset(3).Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+	dims := layout.Inset{Top: 3, Bottom: 3, Left: 5, Right: 5}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		gtx.Constraints.Min.X = gtx.Constraints.Max.X
 		return content(gtx)
 	})
 	call := macro.Stop()
-	outer := image.Rectangle{Max: dims.Size}
-	col := st.PanelBorder
+	size := image.Pt(dims.Size.X, max(dims.Size.Y, minY))
+	col := st.FieldBorder
 	if active {
-		col = st.EditActive
+		col = st.FieldFocus
 	}
-	paint.FillShape(gtx.Ops, col, clip.Rect(outer).Op())
-	paint.FillShape(gtx.Ops, st.PanelBg, clip.Rect(outer.Inset(border)).Op())
+	r := gtx.Dp(st.CornerRadius)
+	paint.FillShape(gtx.Ops, col, clip.UniformRRect(image.Rectangle{Max: size}, r).Op(gtx.Ops))
+	paint.FillShape(gtx.Ops, st.PanelBg, clip.UniformRRect(image.Rectangle{Max: size}.Inset(border), max(0, r-border)).Op(gtx.Ops))
+	defer op.Offset(image.Pt(0, (size.Y-dims.Size.Y)/2)).Push(gtx.Ops).Pop()
 	call.Add(gtx.Ops)
-	return dims
+	return layout.Dimensions{Size: size, Baseline: dims.Baseline}
 }

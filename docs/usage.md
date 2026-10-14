@@ -126,7 +126,7 @@ tramp morning.gpx evening.gpx
 ```
 
 Opened files are listed in the side panel, with length, duration and sampling interval.
-Click a file to zoom to it, use the checkbox to show or hide it, and × to close it.
+Click a file to zoom to it, use the eye to show or hide it, and × to close it.
 All buttons show a short help when hovered.
 Files with several tracks, routes or waypoint sets can be expanded to show or hide them individually.
 The waypoints of a file are always listed first, and drawn above its tracks and routes.

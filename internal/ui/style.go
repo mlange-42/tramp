@@ -11,10 +11,14 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
+	"golang.org/x/image/font/gofont/gobold"
+	"golang.org/x/image/font/gofont/gobolditalic"
+	"golang.org/x/image/font/gofont/goitalic"
 	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/font/gofont/gomonobold"
 	"golang.org/x/image/font/gofont/gomonobolditalic"
 	"golang.org/x/image/font/gofont/gomonoitalic"
+	"golang.org/x/image/font/gofont/goregular"
 )
 
 // brandBlue is the blue of the UI, the middle of the gradient of the logo's tile.
@@ -27,7 +31,10 @@ var brandYellow = color.NRGBA{R: 0xf2, G: 0xc2, B: 0x30, A: 0xff}
 // Style collects the theme and all sizes and colors of the UI, to tune the look in one place.
 type Style struct {
 	// Theme provides fonts and the base palette for Gio's material widgets.
+	// Its face is the proportional Go font, which has digits of equal width.
 	Theme *material.Theme
+	// MonoFace is the monospaced typeface, for text aligned by padding with spaces, like the status bar.
+	MonoFace font.Typeface
 
 	// TextSize is the size of text in controls and labels.
 	TextSize unit.Sp
@@ -63,6 +70,10 @@ type Style struct {
 	PanelBorder color.NRGBA
 	// DividerColor is the color of the dividers between side panel, map and chart.
 	DividerColor color.NRGBA
+	// FieldBorder is the border of text fields, FieldFocus that of the focused one.
+	FieldBorder, FieldFocus color.NRGBA
+	// ToolbarBg is the background of the toolbar, SeparatorColor that of the lines between its groups.
+	ToolbarBg, SeparatorColor color.NRGBA
 	// StatusBg is the background of the status bar.
 	StatusBg color.NRGBA
 	// SideBg is the background of the side panel.
@@ -153,14 +164,16 @@ func DefaultStyle() *Style {
 	th.TextSize = 14
 	th.ContrastBg = brandBlue
 	th.Fg = mix(color.NRGBA{A: 0xff}, brandBlue, 0.35)
-	// A monospaced font keeps changing numbers, like coordinates, from moving around.
-	// System fonts remain as a fallback for glyphs that Go Mono lacks.
-	faces := monoFaces()
-	th.Shaper = text.NewShaper(text.WithCollection(faces))
-	th.Face = faces[0].Font.Typeface
+	// The Go fonts are embedded, so the UI looks the same on all systems.
+	// System fonts remain as a fallback for glyphs that they lack.
+	sans, mono := goFaces(goregular.TTF, gobold.TTF, goitalic.TTF, gobolditalic.TTF),
+		goFaces(gomono.TTF, gomonobold.TTF, gomonoitalic.TTF, gomonobolditalic.TTF)
+	th.Shaper = text.NewShaper(text.WithCollection(append(sans, mono...)))
+	th.Face = sans[0].Font.Typeface
 
 	return &Style{
 		Theme:         th,
+		MonoFace:      mono[0].Font.Typeface,
 		TextSize:      13,
 		SmallTextSize: 12,
 		IconSize:      16,
@@ -176,20 +189,24 @@ func DefaultStyle() *Style {
 		DividerGrip:  7,
 		MinPaneSize:  120,
 
-		PanelBg:      color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
-		PanelBorder:  neutral(0xa0),
-		DividerColor: neutral(0xd8),
-		StatusBg:     neutral(0xf4),
-		SideBg:       neutral(0xfa),
-		HintFg:       neutral(0x80),
-		DragBg:       tint(0.12),
-		SelectedBg:   tint(0.25),
-		EditActive:   color.NRGBA{R: 0xd0, G: 0x40, B: 0x20, A: 0xff},
-		MutedTrack:   color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xc0},
-		MutedCasing:  color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
-		ChartGrid:    color.NRGBA{A: 0x20},
-		ChartLine:    color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xd0},
-		ChartTerrain: color.NRGBA{R: 0xd0, G: 0x50, B: 0x10, A: 0xe0},
+		PanelBg:        color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
+		PanelBorder:    neutral(0xa0),
+		DividerColor:   neutral(0xd8),
+		FieldBorder:    neutral(0xb8),
+		FieldFocus:     brandBlue,
+		ToolbarBg:      neutral(0xf4),
+		SeparatorColor: neutral(0xc8),
+		StatusBg:       neutral(0xf4),
+		SideBg:         neutral(0xfa),
+		HintFg:         neutral(0x80),
+		DragBg:         tint(0.12),
+		SelectedBg:     tint(0.25),
+		EditActive:     color.NRGBA{R: 0xd0, G: 0x40, B: 0x20, A: 0xff},
+		MutedTrack:     color.NRGBA{R: 0x80, G: 0x80, B: 0x80, A: 0xc0},
+		MutedCasing:    color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
+		ChartGrid:      color.NRGBA{A: 0x20},
+		ChartLine:      color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xd0},
+		ChartTerrain:   color.NRGBA{R: 0xd0, G: 0x50, B: 0x10, A: 0xe0},
 
 		ChartLineWidth:   1.5,
 		ChartTickSpacing: 32,
@@ -221,26 +238,26 @@ func DefaultStyle() *Style {
 		NavMarkerSize:    16,
 		NavViaSize:       8,
 		NavBand:          color.NRGBA{R: 0x1f, G: 0x5f, B: 0xb0, A: 0xa0},
-		NavWidth:         260,
+		NavWidth:         290,
 
 		EditHandleFill: color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
 		EditHandleRing: color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xff},
 		EditMidFill:    color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xa0},
 		EditBand:       color.NRGBA{R: 0xd0, G: 0x40, B: 0x20, A: 0xc0},
-		ToolIconSize:   18,
-		ToolIconPad:    3,
+		ToolIconSize:   20,
+		ToolIconPad:    4,
 		EditHandleSize: 9,
 		EditMidSize:    7,
 	}
 }
 
-// monoFaces returns the Go Mono font faces, regular first.
-func monoFaces() []font.FontFace {
+// goFaces parses the faces of one of the Go fonts, in the given order.
+func goFaces(ttfs ...[]byte) []font.FontFace {
 	var faces []font.FontFace
-	for _, ttf := range [][]byte{gomono.TTF, gomonobold.TTF, gomonoitalic.TTF, gomonobolditalic.TTF} {
+	for _, ttf := range ttfs {
 		f, err := opentype.ParseCollection(ttf)
 		if err != nil {
-			panic(fmt.Errorf("parsing Go Mono font: %w", err))
+			panic(fmt.Errorf("parsing Go font: %w", err))
 		}
 		faces = append(faces, f[0])
 	}
@@ -255,6 +272,13 @@ func (s *Style) Label(txt string) material.LabelStyle {
 // SmallLabel returns a label with the small text size.
 func (s *Style) SmallLabel(txt string) material.LabelStyle {
 	return material.Label(s.Theme, s.SmallTextSize, txt)
+}
+
+// SmallMonoLabel returns a label with the small text size in the monospaced font.
+func (s *Style) SmallMonoLabel(txt string) material.LabelStyle {
+	l := s.SmallLabel(txt)
+	l.Font.Typeface = s.MonoFace
+	return l
 }
 
 // Button returns a button with the regular text size.

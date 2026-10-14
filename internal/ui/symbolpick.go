@@ -206,7 +206,7 @@ func (a *App) layoutSymbolLabel(gtx layout.Context, sym string) layout.Dimension
 			return l.Layout(gtx)
 		}),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
-			return layoutArrow(gtx, float32(gtx.Sp(st.TextSize))*0.6, st.Theme.Fg, a.props.sym.open)
+			return layoutChevron(gtx, st, st.Theme.Fg, a.props.sym.open)
 		}),
 	)
 }
