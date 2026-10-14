@@ -89,7 +89,7 @@ func TestLegend(t *testing.T) {
 	if l == nil || l.min != 1 || l.max != 10 {
 		t.Fatalf("unexpected legend %+v", l)
 	}
-	if s := l.label(10); s != "36" {
+	if s := l.label(10); s != "36 km/h" {
 		t.Errorf("expected 36 km/h, got %q", s)
 	}
 	if c := l.coloring(); c.Min != 1 || c.Max != 10 || len(c.Colors) != colorBins {
