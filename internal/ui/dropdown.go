@@ -206,6 +206,8 @@ func sectionHeading(st *Style, name string, first bool) layout.Widget {
 type Select struct {
 	popup
 	enum widget.Enum
+	// icons are shown between the radio button and the label of each option, if not nil.
+	icons []*widget.Icon
 }
 
 // Selected returns the index of the selected option.
@@ -233,6 +235,11 @@ func (s *Select) Update(gtx layout.Context) bool {
 func (s *Select) Layout(gtx layout.Context, st *Style, options []string) layout.Dimensions {
 	return s.layout(gtx, st, options[s.Selected()], options, func(gtx layout.Context) layout.Dimensions {
 		return s.layoutOptions(gtx, st, len(options), func(i int) layout.Widget {
+			if s.icons != nil {
+				return func(gtx layout.Context) layout.Dimensions {
+					return s.layoutIconOption(gtx, st, i, options[i])
+				}
+			}
 			rb := material.RadioButton(st.Theme, &s.enum, strconv.Itoa(i), options[i])
 			rb.Size = st.IconSize
 			rb.TextSize = st.TextSize
@@ -241,6 +248,45 @@ func (s *Select) Layout(gtx layout.Context, st *Style, options []string) layout.
 			k, ok := s.enum.Hovered()
 			return ok && k == strconv.Itoa(i)
 		})
+	})
+}
+
+// layoutIconOption draws option i like a material radio button, with its icon between the button and the label.
+func (s *Select) layoutIconOption(gtx layout.Context, st *Style, i int, label string) layout.Dimensions {
+	th := st.Theme
+	key := strconv.Itoa(i)
+	hk, hovered := s.enum.Hovered()
+	hovered = hovered && hk == key
+	return s.enum.Layout(gtx, key, func(gtx layout.Context) layout.Dimensions {
+		size := gtx.Dp(st.IconSize)
+		pad := gtx.Dp(2)
+		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				box := size * 4 / 3
+				if hovered {
+					bg := th.ContrastBg
+					bg.A = 70
+					paint.FillShape(gtx.Ops, bg, clip.Ellipse{Max: image.Pt(box, box)}.Op(gtx.Ops))
+				}
+				ic := th.Icon.RadioUnchecked
+				if s.enum.Value == key {
+					ic = th.Icon.RadioChecked
+				}
+				layoutIcon(gtx, ic, image.Pt((box-size)/2, (box-size)/2), size, th.ContrastBg)
+				return layout.Dimensions{Size: image.Pt(box, box)}
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				ic := s.icons[i]
+				is := gtx.Sp(st.TextSize) * 5 / 4
+				if ic != nil {
+					layoutIcon(gtx, ic, image.Pt(pad, 0), is, th.Fg)
+				}
+				return layout.Dimensions{Size: image.Pt(is+2*pad, is)}
+			}),
+			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
+				return layout.UniformInset(2).Layout(gtx, st.Label(label).Layout)
+			}),
+		)
 	})
 }
 
