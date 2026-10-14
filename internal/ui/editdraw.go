@@ -43,7 +43,8 @@ func (a *App) layoutEditMap(gtx layout.Context) {
 
 	a.drawRubberBand(gtx)
 
-	if e.tool == selectTool {
+	// While a point is dragged, the midpoints are not needed, and would cover the segment lengths.
+	if e.tool == selectTool && !(e.drag.active && e.drag.moved) {
 		mr := float32(gtx.Dp(st.EditMidSize)) / 2
 		for ri := range d.Routes {
 			pts := d.Routes[ri].Points
@@ -194,32 +195,29 @@ func (a *App) drawPointLabel(gtx layout.Context, p f32.Point, r float32, name st
 	call.Add(gtx.Ops)
 }
 
-// drawRubberBand draws the lines to a point being moved or inserted, or from the end of the drawn route to the pointer.
+// drawRubberBand draws the lines to a point being moved or inserted, or from the end of the drawn route to the pointer,
+// with the length of each segment at its middle.
 func (a *App) drawRubberBand(gtx layout.Context) {
 	e, d := &a.editor, a.editing.data
 	view := &a.mapView.View
-	toScreen := func(p geo.Point) f32.Point {
-		x, y := view.ToScreen(p)
-		return f32.Pt(float32(x), float32(y))
-	}
-	var lines [][]f32.Point
+	merc := func(ll geo.LonLat) geo.Point { return geo.ToMercator(ll) }
+	var lines [][]geo.Point
 	switch {
 	case e.drag.active && e.drag.moved && e.drag.insert:
 		v := e.drag.v
 		route := d.Routes[v.route].Points
-		lines = append(lines, []f32.Point{screenPos(view, route[v.point].Pos), toScreen(e.drag.pos), screenPos(view, route[v.point+1].Pos)})
+		lines = append(lines, []geo.Point{merc(route[v.point].Pos), e.drag.pos, merc(route[v.point+1].Pos)})
 	case e.drag.active && e.drag.moved:
-		at := toScreen(e.drag.pos)
 		for _, v := range e.drag.group {
 			if v.route < 0 {
 				continue
 			}
 			route := d.Routes[v.route].Points
 			if v.point > 0 {
-				lines = append(lines, []f32.Point{screenPos(view, route[v.point-1].Pos), at})
+				lines = append(lines, []geo.Point{merc(route[v.point-1].Pos), e.drag.pos})
 			}
 			if v.point < len(route)-1 {
-				lines = append(lines, []f32.Point{at, screenPos(view, route[v.point+1].Pos)})
+				lines = append(lines, []geo.Point{e.drag.pos, merc(route[v.point+1].Pos)})
 			}
 		}
 	case e.drawing && !e.drag.active && a.mapView.HoverValid:
@@ -228,24 +226,55 @@ func (a *App) drawRubberBand(gtx layout.Context) {
 		if e.drawStart {
 			end = route[0]
 		}
-		to := toScreen(a.mapView.Hover)
+		to := a.mapView.Hover
 		if wi, ok := a.hoverSnap(gtx); ok {
-			to = screenPos(view, d.Waypoints[wi].Pos)
+			to = merc(d.Waypoints[wi].Pos)
 		}
-		lines = append(lines, []f32.Point{screenPos(view, end.Pos), to})
+		lines = append(lines, []geo.Point{merc(end.Pos), to})
 	}
 	if len(lines) == 0 {
 		return
 	}
+	toScreen := func(p geo.Point) f32.Point {
+		x, y := view.ToScreen(p)
+		return f32.Pt(float32(x), float32(y))
+	}
 	var path clip.Path
 	path.Begin(gtx.Ops)
 	for _, l := range lines {
-		path.MoveTo(l[0])
+		path.MoveTo(toScreen(l[0]))
 		for _, p := range l[1:] {
-			path.LineTo(p)
+			path.LineTo(toScreen(p))
 		}
 	}
 	paint.FillShape(gtx.Ops, a.style.EditBand, clip.Stroke{Path: path.End(), Width: float32(gtx.Dp(2))}.Op())
+	for _, l := range lines {
+		for i := 1; i < len(l); i++ {
+			a.drawSegmentLength(gtx, toScreen(l[i-1]), toScreen(l[i]), geo.Distance(geo.ToLonLat(l[i-1]), geo.ToLonLat(l[i])))
+		}
+	}
+}
+
+// drawSegmentLength draws the length of the segment from p0 to p1 at its middle,
+// unless the segment is too short on the screen to hold it.
+func (a *App) drawSegmentLength(gtx layout.Context, p0, p1 f32.Point, length float64) {
+	st := a.style
+	gtx.Constraints = layout.Constraints{Max: image.Pt(gtx.Dp(200), gtx.Dp(50))}
+	pad := gtx.Dp(2)
+	macro := op.Record(gtx.Ops)
+	dims := st.SmallLabel(formatDistance(length)).Layout(gtx)
+	call := macro.Stop()
+
+	// The label needs room beside the handles at the ends.
+	room := float32(dims.Size.X + 2*pad + 2*gtx.Dp(st.EditHandleSize))
+	if dist2(p0, p1) < room*room {
+		return
+	}
+	m := p0.Add(p1).Mul(0.5)
+	defer op.Offset(image.Pt(int(m.X)-dims.Size.X/2, int(m.Y)-dims.Size.Y/2)).Push(gtx.Ops).Pop()
+	bg := image.Rect(-pad, 0, dims.Size.X+pad, dims.Size.Y)
+	paint.FillShape(gtx.Ops, st.LegendBg, clip.UniformRRect(bg, pad).Op(gtx.Ops))
+	call.Add(gtx.Ops)
 }
 
 // fillCircle draws a filled circle.
