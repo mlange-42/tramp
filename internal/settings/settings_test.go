@@ -200,6 +200,32 @@ func TestFileVersion(t *testing.T) {
 	}
 }
 
+// TestOlderVersionUpgraded checks that files of an older version, whose keys are still known, are read,
+// and written with the current version. This is the upgrade when keys were only added.
+func TestOlderVersionUpgraded(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "file.yaml")
+	for _, content := range []string{"version: 1\nname: old\n", "version: 2\nname: old\n", "name: old\n"} {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		var v versionedFile
+		if _, err := readYAML(path, &v); err != nil || v.Name != "old" {
+			t.Errorf("%q: got %+v, err %v", content, v, err)
+			continue
+		}
+		if err := writeYAML(path, &v); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if want := "version: 3\nname: old\n"; string(data) != want {
+			t.Errorf("%q: written as %q, want %q", content, data, want)
+		}
+	}
+}
+
 func TestNewerSettingsNotOverwritten(t *testing.T) {
 	path := filepath.Join(t.TempDir(), FileName)
 	if err := os.WriteFile(path, []byte("version: 99\ntile_cache: 5\n"), 0o644); err != nil {

@@ -1,0 +1,3 @@
+presets[].map string
+presets[].name string
+presets[].overlays[] string
