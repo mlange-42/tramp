@@ -29,7 +29,6 @@ var (
 	iconLayers     = mustIcon(icons.MapsLayers)
 	iconMap        = mustIcon(icons.MapsMap)
 	iconPalette    = mustIcon(icons.ImagePalette)
-	iconGradient   = mustIcon(icons.ImageGradient)
 	iconSearch     = mustIcon(icons.ActionSearch)
 	iconPresets    = mustIcon(icons.ImageCollectionsBookmark)
 	iconCheck      = mustIcon(icons.NavigationCheck)

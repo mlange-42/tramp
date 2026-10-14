@@ -125,6 +125,8 @@ type Style struct {
 	LegendBg color.NRGBA
 	// TimeBand is the part of the time bar where all overlays have data.
 	TimeBand color.NRGBA
+	// PreviewWidth is the width of the gradient bars in the gradient drop-down.
+	PreviewWidth unit.Dp
 	// LegendWidth is the width of the color bar, and the maximum width of the scale bar, in the legend.
 	LegendWidth unit.Dp
 	// GPSColor is the color of the live GPS position, and of the GPS button while following it.
@@ -218,6 +220,7 @@ func DefaultStyle() *Style {
 		LegendBg:         color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xe0},
 		TimeBand:         tint(0.55),
 		LegendWidth:      180,
+		PreviewWidth:     30,
 		GPSColor:         color.NRGBA{R: 0x1a, G: 0x73, B: 0xe8, A: 0xff},
 		GPSStale:         color.NRGBA{R: 0x90, G: 0x90, B: 0x90, A: 0xff},
 		GPSAccuracy:      color.NRGBA{R: 0x1a, G: 0x73, B: 0xe8, A: 0x30},
