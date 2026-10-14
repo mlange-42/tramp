@@ -2,7 +2,6 @@ package ui
 
 import (
 	"image"
-	"image/color"
 	"slices"
 
 	"gioui.org/font"
@@ -285,16 +284,11 @@ func (a *App) layoutFileRow(gtx layout.Context, f *openFile, actions bool) layou
 		layout.Rigid(a.visibilityToggle(&f.visible, &f.tips.visible, "Show or hide the file on the map")),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if len(f.items) == 0 {
-				return layout.Dimensions{}
+				// The space of the symbol, so that the names of all files are aligned.
+				return layout.Dimensions{Size: image.Pt(fileSymbolWidth(gtx, st), 0)}
 			}
 			return withTooltip(gtx, st, &f.tips.color, f.colorBtn.Hovered(), "Change the color of all tracks, routes and waypoints of the file",
-				func(gtx layout.Context) layout.Dimensions {
-					// Files with items of one kind show its icon.
-					if k, ok := f.singleKind(); ok {
-						return a.layoutKindSymbol(gtx, &f.colorBtn, itemKindIcons[k], f.colors(), f.visible.Value)
-					}
-					return a.layoutSwatch(gtx, &f.colorBtn, f.colors())
-				})
+				func(gtx layout.Context) layout.Dimensions { return a.layoutFileSymbol(gtx, f) })
 		}),
 		layout.Flexed(1, a.rowText(&f.click, &f.tips.name, a.fileTitle(f), f.summary, f.visible.Value, true)),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
@@ -342,7 +336,7 @@ func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem, actio
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return withTooltip(gtx, st, &it.tips.color, it.colorBtn.Hovered(), itemKindNames[it.kind]+". Click to change the color",
 					func(gtx layout.Context) layout.Dimensions {
-						return a.layoutKindSymbol(gtx, &it.colorBtn, itemKindIcons[it.kind], []color.NRGBA{it.color}, f.visible.Value && it.visible.Value)
+						return a.layoutKindSymbol(gtx, &it.colorBtn, itemKindIcons[it.kind], it.color, f.visible.Value && it.visible.Value)
 					})
 			}),
 			layout.Flexed(1, a.rowText(&it.click, &it.tips.name, it.name, it.summary, f.visible.Value && it.visible.Value, false)),

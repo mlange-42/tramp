@@ -118,6 +118,8 @@ type fileItem struct {
 func newOpenFile(path string, f *track.File) *openFile {
 	of := &openFile{path: path, data: f, name: filepath.Base(path)}
 	of.visible.Value = true
+	// Files with several items are expanded, to show what they contain.
+	of.expanded = true
 	of.items = buildItems(f)
 	for _, it := range of.items {
 		it.visible.Value = true
@@ -467,6 +469,17 @@ func (f *openFile) singleKind() (itemKind, bool) {
 		}
 	}
 	return k, true
+}
+
+// kindColors returns the distinct colors of the items of kind k, in item order.
+func (f *openFile) kindColors(k itemKind) []color.NRGBA {
+	var cols []color.NRGBA
+	for _, it := range f.items {
+		if it.kind == k && !slices.Contains(cols, it.color) {
+			cols = append(cols, it.color)
+		}
+	}
+	return cols
 }
 
 // colors returns the distinct colors of the items, in item order.

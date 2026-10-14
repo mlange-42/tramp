@@ -11,7 +11,6 @@ import (
 	"gioui.org/io/pointer"
 	"gioui.org/layout"
 	"gioui.org/op/clip"
-	"gioui.org/op/paint"
 	"gioui.org/widget"
 	"github.com/ncruces/zenity"
 )
@@ -94,52 +93,67 @@ func (a *App) showColorDialog(items []*fileItem) {
 	})
 }
 
-// layoutSwatch draws a clickable color sample, a small rounded square split into stripes for several colors.
-// It has a thin dark border, so that light colors stand out from the panel, and is highlighted while hovered.
-func (a *App) layoutSwatch(gtx layout.Context, clk *widget.Clickable, colors []color.NRGBA) layout.Dimensions {
-	st := a.style
-	return clk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		box := gtx.Dp(st.IconSize + st.Spacing)
-		layoutButtonBg(gtx, st, image.Pt(box, box), clk.Hovered(), false)
-		size := gtx.Dp(st.SwatchSize)
-		off := (box - size) / 2
-		r := image.Rectangle{Min: image.Pt(off, off), Max: image.Pt(off+size, off+size)}
-		rr, border := gtx.Dp(st.CornerRadius), max(1, gtx.Dp(1))
-		paint.FillShape(gtx.Ops, st.SwatchBorder, clip.UniformRRect(r, rr).Op(gtx.Ops))
-		inner := r.Inset(border)
-		cl := clip.UniformRRect(inner, max(0, rr-border)).Push(gtx.Ops)
-		for i, c := range colors {
-			stripe := inner
-			stripe.Min.X = inner.Min.X + inner.Dx()*i/len(colors)
-			stripe.Max.X = inner.Min.X + inner.Dx()*(i+1)/len(colors)
-			paint.FillShape(gtx.Ops, c, clip.Rect(stripe).Op())
-		}
-		cl.Pop()
-		pointer.CursorPointer.Add(gtx.Ops)
-		return layout.Dimensions{Size: image.Pt(box, box)}
-	})
-}
-
-// layoutKindSymbol draws a clickable icon for the kind of items, in their colors, for changing the colors.
-// Like [App.layoutSwatch], it is split into stripes for several colors.
-// It is faded while the items are hidden, and highlighted while hovered.
-func (a *App) layoutKindSymbol(gtx layout.Context, clk *widget.Clickable, ic *widget.Icon, colors []color.NRGBA, visible bool) layout.Dimensions {
+// layoutKindSymbol draws a clickable icon for the kind of an item, in its color, for changing the color.
+// It is faded while the item is hidden, and highlighted while hovered.
+func (a *App) layoutKindSymbol(gtx layout.Context, clk *widget.Clickable, ic *widget.Icon, col color.NRGBA, visible bool) layout.Dimensions {
 	st := a.style
 	return clk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		box := gtx.Dp(st.IconSize + st.Spacing)
 		layoutButtonBg(gtx, st, image.Pt(box, box), clk.Hovered(), false)
 		size := gtx.Dp(st.IconSize)
-		at := image.Pt((box-size)/2, (box-size)/2)
-		for i, col := range colors {
-			if !visible {
-				col.A /= 2
-			}
-			stripe := image.Rect(at.X+size*i/len(colors), 0, at.X+size*(i+1)/len(colors), box)
-			cl := clip.Rect(stripe).Push(gtx.Ops)
-			layoutIcon(gtx, ic, at, size, col)
-			cl.Pop()
-		}
+		layoutStripedIcon(gtx, ic, image.Pt((box-size)/2, (box-size)/2), size, []color.NRGBA{col}, visible)
 		pointer.CursorPointer.Add(gtx.Ops)
 		return layout.Dimensions{Size: image.Pt(box, box)}
 	})
+}
+
+// fileSymbolWidth returns the width of the symbol of a file in the side panel, see [App.layoutFileSymbol].
+func fileSymbolWidth(gtx layout.Context, st *Style) int {
+	return 2*gtx.Dp(st.SmallIconSize) + gtx.Dp(st.Spacing)
+}
+
+// layoutFileSymbol draws a clickable symbol of what the file contains, in the colors of its items, for changing them.
+// A file with items of one kind shows the icon of the kind. Otherwise, smaller icons show the kinds it has:
+// routes above waypoints, and tracks to the right of them. Icons for items with several colors are split into stripes.
+// The symbol is faded while the file is hidden, and highlighted while hovered.
+func (a *App) layoutFileSymbol(gtx layout.Context, f *openFile) layout.Dimensions {
+	st := a.style
+	return f.colorBtn.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		// As high as the stacked small icons, as the clickable clips its content.
+		w, h := fileSymbolWidth(gtx, st), max(gtx.Dp(st.IconSize+st.Spacing), 2*gtx.Dp(st.SmallIconSize))
+		layoutButtonBg(gtx, st, image.Pt(w, h), f.colorBtn.Hovered(), false)
+		if k, ok := f.singleKind(); ok {
+			size := gtx.Dp(st.IconSize)
+			layoutStripedIcon(gtx, itemKindIcons[k], image.Pt((w-size)/2, (h-size)/2), size, f.kindColors(k), f.visible.Value)
+		} else {
+			size := gtx.Dp(st.SmallIconSize)
+			x := (w - 2*size) / 2
+			at := map[itemKind]image.Point{
+				routeItem:    image.Pt(x, h/2-size),
+				waypointItem: image.Pt(x, h/2),
+				trackItem:    image.Pt(x+size, (h-size)/2),
+			}
+			for k, p := range at {
+				if cols := f.kindColors(k); len(cols) > 0 {
+					layoutStripedIcon(gtx, itemKindIcons[k], p, size, cols, f.visible.Value)
+				}
+			}
+		}
+		pointer.CursorPointer.Add(gtx.Ops)
+		return layout.Dimensions{Size: image.Pt(w, h)}
+	})
+}
+
+// layoutStripedIcon draws an icon of the given size at an offset, split into vertical stripes of the colors.
+// The colors are faded if not visible.
+func layoutStripedIcon(gtx layout.Context, ic *widget.Icon, at image.Point, size int, colors []color.NRGBA, visible bool) {
+	for i, col := range colors {
+		if !visible {
+			col.A /= 2
+		}
+		stripe := image.Rect(at.X+size*i/len(colors), at.Y, at.X+size*(i+1)/len(colors), at.Y+size)
+		cl := clip.Rect(stripe).Push(gtx.Ops)
+		layoutIcon(gtx, ic, at, size, col)
+		cl.Pop()
+	}
 }

@@ -431,3 +431,14 @@ func TestSingleKind(t *testing.T) {
 		t.Error("mixed file has a single kind")
 	}
 }
+
+func TestKindColors(t *testing.T) {
+	red, blue := trackColors[0], trackColors[1]
+	f := &openFile{items: []*fileItem{{kind: routeItem, color: red}, {kind: waypointItem, color: blue}, {kind: routeItem, color: blue}, {kind: routeItem, color: red}}}
+	if c := f.kindColors(routeItem); !reflect.DeepEqual(c, []color.NRGBA{red, blue}) {
+		t.Errorf("unexpected route colors %v", c)
+	}
+	if c := f.kindColors(trackItem); len(c) != 0 {
+		t.Errorf("unexpected track colors %v", c)
+	}
+}
