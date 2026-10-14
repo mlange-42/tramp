@@ -172,3 +172,25 @@ func TestRoutePointsShort(t *testing.T) {
 		t.Errorf("expected no points, got %v", wps)
 	}
 }
+
+func TestPointTurnCode(t *testing.T) {
+	at := geo.LonLat{Lon: 12, Lat: 51}
+	prev := geo.LonLat{Lon: 12, Lat: 50.99}
+	// next returns the point 1 km from at, in the direction of angle degrees right of north.
+	next := func(angle float64) geo.LonLat {
+		const deg = 1000 / (6371008.8 * math.Pi / 180)
+		rad := angle * math.Pi / 180
+		return geo.LonLat{Lon: at.Lon + deg*math.Sin(rad)/math.Cos(at.Lat*math.Pi/180), Lat: at.Lat + deg*math.Cos(rad)}
+	}
+	for _, c := range []struct {
+		angle, slight float64
+		want          string
+	}{
+		{0, 22.5, ""}, {10, 22.5, ""}, {30, 22.5, "SR"}, {-30, 22.5, "SL"}, {30, -1, ""},
+		{90, 22.5, "R"}, {-90, 22.5, "L"}, {150, 22.5, "HR"}, {-150, 22.5, "HL"}, {178, 22.5, "U"},
+	} {
+		if got := PointTurnCode(prev, at, next(c.angle), c.slight); got != c.want {
+			t.Errorf("angle %.0f, slight %.1f: expected %q, got %q", c.angle, c.slight, c.want, got)
+		}
+	}
+}

@@ -245,6 +245,39 @@ var turnCodes = map[TurnKind]string{
 	TurnFerry:       "FERRY",
 }
 
+// Limits of the change of direction in degrees for the kinds of turns at a point, see [PointTurnCode].
+const (
+	maxSlightAngle = 67.5
+	maxTurnAngle   = 135
+	maxSharpAngle  = 170
+)
+
+// PointTurnCode returns the short code of the turn at point at of a line from prev to next, like "L" or "SR",
+// or "" for no turn: the change of direction is less than slightAngle degrees, or, if slightAngle is zero or less,
+// a slight turn. The codes are those of route point names, see [RoutePoints].
+func PointTurnCode(prev, at, next geo.LonLat, slightAngle float64) string {
+	a := turnAngle(geo.Bearing(prev, at), geo.Bearing(at, next))
+	abs := math.Abs(a)
+	var k TurnKind
+	switch {
+	case abs < slightAngle || (slightAngle <= 0 && abs < maxSlightAngle):
+		return ""
+	case abs < maxSlightAngle:
+		k = TurnSlightRight
+	case abs < maxTurnAngle:
+		k = TurnRight
+	case abs < maxSharpAngle:
+		k = TurnSharpRight
+	default:
+		return turnCodes[TurnUTurn]
+	}
+	if a < 0 {
+		// The left kinds are right before the right ones.
+		k -= TurnSlightRight - TurnSlightLeft
+	}
+	return turnCodes[k]
+}
+
 // turnCode returns the short code of the turns at a point, like "L", "L-R" for merged turns,
 // or "RB2" for the second exit of a roundabout.
 func turnCode(p routePoint) string {

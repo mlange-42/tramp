@@ -91,6 +91,22 @@ func TestDistance(t *testing.T) {
 	}
 }
 
+func TestBearing(t *testing.T) {
+	for _, c := range []struct {
+		to   LonLat
+		want float64
+	}{
+		{LonLat{12, 52}, 0},
+		{LonLat{13, 51}, 90},
+		{LonLat{12, 50}, 180},
+		{LonLat{11, 51}, 270},
+	} {
+		if b := Bearing(LonLat{12, 51}, c.to); math.Abs(b-c.want) > 0.5 {
+			t.Errorf("bearing to %v: expected %.0f, got %f", c.to, c.want, b)
+		}
+	}
+}
+
 func TestRectContains(t *testing.T) {
 	r := Rect{Min: Point{0, 0}, Max: Point{10, 10}}
 	if !r.Contains(Rect{Min: Point{1, 1}, Max: Point{10, 9}}) || !r.Contains(EmptyRect()) {

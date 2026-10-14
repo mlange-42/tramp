@@ -28,6 +28,9 @@ type editState struct {
 	overwriteOK bool
 	// needEle are the positions of new or moved points without elevation, see [openFile.noteNewPoints].
 	needEle []geo.LonLat
+	// slightAngle is the smallest change of direction in degrees named as a slight turn in generated route point names,
+	// see [autoRouteNames].
+	slightAngle float64
 }
 
 // fileSnapshot is a copy of the editable content of a file: its routes and waypoints.
@@ -80,6 +83,7 @@ func (f *openFile) change(fn func(d *track.File)) {
 	}
 	f.edit.redo = nil
 	fn(f.data)
+	updateAutoNames(f.data, f.edit.slightAngle)
 	f.edit.nextRev++
 	f.edit.rev = f.edit.nextRev
 	f.noteNewPoints(f.edit.undo[len(f.edit.undo)-1])
@@ -200,6 +204,7 @@ func (a *App) setEditing(f *openFile) {
 	a.editor.reset()
 	if f != nil {
 		f.startEdit()
+		f.edit.slightAngle = a.routingCfg.SlightAngle
 		f.visible.Value = true
 		a.tracksChanged = true
 	}

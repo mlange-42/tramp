@@ -95,6 +95,15 @@ func Distance(a, b LonLat) float64 {
 	return 2 * meanRadius * math.Asin(math.Sqrt(math.Min(1, h)))
 }
 
+// Bearing returns the initial direction of the great circle from a to b, in degrees clockwise from north, from 0 to 360.
+func Bearing(a, b LonLat) float64 {
+	lat1, lat2 := a.Lat*math.Pi/180, b.Lat*math.Pi/180
+	dLon := (b.Lon - a.Lon) * math.Pi / 180
+	y := math.Sin(dLon) * math.Cos(lat2)
+	x := math.Cos(lat1)*math.Sin(lat2) - math.Sin(lat1)*math.Cos(lat2)*math.Cos(dLon)
+	return math.Mod(math.Atan2(y, x)*180/math.Pi+360, 360)
+}
+
 // ToMercator converts geographic coordinates to Web Mercator.
 func ToMercator(ll LonLat) Point {
 	lat := math.Max(-MaxLat, math.Min(MaxLat, ll.Lat))
