@@ -40,6 +40,14 @@ Coming next: FIT and KML/KMZ files.
 ### Precompiled binary
 
 Binaries for Windows, Linux and macOS are available on the GitHub [releases page](https://github.com/mlange-42/tramp/releases).
+Download the archive for your system, unpack it and run `tramp`. There is nothing to install.
+
+The binaries are not signed, so your system may warn you on the first start:
+
+- **Windows:** SmartScreen may say "Windows protected your PC". Click "More info", then "Run anyway".
+- **macOS:** Gatekeeper blocks apps from unidentified developers. Right-click `tramp`, choose "Open" and confirm,
+  or remove the quarantine flag in a terminal: `xattr -d com.apple.quarantine tramp`
+- **Linux:** Make the file executable if needed: `chmod +x tramp`
 
 ### With Go
 
@@ -55,7 +63,9 @@ On Windows, add `-ldflags="-H windowsgui"` to prevent a console window from open
 
 ### Requirements
 
-On Linux, the file dialog requires `zenity`, `kdialog` or a similar tool, which most desktops have installed.
+On Linux, TRAMP needs the Wayland or X11, xkbcommon and EGL/Vulkan libraries,
+and the file dialog requires `zenity`, `kdialog` or a similar tool.
+Most desktops have all of these installed.
 
 ## Documentation
 
