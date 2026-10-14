@@ -234,7 +234,7 @@ func DefaultStyle() *Style {
 		NavMarkerSize:    16,
 		NavViaSize:       8,
 		NavBand:          color.NRGBA{R: 0x1f, G: 0x5f, B: 0xb0, A: 0xa0},
-		NavWidth:         260,
+		NavWidth:         290,
 
 		EditHandleFill: color.NRGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff},
 		EditHandleRing: color.NRGBA{R: 0x20, G: 0x20, B: 0x20, A: 0xff},

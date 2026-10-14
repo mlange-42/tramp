@@ -178,12 +178,7 @@ func (m *menu) layoutHeader(gtx layout.Context, st *Style) layout.Dimensions {
 
 		pad := gtx.Dp(st.Spacing)
 		size := image.Pt(ld.Size.X+2*pad, max(h, ld.Size.Y))
-		switch {
-		case m.open:
-			paint.FillShape(gtx.Ops, st.SelectedBg, clip.UniformRRect(image.Rectangle{Max: size}, gtx.Dp(st.CornerRadius)).Op(gtx.Ops))
-		case m.header.Hovered():
-			paint.FillShape(gtx.Ops, st.DragBg, clip.UniformRRect(image.Rectangle{Max: size}, gtx.Dp(st.CornerRadius)).Op(gtx.Ops))
-		}
+		layoutButtonBg(gtx, st, size, m.header.Hovered(), m.open)
 		off := op.Offset(image.Pt(pad, (size.Y-ld.Size.Y)/2)).Push(gtx.Ops)
 		label.Add(gtx.Ops)
 		off.Pop()
