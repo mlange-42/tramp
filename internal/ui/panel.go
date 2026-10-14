@@ -238,7 +238,7 @@ func (a *App) layoutFileList(gtx layout.Context) layout.Dimensions {
 func (a *App) layoutFileRow(gtx layout.Context, f *openFile) layout.Dimensions {
 	st := a.style
 	return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-		layout.Rigid(a.checkBox(&f.visible, &f.tips.visible, "Show or hide the file on the map")),
+		layout.Rigid(a.visibilityToggle(&f.visible, &f.tips.visible, "Show or hide the file on the map")),
 		layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 			if len(f.items) == 0 {
 				return layout.Dimensions{}
@@ -284,7 +284,7 @@ func (a *App) layoutItemRow(gtx layout.Context, f *openFile, it *fileItem) layou
 	st := a.style
 	return layout.Inset{Left: st.IconSize + st.Spacing}.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		return layout.Flex{Alignment: layout.Middle}.Layout(gtx,
-			layout.Rigid(a.checkBox(&it.visible, &it.tips.visible, "Show or hide on the map")),
+			layout.Rigid(a.visibilityToggle(&it.visible, &it.tips.visible, "Show or hide on the map")),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return withTooltip(gtx, st, &it.tips.color, it.colorBtn.Hovered(), "Change the color",
 					func(gtx layout.Context) layout.Dimensions {
@@ -343,13 +343,23 @@ func (a *App) dragHandle(d *rowDrag) layout.Widget {
 	}
 }
 
-// checkBox returns a check box without label, with a tooltip.
-func (a *App) checkBox(b *widget.Bool, tip *tooltip, text string) layout.Widget {
+// visibilityToggle returns an eye button for showing and hiding, crossed out while hidden, with a tooltip.
+func (a *App) visibilityToggle(b *widget.Bool, tip *tooltip, text string) layout.Widget {
 	return func(gtx layout.Context) layout.Dimensions {
-		return withTooltip(gtx, a.style, tip, b.Hovered(), text, func(gtx layout.Context) layout.Dimensions {
-			cb := material.CheckBox(a.style.Theme, b, "")
-			cb.Size = a.style.IconSize
-			return cb.Layout(gtx)
+		st := a.style
+		return withTooltip(gtx, st, tip, b.Hovered(), text, func(gtx layout.Context) layout.Dimensions {
+			return b.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				size, pad := gtx.Dp(st.IconSize), gtx.Dp(2)
+				box := image.Pt(size+2*pad, size+2*pad)
+				layoutButtonBg(gtx, st, box, b.Hovered(), false)
+				ic, col := iconVisible, st.Theme.Fg
+				if !b.Value {
+					ic, col = iconHidden, st.HintFg
+				}
+				layoutIcon(gtx, ic, image.Pt(pad, pad), size, col)
+				pointer.CursorPointer.Add(gtx.Ops)
+				return layout.Dimensions{Size: box}
+			})
 		})
 	}
 }

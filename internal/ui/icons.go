@@ -34,6 +34,8 @@ var (
 	iconPresets    = mustIcon(icons.ImageCollectionsBookmark)
 	iconCheck      = mustIcon(icons.NavigationCheck)
 	iconMinimize   = mustIcon(icons.NavigationFullscreenExit)
+	iconVisible    = mustIcon(icons.ActionVisibility)
+	iconHidden     = mustIcon(icons.ActionVisibilityOff)
 
 	// Icons of the main menu items, besides those of the toolbar.
 	iconSettings   = mustIcon(icons.ActionSettings)
