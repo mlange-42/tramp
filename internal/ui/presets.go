@@ -246,7 +246,7 @@ func (m *presetMenu) layout(gtx layout.Context, st *Style, presets []Preset, act
 	for _, p := range presets {
 		m.tips = append(m.tips, presetTip(p))
 	}
-	return m.popup.layout(gtx, st, "", nil, func(gtx layout.Context) layout.Dimensions {
+	return m.popup.layout(gtx, st, "", func(gtx layout.Context) layout.Dimensions {
 		inset := gtx.Dp(st.Spacing / 2)
 		size, delSize := gtx.Dp(st.IconSize), gtx.Dp(st.IconSize)*4/5
 		labels := []string{saveLabel}

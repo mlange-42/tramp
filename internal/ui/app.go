@@ -86,6 +86,8 @@ type overlayState struct {
 // App is the main application state.
 type App struct {
 	window *app.Window
+	// title is the current window title, see [App.updateTitle].
+	title string
 	// current is the window that invalidate redraws. It changes when the window is recreated, see [App.recreateWindow].
 	current *atomic.Pointer[app.Window]
 	// deviceLost is the time the GPU device was last lost, see [App.recreateWindow].
@@ -627,6 +629,8 @@ func (a *App) updateShortcuts(gtx layout.Context) {
 
 func (a *App) layout(gtx layout.Context) layout.Dimensions {
 	a.update(gtx)
+	// After the update, which may change the selection.
+	a.updateTitle()
 	paint.Fill(gtx.Ops, a.style.Theme.Bg)
 
 	dims := layout.Flex{Axis: layout.Vertical}.Layout(gtx,

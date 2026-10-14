@@ -2,11 +2,15 @@ package ui
 
 import (
 	"image"
+	"slices"
 
 	"gioui.org/app"
 	"gioui.org/unit"
 	"github.com/mlange-42/tramp/internal/settings"
 )
+
+// appName is the name of the app in the window title.
+const appName = "Tramp"
 
 // defaultWindow is the window size used if none was saved.
 var defaultWindow = settings.Window{Width: 1100, Height: 700}
@@ -16,12 +20,31 @@ func WindowOptions(w *settings.Window) []app.Option {
 	if !w.Valid() {
 		w = &defaultWindow
 	}
-	opts := []app.Option{app.Title("TRAMP"), app.Size(unit.Dp(w.Width), unit.Dp(w.Height))}
+	opts := []app.Option{app.Title(appName), app.Size(unit.Dp(w.Width), unit.Dp(w.Height))}
 	// With placement support, the state is restored together with the position.
 	if w.Maximized && !hasPlacement {
 		opts = append(opts, app.Maximized.Option())
 	}
 	return opts
+}
+
+// windowTitle returns the title of the window: the app name, and the file of the selected item, if any.
+// TODO: show the name of the project file, once there are projects.
+func (a *App) windowTitle() string {
+	for _, f := range a.files {
+		if a.selected != nil && slices.Contains(f.items, a.selected) {
+			return appName + " – " + a.fileTitle(f)
+		}
+	}
+	return appName
+}
+
+// updateTitle sets the window title if it changed.
+func (a *App) updateTitle() {
+	if t := a.windowTitle(); t != a.title && a.window != nil {
+		a.title = t
+		a.window.Option(app.Title(t))
+	}
 }
 
 // trackConfig records the window size and state for saving them.

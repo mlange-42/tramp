@@ -46,3 +46,15 @@ func TestFitWindow(t *testing.T) {
 		}
 	}
 }
+
+func TestWindowTitle(t *testing.T) {
+	f := &openFile{name: "a.gpx", items: []*fileItem{{kind: routeItem}}}
+	a := &App{files: []*openFile{f}}
+	if s := a.windowTitle(); s != "Tramp" {
+		t.Errorf("unexpected title without selection %q", s)
+	}
+	a.selected = f.items[0]
+	if s := a.windowTitle(); s != "Tramp – a.gpx" {
+		t.Errorf("unexpected title %q", s)
+	}
+}

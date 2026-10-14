@@ -53,10 +53,10 @@ func (p *popup) update(gtx layout.Context) {
 }
 
 // layout draws the header with the given label, and the panel if open.
-// The header is as wide as the widest of the labels in sizes, so that it doesn't change size.
-func (p *popup) layout(gtx layout.Context, st *Style, label string, sizes []string, panel layout.Widget) layout.Dimensions {
+// The header is as wide as its content, so it changes its width with the label.
+func (p *popup) layout(gtx layout.Context, st *Style, label string, panel layout.Widget) layout.Dimensions {
 	p.avail = gtx.Constraints.Max.X
-	dims := p.layoutHeader(gtx, st, label, maxLabelWidth(gtx, st, sizes))
+	dims := p.layoutHeader(gtx, st, label)
 	if p.help != "" {
 		p.tip.Layout(gtx, st, p.header.Hovered() && !p.open, dims.Size, p.avail, p.help)
 	}
@@ -82,11 +82,10 @@ func (p *popup) layout(gtx layout.Context, st *Style, label string, sizes []stri
 }
 
 // layoutHeader draws the header flat like the toolbar buttons: highlighted while hovered or open,
-// and as high as them. The arrow follows the label, and the space up to labelWidth comes after it.
-func (p *popup) layoutHeader(gtx layout.Context, st *Style, label string, labelWidth int) layout.Dimensions {
+// and as high as them. The arrow follows the label.
+func (p *popup) layoutHeader(gtx layout.Context, st *Style, label string) layout.Dimensions {
 	return p.header.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		col := st.Theme.Fg
-		var labelW int
 		macro := op.Record(gtx.Ops)
 		gtx.Constraints.Min = image.Point{}
 		content := layout.Flex{Alignment: layout.Middle}.Layout(gtx,
@@ -104,9 +103,7 @@ func (p *popup) layoutHeader(gtx layout.Context, st *Style, label string, labelW
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				l := st.Label(label)
 				l.Color = col
-				dims := l.Layout(gtx)
-				labelW = dims.Size.X
-				return dims
+				return l.Layout(gtx)
 			}),
 			layout.Rigid(func(gtx layout.Context) layout.Dimensions {
 				return layoutChevron(gtx, st, col, p.open)
@@ -115,8 +112,7 @@ func (p *popup) layoutHeader(gtx layout.Context, st *Style, label string, labelW
 		call := macro.Stop()
 
 		pad := gtx.Dp(st.Spacing)
-		w := content.Size.X + max(0, labelWidth-labelW) + 2*pad
-		size := image.Pt(w, max(gtx.Dp(st.ToolIconSize+2*st.ToolIconPad), content.Size.Y))
+		size := image.Pt(content.Size.X+2*pad, max(gtx.Dp(st.ToolIconSize+2*st.ToolIconPad), content.Size.Y))
 		layoutButtonBg(gtx, st, size, p.header.Hovered(), p.open)
 		defer op.Offset(image.Pt(pad, (size.Y-content.Size.Y)/2)).Push(gtx.Ops).Pop()
 		call.Add(gtx.Ops)
@@ -262,7 +258,7 @@ func (s *Select) Layout(gtx layout.Context, st *Style, options []string) layout.
 	if s.preview != nil {
 		s.lead = func(gtx layout.Context) layout.Dimensions { return s.preview(gtx, s.Selected()) }
 	}
-	return s.layout(gtx, st, options[s.Selected()], options, func(gtx layout.Context) layout.Dimensions {
+	return s.layout(gtx, st, options[s.Selected()], func(gtx layout.Context) layout.Dimensions {
 		if s.more == nil {
 			return s.layoutList(gtx, st, options)
 		}
@@ -386,9 +382,7 @@ func (m *MultiSelect) Layout(gtx layout.Context, st *Style, options []string) la
 			checked++
 		}
 	}
-	// The label is widest with all options checked.
-	sizes := []string{m.label(0), m.label(len(m.checks))}
-	return m.layout(gtx, st, m.label(checked), sizes, func(gtx layout.Context) layout.Dimensions {
+	return m.layout(gtx, st, m.label(checked), func(gtx layout.Context) layout.Dimensions {
 		return m.layoutOptions(gtx, st, len(options), func(i int) layout.Widget {
 			cb := material.CheckBox(st.Theme, &m.checks[i], options[i])
 			cb.Size = st.IconSize
