@@ -455,6 +455,20 @@ func (f *openFile) firstChartable() *fileItem {
 	return nil
 }
 
+// singleKind returns the kind of the items of the file, if they are all of one kind.
+func (f *openFile) singleKind() (itemKind, bool) {
+	if len(f.items) == 0 {
+		return 0, false
+	}
+	k := f.items[0].kind
+	for _, it := range f.items[1:] {
+		if it.kind != k {
+			return 0, false
+		}
+	}
+	return k, true
+}
+
 // colors returns the distinct colors of the items, in item order.
 func (f *openFile) colors() []color.NRGBA {
 	var cols []color.NRGBA

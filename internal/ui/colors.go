@@ -120,18 +120,25 @@ func (a *App) layoutSwatch(gtx layout.Context, clk *widget.Clickable, colors []c
 	})
 }
 
-// layoutKindSymbol draws a clickable icon for the kind of an item, in the item's color, for changing the color.
-// It is faded while the item is hidden, and highlighted while hovered.
-func (a *App) layoutKindSymbol(gtx layout.Context, clk *widget.Clickable, ic *widget.Icon, col color.NRGBA, visible bool) layout.Dimensions {
+// layoutKindSymbol draws a clickable icon for the kind of items, in their colors, for changing the colors.
+// Like [App.layoutSwatch], it is split into stripes for several colors.
+// It is faded while the items are hidden, and highlighted while hovered.
+func (a *App) layoutKindSymbol(gtx layout.Context, clk *widget.Clickable, ic *widget.Icon, colors []color.NRGBA, visible bool) layout.Dimensions {
 	st := a.style
 	return clk.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		box := gtx.Dp(st.IconSize + st.Spacing)
 		layoutButtonBg(gtx, st, image.Pt(box, box), clk.Hovered(), false)
-		if !visible {
-			col.A /= 2
-		}
 		size := gtx.Dp(st.IconSize)
-		layoutIcon(gtx, ic, image.Pt((box-size)/2, (box-size)/2), size, col)
+		at := image.Pt((box-size)/2, (box-size)/2)
+		for i, col := range colors {
+			if !visible {
+				col.A /= 2
+			}
+			stripe := image.Rect(at.X+size*i/len(colors), 0, at.X+size*(i+1)/len(colors), box)
+			cl := clip.Rect(stripe).Push(gtx.Ops)
+			layoutIcon(gtx, ic, at, size, col)
+			cl.Pop()
+		}
 		pointer.CursorPointer.Add(gtx.Ops)
 		return layout.Dimensions{Size: image.Pt(box, box)}
 	})

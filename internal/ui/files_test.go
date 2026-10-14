@@ -416,3 +416,18 @@ func TestRouteSymbols(t *testing.T) {
 		t.Errorf("unexpected route dots %+v", items[0].dots)
 	}
 }
+
+func TestSingleKind(t *testing.T) {
+	f := &openFile{}
+	if _, ok := f.singleKind(); ok {
+		t.Error("empty file has a single kind")
+	}
+	f.items = []*fileItem{{kind: routeItem}, {kind: routeItem}}
+	if k, ok := f.singleKind(); !ok || k != routeItem {
+		t.Errorf("unexpected kind %v %v", k, ok)
+	}
+	f.items = append(f.items, &fileItem{kind: waypointItem})
+	if _, ok := f.singleKind(); ok {
+		t.Error("mixed file has a single kind")
+	}
+}
